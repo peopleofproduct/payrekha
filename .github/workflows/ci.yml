@@ -35,12 +35,14 @@ jobs:
           node packages/replay/dist/cli.js --payouts examples/data/payouts.csv --intents examples/data/intents.csv --config examples/data/payrekha.json --out ci-out
           test -s ci-out/report.html && test -s ci-out/report.json
       - name: No raw beneficiary identifiers in the decision log
+        env:
+          CI_API_TOKEN: ci-api-token-0123456789
         run: |
           mkdir -p ci-tmp
-          PAYREKHA_API_KEYS=ci:prod:ci-api-token-0123456789 PAYREKHA_HASH_KEY=ci-hash-key-0123456789 \
+          PAYREKHA_API_KEYS=ci:prod:$CI_API_TOKEN PAYREKHA_HASH_KEY=ci-hash-key-0123456789 \
           PAYREKHA_DECISION_LOG=ci-tmp/decisions.jsonl PORT=18080 node examples/reference-gateway.mjs &
           sleep 2
-          curl -sf -XPOST localhost:18080/v1/evaluate -H 'authorization: Bearer ci-api-token-0123456789' \
+          curl -sf -XPOST localhost:18080/v1/evaluate -H "authorization: Bearer $CI_API_TOKEN" \
             -d '{"payoutId":"ci-1","kind":"REFUND","amountPaise":100000,"beneficiary":{"account":"000123456789","ifsc":"HDFC0001234"},"channel":"IMPS"}' > /dev/null
           sleep 1
           test -s ci-tmp/decisions.jsonl
@@ -101,6 +103,7 @@ jobs:
       - uses: actions/checkout@v4
         with:
           fetch-depth: 0
-      - uses: gitleaks/gitleaks-action@v2
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      - name: gitleaks (full history)
+        run: |
+          curl -sSfL https://github.com/gitleaks/gitleaks/releases/download/v8.24.3/gitleaks_8.24.3_linux_x64.tar.gz | tar xz gitleaks
+          ./gitleaks git . --redact --no-banner -v
