@@ -78,6 +78,7 @@ paths:
         '201': { description: "Every intent accepted (single object returns {accepted, reason}; an array returns {results:[...]})", content: { application/json: { schema: { oneOf: [{ type: object, properties: { accepted: { type: boolean }, reason: { type: string } } }, { type: object, properties: { results: { type: array, items: { type: object, properties: { accepted: { type: boolean }, reason: { type: string } } } } } } }] } } }
         '207': { description: Some intents accepted; rejected ids are tombstoned }
         '422': { description: Every intent rejected }
+        '429': { description: "Key's per-minute verification budget spent (intentVerificationsPerMinute, default 5000)" }
         '401': { $ref: '#/components/responses/Unauthorized' }
         '403': { description: Key lacks the intents role }
   /v1/evaluate:
@@ -114,6 +115,19 @@ paths:
       requestBody:
         content: { application/json: { schema: { type: object, properties: { beneficiaryRefs: { type: array, items: { type: string } }, beneficiaries: { type: array, items: { $ref: '#/components/schemas/Beneficiary' } }, sourceKeyIds: { type: array, items: { type: string } }, intentIds: { type: array, items: { type: string } }, reason: { type: string } } } } }
       responses: { '201': { description: Number added }, '401': { $ref: '#/components/responses/Unauthorized' } }
+  /v1/issuers/{keyId}:
+    delete:
+      summary: Revoke an issuer signing key at runtime (admin, reason required). Every intent it signed fails verification from the next evaluation; the revocation persists in the state snapshot. Rotate by adding a new keyId to config — a revoked keyId must never be reused.
+      security: [{ adminKey: [] }]
+      parameters: [{ name: keyId, in: path, required: true, schema: { type: string } }]
+      requestBody:
+        required: true
+        content: { application/json: { schema: { type: object, required: [reason], properties: { actor: { type: string }, reason: { type: string } } } } }
+      responses:
+        '200': { description: "Revoked; body includes the issuer list", content: { application/json: { schema: { type: object, properties: { keyId: { type: string }, revoked: { type: boolean }, issuers: { type: array, items: { type: object } } } } } } }
+        '400': { description: No reason given }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '404': { description: Unknown keyId }
   /ext_authz/{path}:
     post:
       summary: Envoy ext_authz check (HTTP service). The forwarded request is mapped with extAuthz.mapping.

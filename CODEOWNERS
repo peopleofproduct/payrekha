@@ -1,0 +1,7 @@
+# Required reviewers per docs/repository-settings.md. The engine and the
+# rule set are the security core — they gate merges with two approvals.
+
+* @peopleofproduct
+
+/packages/core/ @peopleofproduct
+/packages/rules/ @peopleofproduct

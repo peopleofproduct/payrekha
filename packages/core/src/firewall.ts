@@ -110,6 +110,8 @@ export interface FirewallSnapshot {
   readonly canaries: unknown;
   readonly rules: Readonly<Record<string, unknown>>;
   readonly audit: readonly AuditEntry[];
+  /** keyIds revoked at runtime — they must stay revoked across restarts. */
+  readonly issuers?: { readonly revoked?: readonly string[] };
 }
 
 const isStr = (v: unknown, max = 256): v is string => typeof v === 'string' && v.length > 0 && v.length <= max;
@@ -397,6 +399,20 @@ export class Payrekha {
     return n;
   }
 
+  /**
+   * Revoke an issuer signing key without a redeploy — the incident response
+   * to a compromised LOS/settlement key. Every intent it signed fails
+   * verification on the next evaluation (generation bump). The revocation is
+   * carried in the snapshot so a restart cannot silently un-revoke; keyIds
+   * are tombstones and must never be reused for a new key. Admin + audited.
+   */
+  revokeIssuerKey(keyId: string, cred: Credential): boolean {
+    this.authorize(cred, 'key.revoke');
+    const ok = this.keyring.revoke(keyId);
+    this.record({ atMs: this.now(), action: ok ? 'key.revoked' : 'key.revoke.unknown', actor: cred.actor, reason: cred.reason, to: keyId });
+    return ok;
+  }
+
   /** Explicit notice from the merchant-onboarding system that a settlement account changed. */
   noteMerchantAccountChange(merchantId: string, beneficiaryRef: string, atMs: number): void {
     if (looksLikeRawIdentifier(beneficiaryRef)) throw new TypeError('beneficiaryRef looks raw; hash it first');
@@ -489,6 +505,7 @@ export class Payrekha {
       canaries: this.canaries.exportState(),
       rules: this.engine.exportState(),
       audit: this.audit.slice(-200),
+      issuers: { revoked: this.keyring.list().flatMap((k) => (k.revoked === true ? [k.keyId] : [])) },
     };
   }
 
@@ -506,6 +523,8 @@ export class Payrekha {
     this.merchants.restoreState((s.merchants as [string, MerchantEntry][]) ?? []);
     this.canaries.add((s.canaries as Parameters<CanaryRegistry['add']>[0]) ?? {});
     this.engine.restoreState(s.rules ?? {});
+    // Revocations survive restarts — a reboot must not resurrect a burned key.
+    for (const keyId of s.issuers?.revoked ?? []) this.keyring.revoke(keyId);
     for (const e of s.audit ?? []) this.audit.push(e);
   }
 }

@@ -47,7 +47,7 @@ A rule threw — verdicts for that payout are `degraded`. Pull `payrekha_degrade
 | Key | Blast radius | Do |
 |---|---|---|
 | Payout API key | It can only evaluate (+ report its own outcomes) | Mint a replacement key id, remove the old entry from `PAYREKHA_API_KEYS`, rolling restart. Its `sourceKeyId` name is burned — do not reuse it. |
-| Intent-signing (issuer) key | Attacker can mint intents within that key's kinds | `Keyring.revoke()` / remove the key from `issuers`, redeploy. All intents signed by it fail `bad-signature` — the LOS must re-sign pending intents under a new `keyId`. |
+| Intent-signing (issuer) key | Attacker can mint intents within that key's kinds | `DELETE /v1/issuers/<keyId>` (admin, reason required) — kills every intent it signed immediately and the revocation persists in the snapshot. Then roll a **new** keyId through config (a revoked keyId is a tombstone, never reused) and have the LOS re-sign pending intents. |
 | Admin token | Mode downgrade to shadow, HIGH_ALERT reset | Rotate `PAYREKHA_ADMIN_KEY`, rolling restart, then audit the decision log `type:"audit"` entries for `mode.set`/`alert.reset` you didn't make. |
 | Hash key | Beneficiary refs become unlinkable | Rotate requires re-keying all stored refs — plan this as a maintenance, not an incident fix; keep the old key until refs rotate. |
 

@@ -18,12 +18,16 @@ const REGTOK = 'registrar-token-0123456789';
 const HK = 'gateway-hash-key-0123456789';
 const T0 = Date.UTC(2026, 10, 4, 5, 30);
 const LOS = generateIssuerKeyPair();
+const LOS2 = generateIssuerKeyPair();
 
-function boot(mode: 'shadow' | 'enforce') {
+function boot(mode: 'shadow' | 'enforce', extra: { intentVerificationsPerMinute?: number } = {}) {
   const log = memoryDecisionLog();
   const fw = new Payrekha(payrekhaRules({ band: false }).rules, {
     config: { mode, adminTokenSha256: sha(ADMIN) },
-    keys: [{ keyId: 'los-1', issuer: 'los-prod', alg: 'ed25519', publicKey: LOS.publicKey, kinds: ['LOAN_DISBURSAL', 'VERIFICATION'] }],
+    keys: [
+      { keyId: 'los-1', issuer: 'los-prod', alg: 'ed25519', publicKey: LOS.publicKey, kinds: ['LOAN_DISBURSAL', 'VERIFICATION'] },
+      { keyId: 'los-2', issuer: 'los-prod', alg: 'ed25519', publicKey: LOS2.publicKey, kinds: ['LOAN_DISBURSAL'] },
+    ],
     now: () => T0,
   });
   const gw = createGateway({
@@ -38,6 +42,7 @@ function boot(mode: 'shadow' | 'enforce') {
     hashKey: HK,
     decisionLog: log,
     now: () => T0,
+    ...(extra.intentVerificationsPerMinute !== undefined ? { intentVerificationsPerMinute: extra.intentVerificationsPerMinute } : {}),
     extAuthz: {
       origin: 'prod',
       keySha256: sha(EXT),
@@ -62,10 +67,10 @@ async function listen(gw: GatewayHandle): Promise<string> {
 }
 
 const benRef = hashBeneficiary({ account: '000123456789', ifsc: 'HDFC0001234' }, HK);
-const loanIntent = (id: string) =>
+const loanIntent = (id: string, keyId = 'los-1', privateKey: string = LOS.privateKey) =>
   signIntent(
-    { intentId: id, kind: 'LOAN_DISBURSAL', maxAmountPaise: 2_40_000_00, beneficiaryRef: benRef, maxUses: 1, notBeforeMs: T0 - 60_000, expiresAtMs: T0 + 3_600_000, issuer: 'los-prod', keyId: 'los-1' },
-    { alg: 'ed25519', privateKey: LOS.privateKey },
+    { intentId: id, kind: 'LOAN_DISBURSAL', maxAmountPaise: 2_40_000_00, beneficiaryRef: benRef, maxUses: 1, notBeforeMs: T0 - 60_000, expiresAtMs: T0 + 3_600_000, issuer: 'los-prod', keyId },
+    { alg: 'ed25519', privateKey },
   );
 
 describe('gateway (enforce)', () => {
@@ -150,6 +155,23 @@ describe('gateway (enforce)', () => {
     assert.equal((await post('/v1/evaluate', { payoutId: 'p-r2', kind: 'REFUND', amountPaise: 100_00, beneficiaryRef: benRef, channel: 'IMPS' }, EVALTOK)).status, 200);
   });
 
+  it('DELETE /v1/issuers/:keyId revokes a signing key at runtime (admin + reason, audited)', async () => {
+    assert.equal((await post('/v1/intents', loanIntent('int-rev', 'los-2', LOS2.privateKey))).status, 201);
+    const alive = (await (await post('/v1/evaluate', { payoutId: 'p-rev', kind: 'LOAN_DISBURSAL', intentId: 'int-rev', amountPaise: 2_40_000_00, beneficiary: { account: '000123456789', ifsc: 'HDFC0001234' }, channel: 'IMPS' })).json()) as { verdict: string };
+    assert.equal(alive.verdict, 'ALLOW');
+    const del = (body: unknown, token = ADMIN) => fetch(url + '/v1/issuers/los-2', { method: 'DELETE', headers: { authorization: `Bearer ${token}` }, body: JSON.stringify(body) });
+    assert.equal((await del({ reason: 'x' }, API)).status, 401);
+    assert.equal((await del({})).status, 400);
+    const gone = (await (await del({ actor: 'soc', reason: 'los-2 private key leaked' })).json()) as { revoked: boolean };
+    assert.equal(gone.revoked, true);
+    const miss = await fetch(url + '/v1/issuers/no-such-key', { method: 'DELETE', headers: { authorization: `Bearer ${ADMIN}` }, body: JSON.stringify({ reason: 'typo check' }) });
+    assert.equal(miss.status, 404, 'revoking an unknown key is a miss');
+    const dead = (await (await post('/v1/evaluate', { payoutId: 'p-rev-2', kind: 'LOAN_DISBURSAL', intentId: 'int-rev', amountPaise: 2_40_000_00, beneficiaryRef: benRef, channel: 'IMPS' })).json()) as { verdict: string; hits: { rule: string }[] };
+    assert.equal(dead.verdict, 'BLOCK');
+    assert.ok(dead.hits.some((h) => h.rule === 'intent.bad-signature'), JSON.stringify(dead.hits));
+    assert.ok(fw.auditTrail().some((e) => e.action === 'key.revoked' && e.actor === 'soc'));
+  });
+
   it('caller timestamps are evidence, not the decision clock (gateway stamps server time)', async () => {
     // Intent valid only 1-2h after T0; the caller claims a time inside that window.
     const future = signIntent(
@@ -192,6 +214,21 @@ describe('gateway (enforce)', () => {
     assert.match(t, /payrekha_verdicts_total\{verdict="BLOCK"\} \d+/);
     assert.match(t, /payrekha_rule_hits_total\{rule="intent.missing"\} \d+/);
     assert.match(t, /payrekha_eval_latency_micros_bucket\{le="\+Inf"\}/);
+  });
+});
+
+describe('gateway (enforce): intent verification budget', () => {
+  const { gw } = boot('enforce', { intentVerificationsPerMinute: 3 });
+  let url = '';
+  before(async () => (url = await listen(gw)));
+  after(() => gw.server.close());
+  it('429 when a key spends its per-minute verification budget', async () => {
+    const post = (body: unknown) => fetch(url + '/v1/intents', { method: 'POST', headers: { authorization: `Bearer ${API}`, 'content-type': 'application/json' }, body: JSON.stringify(body) });
+    assert.equal((await post(loanIntent('int-b1'))).status, 201);
+    assert.equal((await post(loanIntent('int-b2'))).status, 201);
+    assert.equal((await post([loanIntent('int-b3'), loanIntent('int-b4')])).status, 429, 'would exceed the budget — no partial processing');
+    assert.equal((await post(loanIntent('int-b5'))).status, 201, 'lands exactly on the budget');
+    assert.equal((await post(loanIntent('int-b6'))).status, 429, 'one over the budget is refused');
   });
 });
 

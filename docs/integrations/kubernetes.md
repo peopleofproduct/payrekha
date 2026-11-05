@@ -15,6 +15,9 @@ helm install payrekha deploy/helm/payrekha
 # Or keep state in Postgres (add PAYREKHA_STATE_PG_URL to the secret first).
 helm install payrekha deploy/helm/payrekha --set state.type=postgres \
   --set 'networkPolicy.egress[0].ports[0].port=5432'
+
+# Recommended: add PAYREKHA_STATE_KEY (≥32 chars) to the secret so snapshots are
+# MAC'd — tampered state fails closed at load. See docs/operations.md for rotation.
 ```
 
 | Value | Default | Notes |

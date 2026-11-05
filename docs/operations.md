@@ -64,6 +64,8 @@ The snapshot holds ledgers, velocity windows, intents, dedupe and alert state (h
 
 - `PAYREKHA_STATE_FILE`: a JSON file written atomically with mode `0600`.
 - `PAYREKHA_STATE_PG_URL`: Postgres via `@payrekha/store-postgres` (bundled in the image). One row per deployment in `PAYREKHA_STATE_PG_TABLE` (default `payrekha_state`), keyed by `PAYREKHA_STATE_NAME` (default `default`). The table is created on first use.
+- `PAYREKHA_STATE_KEY` (recommended): ≥32 chars. Snapshots are stored MAC'd (HMAC-SHA256 over canonical JSON) so tampering with canaries/ledgers/reservations is detected and fails closed at load. Same key for both backends. Once set, legacy unsigned snapshots are refused.
+- `PAYREKHA_STATE_KEY_PREVIOUS`: comma-separated retiring keys that still verify during rotation. Sequence: set the new key in `PAYREKHA_STATE_KEY` and the old one in `PAYREKHA_STATE_KEY_PREVIOUS`, restart — the old snapshot loads; after the first save lands under the new key, remove `..._PREVIOUS`. Without the previous key, a rotated primary cannot read its own last snapshot and the service stays unready.
 
 Until the snapshot has been read, `/readyz` and every API call return 503, and the gateway retries every `PAYREKHA_STATE_RETRY_MS` (default 5 s). So an unreachable database or a corrupt file never starts the gateway with an empty memory, and nothing is saved over a snapshot it could not read.
 

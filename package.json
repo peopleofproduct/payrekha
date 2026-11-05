@@ -19,7 +19,7 @@
     "typecheck": "tsc -b --pretty && tsc -p tsconfig.test.json",
     "lint": "eslint .",
     "test": "npm run build && node --test --test-reporter=spec \"packages/*/test/*.test.ts\"",
-    "test:coverage": "npm run build && node --test --experimental-test-coverage --test-coverage-include=\"packages/*/dist/**\" \"packages/*/test/*.test.ts\"",
+    "test:coverage": "npm run build && node --test --experimental-test-coverage --test-coverage-include=\"packages/*/dist/**\" --test-coverage-lines=85 --test-coverage-branches=75 --test-coverage-functions=80 \"packages/*/test/*.test.ts\"",
     "demo": "tsc -b && node examples/demo.mjs",
     "demo:live": "tsc -b && node examples/live-demo.mjs",
     "gateway": "tsc -b && node examples/reference-gateway.mjs",
@@ -27,6 +27,7 @@
     "replay": "tsc -b && node packages/replay/dist/cli.js",
     "gen:data": "tsc -b && node tools/generate-synthetic-data.mjs",
     "check:deps": "node tools/check-zero-deps.mjs",
+    "check:openapi": "node scripts/check-openapi.mjs",
     "publish:check": "tsc -b && npm publish --workspaces --dry-run"
   },
   "devDependencies": {

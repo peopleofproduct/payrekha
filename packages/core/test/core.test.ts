@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 import { strict as assert } from 'node:assert';
 import { createHash } from 'node:crypto';
-import { mkdtempSync, readFileSync, statSync } from 'node:fs';
+import { mkdtempSync, readFileSync, statSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { describe, it } from 'node:test';
@@ -319,6 +319,36 @@ describe('Payrekha firewall', () => {
     // A genuinely new payout citing the spent intent is still reused.
     assert.equal(fw3.evaluate(po({ intentId: 'i-1', kind: 'LOAN_DISBURSAL', amountPaise: 100 })).verdict, 'BLOCK');
   });
+  it('runtime key revocation: admin-only, audited, kills live intents, survives restart', () => {
+    const audits: string[] = [];
+    const kp = generateIssuerKeyPair();
+    const intentRule: Rule<PayoutRequest, PayoutContext> = {
+      name: 'intent',
+      evaluate: (p, ctx) => (ctx.intent.status === 'bad-signature' ? { rule: 'intent.bad-signature', verdict: 'BLOCK', reason: 'bad-signature', evidence: {} } : null),
+    };
+    const mk = () =>
+      new Payrekha([intentRule], {
+        config: { mode: 'enforce', adminTokenSha256: sha },
+        keys: [{ keyId: 'k1', issuer: 'los-prod', alg: 'ed25519', publicKey: kp.publicKey, kinds: ['LOAN_DISBURSAL'] }],
+        now: () => T0,
+        onAudit: (e) => audits.push(e.action),
+      });
+    const fw = mk();
+    fw.registerIntent(signIntent(unsigned(), { alg: 'ed25519', privateKey: kp.privateKey }), T0);
+    const p1 = po({ intentId: 'i-1', kind: 'LOAN_DISBURSAL', amountPaise: 100 });
+    assert.equal(fw.evaluate(p1).verdict, 'ALLOW');
+    // Wrong admin token → AuthorizationError + a denied audit entry.
+    assert.throws(() => fw.revokeIssuerKey('k1', { actor: 'x', reason: 'r', adminToken: 'wrong' }), AuthorizationError);
+    assert.equal(fw.revokeIssuerKey('k1', { actor: 'soc', reason: 'key leaked', adminToken: adminToken }), true);
+    // The same intent now fails verification — revocation applies to live intents.
+    assert.equal(fw.evaluate(po({ intentId: 'i-1', kind: 'LOAN_DISBURSAL', amountPaise: 100 })).verdict, 'BLOCK');
+    // And a restart must not un-revoke it.
+    const fw2 = mk();
+    fw2.restoreState(JSON.parse(JSON.stringify(fw.exportState())));
+    assert.equal(fw2.evaluate(po({ intentId: 'i-1', kind: 'LOAN_DISBURSAL', amountPaise: 100 })).verdict, 'BLOCK');
+    assert.ok(fw2.keyring.list().some((k) => k.keyId === 'k1' && k.revoked === true));
+    assert.deepEqual(audits, ['key.revoke.denied', 'key.revoked']);
+  });
 });
 
 describe('timestamp trust boundary (maxTimestampSkewMs)', () => {
@@ -353,6 +383,42 @@ describe('timestamp trust boundary (maxTimestampSkewMs)', () => {
     fw.evaluate(po({ beneficiaryRef: ref, timestampMs: T0 - 86_400_000 }));
     const entry = fw.beneficiaries.get(ref);
     assert.equal(entry?.firstSeenMs, T0, 'firstSeen is firewall time, not the caller claim');
+  });
+});
+
+describe('snapshot integrity (PAYREKHA_STATE_KEY)', () => {
+  const dir = () => mkdtempSync(join(tmpdir(), 'prk-'));
+  const key = 'state-key-0123456789abcdef0123456789';
+  it('signed snapshots round-trip; tampering and wrong keys are refused', () => {
+    const file = join(dir(), 's.json');
+    const fw = new Payrekha([], { config: { mode: 'enforce' } });
+    fw.evaluate(po());
+    new FileStateStore(file, key).save(fw);
+    const fw2 = new Payrekha([], {});
+    assert.equal(new FileStateStore(file, key).load(fw2), true);
+    // Wrong key and tampered content both fail closed.
+    assert.throws(() => new FileStateStore(file, 'x'.repeat(32)).load(fw2), /signature mismatch/);
+    const tampered = JSON.parse(readFileSync(file, 'utf8')) as { d: Record<string, unknown>; m: string };
+    tampered.d['canaries'] = { beneficiaryRefs: [] };
+    writeFileSync(file, JSON.stringify(tampered));
+    assert.throws(() => new FileStateStore(file, key).load(fw2), /signature mismatch/);
+  });
+  it('a key set against a legacy unsigned file refuses to load (no silent upgrade)', () => {
+    const file = join(dir(), 's.json');
+    new FileStateStore(file).save(new Payrekha([], {}));
+    assert.throws(() => new FileStateStore(file, key).load(new Payrekha([], {})), /unsigned/);
+    // And the unsigned path is untouched for deployments without the key.
+    assert.equal(new FileStateStore(file).load(new Payrekha([], {})), true);
+  });
+  it('previous keys verify during rotation but never sign', () => {
+    const file = join(dir(), 's.json');
+    new FileStateStore(file, 'old-key-0123456789abcdef012345678').save(new Payrekha([], {}));
+    // Rotated primary + retiring key → loads; save re-signs with the new key.
+    const rotated = new FileStateStore(file, key, ['old-key-0123456789abcdef012345678']);
+    assert.equal(rotated.load(new Payrekha([], {})), true);
+    rotated.save(new Payrekha([], {}));
+    assert.equal(new FileStateStore(file, key).load(new Payrekha([], {})), true);
+    assert.throws(() => new FileStateStore(file, 'old-key-0123456789abcdef012345678').load(new Payrekha([], {})), /mismatch/);
   });
 });
 

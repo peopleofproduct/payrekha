@@ -63,6 +63,13 @@ export interface GatewayOptions {
    * `FirewallConfig.maxTimestampSkewMs` still bounds whatever is sent.
    */
   readonly trustClientTimestamp?: boolean;
+  /**
+   * Max signature verifications one key may spend on POST /v1/intents per
+   * minute — verification is the expensive unit, not requests. Default 5000
+   * (a 1000-intent backfill ×5/min). A stolen `intents` key then cannot
+   * stall the event loop with Ed25519 spam.
+   */
+  readonly intentVerificationsPerMinute?: number;
   readonly maxBodyBytes?: number;
   readonly now?: () => number;
   readonly version?: string;
@@ -150,6 +157,7 @@ export function createGateway(o: GatewayOptions): GatewayHandle {
   const stats: GatewayStats = { requests: new Map(), stateSaveErrors: 0, logErrors: 0, ready: true, notReadyReason: '' };
   const onError = o.onError ?? (() => undefined);
 
+  const intentCost = new Map<string, { reset: number; used: number }>();
   const authKey = (req: IncomingMessage, role: ApiRole): ApiKey => {
     const t = bearer(req);
     const k = t === undefined ? undefined : o.apiKeys.find((a) => hexEq(t, a.sha256));
@@ -212,10 +220,20 @@ export function createGateway(o: GatewayOptions): GatewayHandle {
       return [200, evaluate(body, key, rid)];
     }
     if (path === '/v1/intents' && m === 'POST') {
-      authKey(req, 'intents');
+      const key = authKey(req, 'intents');
       const body = await readBody(req, max);
       const list = Array.isArray(body) ? body : [body];
       if (list.length > 1_000) throw new HttpError(413, 'at most 1000 intents per call');
+      // Verification is the expensive unit — bound it per key, per minute.
+      const budget = o.intentVerificationsPerMinute ?? 5_000;
+      const t = now();
+      let b = intentCost.get(key.id);
+      if (b === undefined || t >= b.reset) {
+        b = { reset: t + 60_000, used: 0 };
+        intentCost.set(key.id, b);
+      }
+      if (b.used + list.length > budget) throw new HttpError(429, `intent verification budget exceeded (${budget}/min)`);
+      b.used += list.length;
       const results = list.map((i) => fw.registerIntent(i, now()));
       const status = results.every((r) => r.accepted) ? 201 : results.some((r) => r.accepted) ? 207 : 422;
       return [status, Array.isArray(body) ? { results } : results[0]];
@@ -239,6 +257,16 @@ export function createGateway(o: GatewayOptions): GatewayHandle {
       if (b.highAlert === 'reset') fw.resetHighAlert(cred);
       if (b.mode !== undefined) fw.setMode(b.mode, cred, b.kind);
       return [200, stateView()];
+    }
+    if (path.startsWith('/v1/issuers/') && m === 'DELETE') {
+      const token = authAdmin(req);
+      const keyId = decodeURIComponent(path.slice('/v1/issuers/'.length));
+      if (keyId === '' || keyId.includes('/')) throw new HttpError(400, 'keyId required');
+      const b = ((await readBody(req, max)) ?? {}) as { actor?: string; reason?: string };
+      const cred = { actor: String(b.actor ?? 'admin').slice(0, 64), reason: String(b.reason ?? '').slice(0, 256), adminToken: token };
+      if (cred.reason === '') throw new HttpError(400, 'reason is required (it goes in the audit trail)');
+      const ok = fw.revokeIssuerKey(keyId, cred);
+      return [ok ? 200 : 404, { keyId, revoked: ok, issuers: fw.keyring.list() }];
     }
     if (path === '/v1/canaries' && m === 'POST') {
       const token = authAdmin(req);
@@ -347,7 +375,7 @@ export function createGateway(o: GatewayOptions): GatewayHandle {
 
 function routeLabel(url: string): string {
   const p = url.split('?')[0] ?? '/';
-  return p.startsWith('/ext_authz') ? '/ext_authz' : ['/v1/evaluate', '/v1/intents', '/v1/outcomes', '/v1/state', '/v1/canaries', '/healthz', '/readyz', '/metrics'].includes(p) ? p : 'other';
+  return p.startsWith('/ext_authz') ? '/ext_authz' : p.startsWith('/v1/issuers/') ? '/v1/issuers' : ['/v1/evaluate', '/v1/intents', '/v1/outcomes', '/v1/state', '/v1/canaries', '/healthz', '/readyz', '/metrics'].includes(p) ? p : 'other';
 }
 
 function send(res: ServerResponse, status: number, body: unknown, headers: Record<string, string> = {}): void {

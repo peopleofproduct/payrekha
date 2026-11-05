@@ -14,3 +14,4 @@ export { LruMap } from './lru.js';
 export { TimeRing } from './ring.js';
 export * from './firewall.js';
 export { FileStateStore, type StateStore } from './store.js';
+export { signSnapshot, verifyAndUnwrap } from './snapshot.js';

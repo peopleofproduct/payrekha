@@ -10,6 +10,11 @@ All notable changes to Payrekha are listed here. The format follows [Keep a Chan
 - **Role-scoped API keys:** `PAYREKHA_API_KEYS` entries accept `id:prod|nonprod[:role+role]:token` with roles `evaluate`, `outcomes`, `intents`, `read`. Keys without a role list keep access to everything.
 - **`firewall.maxTimestampSkewMs`:** a caller's claimed timestamp outside the bound is evaluated at firewall time with a degraded `time.skew` REVIEW — protecting in-process embedding and trusted-caller paths.
 - **Audit entries in the decision log:** admin actions and denied/accepted outcome reports (`outcome.denied`, `outcome.<outcome>`) are written as `type:"audit"` records alongside verdicts when `PAYREKHA_DECISION_LOG` is set.
+- **Runtime issuer-key revocation:** `DELETE /v1/issuers/:keyId` (admin, reason required) revokes a signing key without a redeploy — every intent it signed fails verification from the next evaluation, and the revocation persists in the state snapshot.
+- **Intent-verification budget:** `intentVerificationsPerMinute` (default 5000) bounds how many signature verifications one key can spend on `POST /v1/intents` per minute — a stolen `intents` key cannot stall the event loop with Ed25519 spam. Over-budget calls get 429.
+- **Snapshot integrity (`PAYREKHA_STATE_KEY`):** when set, state snapshots are stored as `{v, d, m}` envelopes MAC'd with HMAC-SHA256 over the canonical JSON — so integrity holds across Postgres JSONB key reordering. Tampered or wrong-key snapshots fail closed at load. Applies to both the file and Postgres stores. Deployments without the key keep the previous unsigned format; once a key is set, unsigned snapshots are refused.
+- **Launch artefacts:** `docs/production-checklist.md` and `docs/runbook.md`; Prometheus alerts for `payrekha_ready == 0`, state-save and decision-log errors; numeric env vars (`PORT`, `PAYREKHA_STATE_*_MS`) fail loud at boot instead of accepting `NaN`.
+- **Supply chain:** `CODEOWNERS` and `.github/dependabot.yml` (npm, actions, Docker, Go, pip) — both were documented but missing. Every `uses:` action is pinned to a commit SHA with the tag kept as a comment; gitleaks is verified against a pinned SHA256 before running; CI now enforces a coverage floor (85/75/80).
 
 ### Changed
 

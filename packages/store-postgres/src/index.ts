@@ -2,7 +2,7 @@
 // Copyright 2026 Kapil — People of Product
 
 import pg from 'pg';
-import type { FirewallSnapshot, Payrekha, StateStore } from '@payrekha/core';
+import { signSnapshot, verifyAndUnwrap, type FirewallSnapshot, type Payrekha, type StateStore } from '@payrekha/core';
 
 export interface PostgresStateStoreOptions {
   /** e.g. postgres://payrekha@db:5432/payrekha. Ignored when `pool` is given. Never logged. */
@@ -12,6 +12,10 @@ export interface PostgresStateStoreOptions {
   readonly table?: string;
   /** Snapshot row name; one per firewall deployment. Default `default`. */
   readonly name?: string;
+  /** HMAC key for snapshot integrity (`PAYREKHA_STATE_KEY`). Once set, unsigned rows are refused. */
+  readonly hmacKey?: string;
+  /** Retiring keys that still verify during a rotation window (`PAYREKHA_STATE_KEY_PREVIOUS`). */
+  readonly previousKeys?: readonly string[];
 }
 
 /** Another instance wrote the snapshot since we last read it. Two writers means split brain: stop and fail closed. */
@@ -37,6 +41,8 @@ export class PostgresStateStore implements StateStore {
   private readonly ownsPool: boolean;
   private readonly table: string;
   private readonly name: string;
+  private readonly hmacKey: string | undefined;
+  private readonly previousKeys: readonly string[];
   /** null until the first load: we have not seen the row yet. 0 = row did not exist. */
   private version: number | null = null;
   private ready: Promise<void> | undefined;
@@ -47,6 +53,8 @@ export class PostgresStateStore implements StateStore {
     if (o.pool === undefined && o.connectionString === undefined) throw new Error('PostgresStateStore needs connectionString or pool');
     this.table = table;
     this.name = o.name ?? 'default';
+    this.hmacKey = o.hmacKey;
+    this.previousKeys = o.previousKeys ?? [];
     this.pool = o.pool ?? new pg.Pool({ connectionString: o.connectionString, max: 2 });
     this.ownsPool = o.pool === undefined;
     this.describe = `postgres:${table}/${this.name}`;
@@ -74,7 +82,7 @@ export class PostgresStateStore implements StateStore {
       this.version = 0;
       return false;
     }
-    fw.restoreState(row.snapshot);
+    fw.restoreState(verifyAndUnwrap(row.snapshot, this.hmacKey, this.previousKeys));
     this.version = Number(row.version);
     return true;
   }
@@ -82,7 +90,7 @@ export class PostgresStateStore implements StateStore {
   async save(fw: Payrekha): Promise<void> {
     await this.init();
     if (this.version === null) throw new StaleStateError('save before load: refusing to overwrite a snapshot we have not read');
-    const snap = JSON.stringify(fw.exportState());
+    const snap = JSON.stringify(signSnapshot(fw.exportState(), this.hmacKey));
     const r =
       this.version === 0
         ? await this.pool.query<{ version: string }>(

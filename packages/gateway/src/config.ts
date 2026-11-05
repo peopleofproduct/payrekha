@@ -71,13 +71,13 @@ export interface Booted {
   readonly stateLoaded: Promise<void>;
 }
 
-type PgStoreCtor = new (o: { connectionString: string; table?: string; name?: string }) => StateStore;
+type PgStoreCtor = new (o: { connectionString: string; table?: string; name?: string; hmacKey?: string; previousKeys?: readonly string[] }) => StateStore;
 
 /** Postgres support is a separate package so the gateway itself never depends on a DB driver. */
-function postgresStore(url: string, table: string | undefined, name: string | undefined): StateStore {
+function postgresStore(url: string, table: string | undefined, name: string | undefined, hmacKey: string | undefined, previousKeys: string[]): StateStore {
   const spec = '@payrekha/store-postgres';
   const store: Promise<StateStore> = import(spec).then(
-    (m: { PostgresStateStore: PgStoreCtor }) => new m.PostgresStateStore({ connectionString: url, ...(table !== undefined ? { table } : {}), ...(name !== undefined ? { name } : {}) }),
+    (m: { PostgresStateStore: PgStoreCtor }) => new m.PostgresStateStore({ connectionString: url, ...(table !== undefined ? { table } : {}), ...(name !== undefined ? { name } : {}), ...(hmacKey !== undefined ? { hmacKey } : {}), ...(previousKeys.length > 0 ? { previousKeys } : {}) }),
     () => {
       throw new Error('PAYREKHA_STATE_PG_URL is set but @payrekha/store-postgres is not installed');
     },
@@ -123,11 +123,15 @@ export function bootFromEnv(env: NodeJS.ProcessEnv = process.env, log: (m: strin
   });
   const pgUrl = env['PAYREKHA_STATE_PG_URL'];
   if (pgUrl !== undefined && env['PAYREKHA_STATE_FILE'] !== undefined) throw new Error('set PAYREKHA_STATE_FILE or PAYREKHA_STATE_PG_URL, not both');
+  const stateKey = env['PAYREKHA_STATE_KEY'];
+  if (stateKey !== undefined && stateKey.length < 32) throw new Error('PAYREKHA_STATE_KEY must be at least 32 chars');
+  const prevKeys = (env['PAYREKHA_STATE_KEY_PREVIOUS'] ?? '').split(',').map((k) => k.trim()).filter((k) => k !== '');
+  if (prevKeys.length > 0 && stateKey === undefined) throw new Error('PAYREKHA_STATE_KEY_PREVIOUS requires PAYREKHA_STATE_KEY');
   const stateStore: StateStore | undefined =
     pgUrl !== undefined
-      ? postgresStore(pgUrl, env['PAYREKHA_STATE_PG_TABLE'], env['PAYREKHA_STATE_NAME'])
+      ? postgresStore(pgUrl, env['PAYREKHA_STATE_PG_TABLE'], env['PAYREKHA_STATE_NAME'], stateKey, prevKeys)
       : env['PAYREKHA_STATE_FILE'] !== undefined
-        ? new FileStateStore(env['PAYREKHA_STATE_FILE'])
+        ? new FileStateStore(env['PAYREKHA_STATE_FILE'], stateKey, prevKeys)
         : undefined;
   const extKey = env['PAYREKHA_EXT_AUTHZ_KEY'];
   const extAuthz = cfg.extAuthz !== undefined ? { ...cfg.extAuthz, ...(extKey !== undefined ? { keySha256: sha(extKey) } : {}) } : undefined;

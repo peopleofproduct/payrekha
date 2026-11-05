@@ -1,0 +1,31 @@
+version: 2
+updates:
+  # npm workspaces — the lockfile lives at the root, one entry covers all packages.
+  - package-ecosystem: npm
+    directory: /
+    schedule:
+      interval: weekly
+    open-pull-requests-limit: 5
+    groups:
+      dev-dependencies:
+        dependency-type: development
+      production-dependencies:
+        dependency-type: production
+  # Keeps the SHA-pinned actions current — dependabot updates the pin and
+  # the trailing version comment together.
+  - package-ecosystem: github-actions
+    directory: /
+    schedule:
+      interval: weekly
+  - package-ecosystem: docker
+    directory: /deploy
+    schedule:
+      interval: weekly
+  - package-ecosystem: gomod
+    directory: /clients/go
+    schedule:
+      interval: weekly
+  - package-ecosystem: pip
+    directory: /clients/python
+    schedule:
+      interval: weekly

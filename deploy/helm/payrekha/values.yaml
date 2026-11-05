@@ -14,6 +14,8 @@ replicaCount: 1
 #   PAYREKHA_HASH_KEY   beneficiary hash key       (needed for raw fields / ext_authz)
 #   PAYREKHA_EXT_AUTHZ_KEY, PAYREKHA_WEBHOOK_SECRET, PAYREKHA_ISSUER_SECRET_<KEYID>
 #   PAYREKHA_STATE_PG_URL                          (when state.type=postgres)
+#   PAYREKHA_STATE_KEY    snapshot HMAC key, ≥32 chars     (recommended)
+#   PAYREKHA_STATE_KEY_PREVIOUS  retiring keys during rotation (comma-separated)
 existingSecret: payrekha
 
 # Rendered to /etc/payrekha/payrekha.json. No secrets here.
