@@ -319,6 +319,46 @@ describe('Payrekha firewall', () => {
     // A genuinely new payout citing the spent intent is still reused.
     assert.equal(fw3.evaluate(po({ intentId: 'i-1', kind: 'LOAN_DISBURSAL', amountPaise: 100 })).verdict, 'BLOCK');
   });
+  it('a deduped verdict follows the mode in force — shadow→enforce must not keep ALLOWing a BLOCK', () => {
+    const fw = new Payrekha([blockAll as never], { config: { mode: 'shadow', adminTokenSha256: sha } });
+    const p = po();
+    assert.equal(fw.evaluate(p).verdict, 'BLOCK');
+    assert.equal(fw.evaluate(p).effectiveAction, 'ALLOW');
+    fw.setMode('enforce', { actor: 'soc', reason: 'go live', adminToken });
+    const r = fw.evaluate(p);
+    assert.equal(r.deduped, true);
+    assert.equal(r.verdict, 'BLOCK');
+    assert.equal(r.effectiveAction, 'DECLINE');
+    assert.equal(r.mode, 'enforce');
+  });
+  it('settled is final, keeps the payoutId bound, and unkeyed callers cannot touch bound reservations', () => {
+    const audits: string[] = [];
+    const kp = generateIssuerKeyPair();
+    const mk = () =>
+      new Payrekha([], {
+        config: { mode: 'enforce' },
+        keys: [{ keyId: 'k1', issuer: 'los-prod', alg: 'ed25519', publicKey: kp.publicKey, kinds: ['LOAN_DISBURSAL'] }],
+        onAudit: (e) => audits.push(e.action),
+        now: () => T0,
+      });
+    const fw = mk();
+    fw.registerIntent(signIntent(unsigned(), { alg: 'ed25519', privateKey: kp.privateKey }), T0);
+    const p = po({ intentId: 'i-1', kind: 'LOAN_DISBURSAL', amountPaise: 100, sourceKeyId: 'key-a' });
+    assert.equal(fw.evaluate(p).verdict, 'ALLOW');
+    // An unkeyed caller and a foreign key are both denied on a bound reservation.
+    assert.equal(fw.reportOutcome(p.payoutId, 'settled'), false);
+    assert.equal(fw.reportOutcome(p.payoutId, 'settled', 'key-b'), false);
+    assert.equal(fw.reportOutcome(p.payoutId, 'settled', 'key-a'), true);
+    assert.equal(fw.reportOutcome(p.payoutId, 'settled', 'key-a'), true, 'settled is idempotent');
+    // Settled is final: a later "failed" is a state conflict — denied and audited.
+    assert.equal(fw.reportOutcome(p.payoutId, 'failed', 'key-a'), false);
+    // The binding survives restore: after dedupe is gone the payoutId cannot rebind.
+    const fw2 = mk();
+    fw2.restoreState(JSON.parse(JSON.stringify(fw.exportState())));
+    fw2.registerIntent(signIntent(unsigned({ intentId: 'i-2' }), { alg: 'ed25519', privateKey: kp.privateKey }), T0);
+    assert.equal(fw2.intents.check({ ...p, intentId: 'i-2' }, true).status, 'reused');
+    assert.deepEqual(audits, ['outcome.denied', 'outcome.denied', 'outcome.settled', 'outcome.settled', 'outcome.denied']);
+  });
   it('runtime key revocation: admin-only, audited, kills live intents, survives restart', () => {
     const audits: string[] = [];
     const kp = generateIssuerKeyPair();

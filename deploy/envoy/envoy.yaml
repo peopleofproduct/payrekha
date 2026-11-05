@@ -18,8 +18,6 @@ static_resources:
                       routes:
                         - match: { prefix: "/payouts" }
                           route: { cluster: payout_api }
-                          request_headers_to_add:
-                            - header: { key: x-payrekha-origin, value: prod }
                         - match: { prefix: "/" }
                           route: { cluster: payout_api }
                           typed_per_filter_config:
@@ -51,6 +49,12 @@ static_resources:
                           headers_to_add:
                             - { key: x-payrekha-key, value: demo-ext-authz-key-0123 }
                             - { key: x-client-id, value: demo-payout-api }
+                            # Trusted identity asserted BY Envoy: it lands in
+                            # the check request, unlike route-level
+                            # request_headers_to_add which only reaches the
+                            # upstream. Per-route origin needs a per-route
+                            # ext_authz check_settings override.
+                            - { key: x-payrekha-origin, value: prod }
                         authorization_response:
                           allowed_upstream_headers:
                             patterns: [{ prefix: x-payrekha- }]

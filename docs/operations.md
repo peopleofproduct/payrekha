@@ -27,7 +27,9 @@ PAYREKHA_API_KEYS='lms-prod:prod:evaluate+outcomes:<token>,los:prod:intents:<tok
 
 A stolen payout key then cannot register intents (which would let it evict live ones from the bounded registry), read state, or free another key's intent.
 
-`POST /v1/outcomes` is bound to the evaluating key: `failed` and `reversed` refund the intent's use, so only the key that evaluated the payout may report on it — every accepted release and every denied attempt is written to the audit trail and the decision log. In the ext_authz path the "key" is the Envoy-asserted `sourceKeyId`; name the reporting API key the same thing.
+`POST /v1/outcomes` is bound to the evaluating key: `failed` and `reversed` refund the intent's use, so only the key that evaluated the payout may report on it — every accepted report and every denied attempt is written to the audit trail and the decision log. In the ext_authz path the "key" is the Envoy-asserted `sourceKeyId`; name the reporting API key the same thing.
+
+`settled` is **final and idempotent**: it tombstones the reservation so the payoutId can never be rebound to another intent, and a later `failed`/`reversed` on a settled payout is denied (audited — it signals a broken or hostile reporter). Re-reporting `settled` is safe for retries.
 
 ## Caller clocks
 

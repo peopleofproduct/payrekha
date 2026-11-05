@@ -89,6 +89,13 @@ interface Reservation {
    * restored from snapshots written before binding existed.
    */
   readonly sourceKeyId?: string;
+  /**
+   * True once the payout is reported settled. The record is kept (not
+   * deleted) so the payoutId stays bound to this intent — otherwise a later
+   * request citing a fresh intent under the same payoutId would look like a
+   * first use once dedupe is evicted or lost on restart.
+   */
+  readonly settled?: boolean;
 }
 
 /**
@@ -187,11 +194,17 @@ export class IntentRegistry {
     this.reservations.set(payoutId, { intentId, amountPaise, ...(sourceKeyId !== undefined ? { sourceKeyId } : {}) });
   }
 
-  /** A payout failed or was reversed: give the use and amount back. `denied` when another key holds the reservation. */
+  /**
+   * A payout failed or was reversed: give the use and amount back.
+   * `denied` when another key holds the reservation (an unkeyed caller may
+   * never touch a bound one) or when it was already settled — a settled
+   * payout cannot become failed.
+   */
   release(payoutId: string, sourceKeyId?: string): 'released' | 'unknown' | 'denied' {
     const r = this.reservations.get(payoutId);
     if (r === undefined) return 'unknown';
-    if (r.sourceKeyId !== undefined && sourceKeyId !== undefined && r.sourceKeyId !== sourceKeyId) return 'denied';
+    if (r.sourceKeyId !== undefined && r.sourceKeyId !== sourceKeyId) return 'denied';
+    if (r.settled === true) return 'denied';
     this.reservations.delete(payoutId);
     const rec = this.store.get(r.intentId);
     if (rec === undefined) return 'released';
@@ -201,12 +214,18 @@ export class IntentRegistry {
     return 'released';
   }
 
-  /** Settled: the reservation is final; forget the payout id. `denied` when another key holds it. */
+  /**
+   * Settled: the reservation is final but the payoutId→intent binding is
+   * kept as a tombstone — deleting it would let the same payoutId consume a
+   * fresh intent once dedupe is evicted or lost on restart. Idempotent
+   * retries still report `settled`. `denied` on a foreign or unkeyed caller.
+   */
   settle(payoutId: string, sourceKeyId?: string): 'settled' | 'unknown' | 'denied' {
     const r = this.reservations.get(payoutId);
     if (r === undefined) return 'unknown';
-    if (r.sourceKeyId !== undefined && sourceKeyId !== undefined && r.sourceKeyId !== sourceKeyId) return 'denied';
-    this.reservations.delete(payoutId);
+    if (r.sourceKeyId !== undefined && r.sourceKeyId !== sourceKeyId) return 'denied';
+    if (r.settled === true) return 'settled';
+    this.reservations.set(payoutId, { ...r, settled: true });
     return 'settled';
   }
 

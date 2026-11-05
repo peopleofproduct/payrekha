@@ -198,7 +198,14 @@ export class Payrekha {
     const cached = dedupeKey !== undefined ? this.dedupe.get(dedupeKey) : undefined;
     if (cached !== undefined) {
       this.dedupedCount += 1;
-      return { ...cached, deduped: true };
+      // The rule outcome is idempotent; the effective action is not — it
+      // follows the mode in force NOW, so a shadow→enforce flip must not
+      // keep serving ALLOW for a verdict that is really a BLOCK.
+      const mode = (payout?.kind !== undefined ? this.modeByKind[payout.kind] : undefined) ?? this.mode;
+      const effectiveAction: EffectiveAction =
+        mode === 'shadow' ? 'ALLOW' : cached.verdict === Verdict.Block ? 'DECLINE' : cached.verdict === Verdict.Review ? 'HOLD' : 'ALLOW';
+      this.effective[effectiveAction] += 1;
+      return { ...cached, mode, effectiveAction, deduped: true };
     }
     const ts = Number.isSafeInteger(payout?.timestampMs) ? payout.timestampMs : 0;
     const nowMs = this.now();
@@ -330,7 +337,7 @@ export class Payrekha {
   reportOutcome(payoutId: string, outcome: PayoutOutcome, sourceKeyId?: string): boolean {
     const r = outcome === 'settled' ? this.intents.settle(payoutId, sourceKeyId) : this.intents.release(payoutId, sourceKeyId);
     if (r === 'denied') this.record({ atMs: this.now(), action: 'outcome.denied', actor: sourceKeyId ?? 'unknown', reason: `${outcome} reported for ${payoutId}` });
-    else if (r === 'released') this.record({ atMs: this.now(), action: `outcome.${outcome}`, actor: sourceKeyId ?? 'in-process', reason: payoutId });
+    else if (r === 'released' || r === 'settled') this.record({ atMs: this.now(), action: `outcome.${outcome}`, actor: sourceKeyId ?? 'in-process', reason: payoutId });
     return r === 'released' || r === 'settled';
   }
 

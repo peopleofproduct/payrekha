@@ -80,7 +80,7 @@ describe('intent.*', () => {
     const first = payout({ beneficiaryRef: A, intentId: i.intentId });
     assert.equal(fw.evaluate(first).verdict, 'ALLOW');
     assert.deepEqual(ruleIds(fw.evaluate(payout({ beneficiaryRef: A, intentId: i.intentId }))), ['intent.reused']);
-    assert.equal(fw.reportOutcome(first.payoutId, 'failed'), true);
+    assert.equal(fw.reportOutcome(first.payoutId, 'failed', 'lms-prod'), true);
     assert.equal(fw.evaluate(payout({ beneficiaryRef: A, intentId: i.intentId })).verdict, 'ALLOW');
   });
   it('a retry with the same payoutId is deduped, not counted as reuse', () => {

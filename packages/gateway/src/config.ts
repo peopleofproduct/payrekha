@@ -135,6 +135,18 @@ export function bootFromEnv(env: NodeJS.ProcessEnv = process.env, log: (m: strin
         : undefined;
   const extKey = env['PAYREKHA_EXT_AUTHZ_KEY'];
   const extAuthz = cfg.extAuthz !== undefined ? { ...cfg.extAuthz, ...(extKey !== undefined ? { keySha256: sha(extKey) } : {}) } : undefined;
+  if (extAuthz !== undefined) {
+    // The caller must never name its own source key: body/query sources are
+    // client-controlled entirely. Header sources are only safe when Envoy
+    // asserts the value — warn so a plain forward config can't slip through.
+    const sks = cfg.extAuthz?.mapping?.sourceKeyId;
+    if (typeof sks === 'string' && (sks.startsWith('body.') || sks.startsWith('query.')))
+      throw new Error('extAuthz.mapping.sourceKeyId must not read from the request body or query — the caller would name its own key');
+    if (typeof sks === 'string' && sks.startsWith('header.'))
+      log('warning: extAuthz sourceKeyId comes from a header — the asserting proxy must set it; a forwarded client value defeats key binding');
+    if (extAuthz.keySha256 === undefined)
+      log('warning: ext_authz has no key (PAYREKHA_EXT_AUTHZ_KEY or extAuthz.keySha256) — anyone who can reach this port can evaluate payouts and spend intents under sourceKeyId "ext_authz"');
+  }
   const gateway = createGateway({
     firewall,
     apiKeys,

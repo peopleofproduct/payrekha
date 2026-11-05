@@ -164,6 +164,8 @@ describe('gateway (enforce)', () => {
     assert.equal((await del({})).status, 400);
     const gone = (await (await del({ actor: 'soc', reason: 'los-2 private key leaked' })).json()) as { revoked: boolean };
     assert.equal(gone.revoked, true);
+    const bad = await fetch(url + '/v1/issuers/%e0%a4%a', { method: 'DELETE', headers: { authorization: `Bearer ${ADMIN}` }, body: JSON.stringify({ reason: 'bad encoding' }) });
+    assert.equal(bad.status, 400, 'malformed percent-encoding must be a 400, not a 500');
     const miss = await fetch(url + '/v1/issuers/no-such-key', { method: 'DELETE', headers: { authorization: `Bearer ${ADMIN}` }, body: JSON.stringify({ reason: 'typo check' }) });
     assert.equal(miss.status, 404, 'revoking an unknown key is a miss');
     const dead = (await (await post('/v1/evaluate', { payoutId: 'p-rev-2', kind: 'LOAN_DISBURSAL', intentId: 'int-rev', amountPaise: 2_40_000_00, beneficiaryRef: benRef, channel: 'IMPS' })).json()) as { verdict: string; hits: { rule: string }[] };

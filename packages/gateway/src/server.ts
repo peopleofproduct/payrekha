@@ -260,7 +260,12 @@ export function createGateway(o: GatewayOptions): GatewayHandle {
     }
     if (path.startsWith('/v1/issuers/') && m === 'DELETE') {
       const token = authAdmin(req);
-      const keyId = decodeURIComponent(path.slice('/v1/issuers/'.length));
+      let keyId: string;
+      try {
+        keyId = decodeURIComponent(path.slice('/v1/issuers/'.length));
+      } catch {
+        throw new HttpError(400, 'bad keyId percent-encoding');
+      }
       if (keyId === '' || keyId.includes('/')) throw new HttpError(400, 'keyId required');
       const b = ((await readBody(req, max)) ?? {}) as { actor?: string; reason?: string };
       const cred = { actor: String(b.actor ?? 'admin').slice(0, 64), reason: String(b.reason ?? '').slice(0, 256), adminToken: token };
@@ -323,7 +328,9 @@ export function createGateway(o: GatewayOptions): GatewayHandle {
     version: o.version ?? '0.1.0-alpha.0',
   });
 
-  const server = createServer((req, res) => {
+  // Bound the obvious resource levers: slow header drip and a request that
+  // never finishes. Verdicts complete in microseconds; these are generous.
+  const server = createServer({ headersTimeout: 15_000, requestTimeout: 30_000 }, (req, res) => {
     const inbound = req.headers['x-request-id'];
     const rid = typeof inbound === 'string' && REQ_ID.test(inbound) ? inbound : randomUUID();
     res.setHeader('x-request-id', rid);
