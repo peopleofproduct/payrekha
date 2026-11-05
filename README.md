@@ -3,6 +3,10 @@
 **The Lakshman Rekha for money leaving your systems.**
 No matching intent, no payout — whoever is calling your API.
 
+[![CI](https://github.com/peopleofproduct/payrekha/actions/workflows/ci.yml/badge.svg)](https://github.com/peopleofproduct/payrekha/actions/workflows/ci.yml)
+[![License: Apache-2.0](https://img.shields.io/badge/license-Apache--2.0-blue)](LICENSE)
+[![Node ≥ 22](https://img.shields.io/badge/node-%E2%89%A522-339933)](package.json)
+[![Status: alpha](https://img.shields.io/badge/status-alpha-orange)](CHANGELOG.md)
 [![Maintained by People of Product™](https://img.shields.io/badge/maintained%20by-People%20of%20Product%E2%84%A2-1b1b1f)](https://github.com/peopleofproduct)
 
 Payrekha (*payout + rekha*, the line you do not cross) is an open-source, in-process **payout firewall** for Indian NBFCs, digital lenders, payment aggregators and crypto exchanges. It checks every rupee your *own* systems send out. A payout is allowed only if it matches a real business intent: a sanctioned loan, a reconciled settlement or a whitelisted withdrawal. It does not matter which API, credential or app made the call.
