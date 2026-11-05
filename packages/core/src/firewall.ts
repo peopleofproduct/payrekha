@@ -112,11 +112,55 @@ export interface FirewallSnapshot {
   readonly audit: readonly AuditEntry[];
   /** keyIds revoked at runtime — they must stay revoked across restarts. */
   readonly issuers?: { readonly revoked?: readonly string[] };
+  /**
+   * In-window BLOCK timestamps behind `highAlertOnBlocks`. Bounded by the
+   * burst count; without it a restart mid-burst would silently reset the
+   * counter and let the pattern evade HIGH_ALERT.
+   */
+  readonly recentBlocks?: readonly number[];
 }
 
 const isStr = (v: unknown, max = 256): v is string => typeof v === 'string' && v.length > 0 && v.length <= max;
 
 /** Shape check. Messages name the field, never echo its value (no PII in errors). */
+const MODES: readonly Mode[] = ['shadow', 'advise', 'enforce'];
+const posInt = (v: number | undefined, name: string, min = 1): void => {
+  if (v !== undefined && (!Number.isSafeInteger(v) || v < min)) throw new TypeError(`firewall config ${name} must be an integer ≥ ${min}`);
+};
+
+/**
+ * Fail loud on config that would silently change security posture: a typo'd
+ * kind in `modeByKind`/`requireIntent` or a non-finite multiplier means the
+ * operator believes a control is on when it is not. Called at construction —
+ * boot dies before a bad config can serve.
+ */
+export function validateFirewallConfig(cfg: FirewallConfig): void {
+  if (cfg.mode !== undefined && !MODES.includes(cfg.mode)) throw new TypeError(`firewall config mode must be shadow, advise or enforce (got ${String(cfg.mode)})`);
+  for (const [table, name] of [[cfg.modeByKind, 'modeByKind'], [cfg.requireIntent, 'requireIntent']] as const) {
+    for (const k of Object.keys(table ?? {})) {
+      if (!INTENT_KINDS.includes(k as IntentKind)) throw new TypeError(`firewall config ${name}.${k}: not a known IntentKind — a typo silently disables the rule`);
+    }
+  }
+  for (const v of Object.values(cfg.modeByKind ?? {})) {
+    if (!MODES.includes(v as Mode)) throw new TypeError(`firewall config modeByKind value must be shadow, advise or enforce (got ${String(v)})`);
+  }
+  for (const [state, m] of Object.entries(cfg.multipliers ?? {})) {
+    if (!(state in DEFAULT_MULTIPLIERS)) throw new TypeError(`firewall config multipliers.${state}: not a known alert state`);
+    for (const [k, v] of Object.entries(m ?? {})) {
+      if (typeof v !== 'number' || !Number.isFinite(v) || v <= 0) throw new TypeError(`firewall config multipliers.${state}.${k} must be a positive finite number`);
+    }
+  }
+  if (cfg.highAlertOnBlocks !== undefined) {
+    posInt(cfg.highAlertOnBlocks.count, 'highAlertOnBlocks.count', 0);
+    posInt(cfg.highAlertOnBlocks.windowMs, 'highAlertOnBlocks.windowMs');
+  }
+  posInt(cfg.microPaise, 'microPaise');
+  posInt(cfg.dedupeCapacity, 'dedupeCapacity');
+  posInt(cfg.ledgerCapacity, 'ledgerCapacity');
+  posInt(cfg.maxTimestampSkewMs, 'maxTimestampSkewMs');
+  if (cfg.adminTokenSha256 !== undefined && !/^[0-9a-f]{64}$/i.test(cfg.adminTokenSha256)) throw new TypeError('firewall config adminTokenSha256 must be a SHA-256 hex string');
+}
+
 export function payoutShapeProblem(x: unknown): string | null {
   if (typeof x !== 'object' || x === null) return 'payout must be an object';
   const p = x as Record<string, unknown>;
@@ -170,6 +214,7 @@ export class Payrekha {
   constructor(rules: readonly PayoutRule[], options: FirewallOptions = {}) {
     this.opts = options;
     this.cfg = options.config ?? {};
+    validateFirewallConfig(this.cfg);
     this.keyring = options.keyring ?? new Keyring(options.keys ?? []);
     this.intents = new IntentRegistry(this.keyring, options.intentStore ?? new MemoryIntentStore());
     this.beneficiaries = new BeneficiaryLedger(this.cfg.ledgerCapacity);
@@ -310,7 +355,10 @@ export class Payrekha {
       const subjects = entry.verifiedSubjects ?? [];
       if (!subjects.includes(ctx.intent.subjectRef!)) entry = { ...entry, verifiedSubjects: [...subjects, ctx.intent.subjectRef!].slice(-8) };
     }
-    if (entry !== prev) this.beneficiaries.set(p.beneficiaryRef, entry);
+    // Always set, even unchanged: the write is what refreshes recency —
+    // otherwise a hot beneficiary could be evicted mid-activity and its
+    // firstSeen would reset, producing spurious cooling REVIEWs.
+    this.beneficiaries.set(p.beneficiaryRef, entry);
     if (p.kind === 'PA_SETTLEMENT' && p.merchantId !== undefined) this.merchants.observe(p.merchantId, p.beneficiaryRef, p.timestampMs);
     if (action !== 'DECLINE' && ctx.intent.status === 'ok' && p.intentId !== undefined) {
       this.intents.reserve(p.intentId, p.payoutId, p.amountPaise, p.sourceKeyId);
@@ -513,6 +561,7 @@ export class Payrekha {
       rules: this.engine.exportState(),
       audit: this.audit.slice(-200),
       issuers: { revoked: this.keyring.list().flatMap((k) => (k.revoked === true ? [k.keyId] : [])) },
+      recentBlocks: [...this.recentBlocks],
     };
   }
 
@@ -532,6 +581,8 @@ export class Payrekha {
     this.engine.restoreState(s.rules ?? {});
     // Revocations survive restarts — a reboot must not resurrect a burned key.
     for (const keyId of s.issuers?.revoked ?? []) this.keyring.revoke(keyId);
+    // The burst counter too: a reboot mid-burst must not zero it.
+    for (const t of s.recentBlocks ?? []) if (typeof t === 'number' && Number.isFinite(t)) this.recentBlocks.push(t);
     for (const e of s.audit ?? []) this.audit.push(e);
   }
 }

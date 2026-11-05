@@ -113,13 +113,18 @@ export function velocityRule(o: VelocityOptions = {}): PayoutRule {
   const overrides = o.perSourceKeyOverrides ?? {};
   const keyBudget = (id: string): Budget => (Object.hasOwn(overrides, id) ? overrides[id]! : perKey);
   const cap = (b: Budget) => Math.min(4_096, Math.max(64, Math.ceil(b.count * hardCap) + 8));
-  const rings = new LruMap<string, TimeRing>(o.maxTrackedKeys ?? 100_000);
+  // Per-key and per-merchant rings live in separate maps: merchantId is a
+  // caller-supplied field, so merchant-churn must never evict source-key
+  // budgets (a caller could reset its own or a victim's velocity history).
+  const keyRings = new LruMap<string, TimeRing>(o.maxTrackedKeys ?? 100_000);
+  const merchantRings = new LruMap<string, TimeRing>(o.maxTrackedKeys ?? 100_000);
   let globalRing = new TimeRing(cap(global));
   const ringFor = (key: string, b: Budget): TimeRing => {
-    let r = rings.get(key);
+    const map = key.startsWith('m:') ? merchantRings : keyRings;
+    let r = map.get(key);
     if (r === undefined) {
       r = new TimeRing(cap(b));
-      rings.set(key, r);
+      map.set(key, r);
     }
     return r;
   };
@@ -153,18 +158,28 @@ export function velocityRule(o: VelocityOptions = {}): PayoutRule {
       );
     },
     reset() {
-      rings.clear();
+      keyRings.clear();
+      merchantRings.clear();
       globalRing = new TimeRing(cap(global));
     },
     exportState() {
-      return { global: globalRing.toJSON(), keys: [...rings.entriesLeastRecentFirst()].map(([k, r]) => [k, r.toJSON()]) };
+      return {
+        global: globalRing.toJSON(),
+        keys: [...keyRings.entriesLeastRecentFirst()].map(([k, r]) => [k, r.toJSON()]),
+        merchants: [...merchantRings.entriesLeastRecentFirst()].map(([k, r]) => [k, r.toJSON()]),
+      };
     },
     restoreState(s) {
-      const st = s as { global?: [number, number][]; keys?: [string, [number, number][]][] };
+      const st = s as { global?: [number, number][]; keys?: [string, [number, number][]][]; merchants?: [string, [number, number][]][] };
       globalRing = TimeRing.from(cap(global), st.global ?? []);
-      for (const [k, rows] of st.keys ?? []) rings.set(k, TimeRing.from(cap(k.startsWith('m:') ? perMerchant : keyBudget(k.slice(2))), rows));
+      // Older snapshots kept k:/m: in one list; new ones split them.
+      for (const [k, rows] of st.keys ?? []) {
+        const map = k.startsWith('m:') ? merchantRings : keyRings;
+        map.set(k, TimeRing.from(cap(k.startsWith('m:') ? perMerchant : keyBudget(k.slice(2))), rows));
+      }
+      for (const [k, rows] of st.merchants ?? []) merchantRings.set(k, TimeRing.from(cap(perMerchant), rows));
     },
-    stats: () => ({ trackedKeys: rings.size, evictedKeys: rings.evictedCount }),
+    stats: () => ({ trackedKeys: keyRings.size, trackedMerchants: merchantRings.size, evictedKeys: keyRings.evictedCount + merchantRings.evictedCount }),
   };
 }
 

@@ -251,6 +251,28 @@ describe('Payrekha firewall', () => {
     assert.equal(fw.evaluate(po()).mode, 'enforce');
     assert.equal(fw.evaluate(po({ kind: 'VENDOR_PAYOUT' })).mode, 'shadow');
   });
+  it('config validation fails loud on a typo\'d kind, a bad mode and a non-finite multiplier', () => {
+    assert.throws(() => new Payrekha([], { config: { modeByKind: { LOAN_DISBURSALX: 'enforce' } as never } }), /modeByKind\.LOAN_DISBURSALX.*IntentKind/);
+    assert.throws(() => new Payrekha([], { config: { requireIntent: { REFUNDS: false } as never } }), /requireIntent\.REFUNDS/);
+    assert.throws(() => new Payrekha([], { config: { mode: 'block' as never } }), /mode must be shadow, advise or enforce/);
+    assert.throws(() => new Payrekha([], { config: { multipliers: { NORMAL: { velocity: Number.NaN } } } }), /multipliers\.NORMAL\.velocity/);
+    assert.throws(() => new Payrekha([], { config: { multipliers: { WEEKDAY: { velocity: 1 } } as never } }), /multipliers\.WEEKDAY/);
+    assert.throws(() => new Payrekha([], { config: { maxTimestampSkewMs: -5 } }), /maxTimestampSkewMs/);
+    assert.throws(() => new Payrekha([], { config: { adminTokenSha256: 'nothex' } }), /adminTokenSha256/);
+    // A good config still boots.
+    new Payrekha([], { config: { mode: 'enforce', modeByKind: { REFUND: 'shadow' }, requireIntent: { REFUND: false }, multipliers: { NORMAL: { velocity: 2 } }, maxTimestampSkewMs: 60_000 } });
+  });
+  it('an active beneficiary refreshes its ledger recency on every payout', () => {
+    const fw = new Payrekha([], { config: { mode: 'enforce', ledgerCapacity: 2 } });
+    const [a, b, c] = ['hb1_a', 'hb1_b', 'hb1_c'];
+    fw.evaluate(po({ beneficiaryRef: a }));
+    fw.evaluate(po({ beneficiaryRef: b }));
+    // a pays again — recency refreshes, so the next insertion evicts b, not a.
+    fw.evaluate(po({ beneficiaryRef: a }));
+    fw.evaluate(po({ beneficiaryRef: c }));
+    assert.ok(fw.beneficiaries.get(a) !== undefined, 'still-active beneficiary must not be evicted');
+    assert.ok(fw.beneficiaries.get(b) === undefined, 'the least-recent entry goes');
+  });
   it('a throwing decision hook does not break evaluation', () => {
     const fw = new Payrekha([], { onDecision: () => { throw new Error('x'); } });
     assert.equal(fw.evaluate(po()).verdict, 'ALLOW');

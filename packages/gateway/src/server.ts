@@ -26,6 +26,14 @@ export interface ApiKey {
    * rail status), the system of record gets `intents`, dashboards `read`.
    */
   readonly roles?: readonly ApiRole[];
+  /**
+   * Merchant ids this key may submit payouts for (PA settlement model). When
+   * set, a payout whose `merchantId` is outside the list is refused 403 —
+   * `merchantId` scopes shared mutable state (velocity rings, account-change
+   * ledger), so an untrusted key must not mint or impersonate merchants.
+   * Absent = unrestricted (suitable for the payout API itself).
+   */
+  readonly merchantIds?: readonly string[];
 }
 
 export interface ExtAuthzOptions {
@@ -111,6 +119,8 @@ function bearer(req: IncomingMessage): string | undefined {
 }
 
 async function readBody(req: IncomingMessage, max: number): Promise<unknown> {
+  const enc = req.headers['content-encoding'];
+  if (enc !== undefined && enc !== 'identity') throw new HttpError(415, `unsupported content-encoding '${enc.slice(0, 32)}' — send the payout as plain JSON`);
   const chunks: Buffer[] = [];
   let n = 0;
   for await (const c of req) {
@@ -189,6 +199,11 @@ export function createGateway(o: GatewayOptions): GatewayHandle {
       hashAtEntry(b, o.hashKey);
       b['sourceKeyId'] = key.id;
       b['origin'] = key.origin;
+      if (key.merchantIds !== undefined) {
+        const mid = b['merchantId'];
+        if (typeof mid === 'string' ? !key.merchantIds.includes(mid) : b['kind'] === 'PA_SETTLEMENT')
+          throw new HttpError(403, `key '${key.id}' is not scoped to merchantId '${typeof mid === 'string' ? mid.slice(0, 64) : '—'}'`);
+      }
       const claimed = b['timestampMs'];
       delete b['clientTimestampMs'];
       b['timestampMs'] = now();
@@ -210,7 +225,7 @@ export function createGateway(o: GatewayOptions): GatewayHandle {
     if (path === '/metrics' && m === 'GET') {
       authKey(req, 'read');
       res.setHeader('content-type', 'text/plain; version=0.0.4');
-      return [200, renderMetrics(fw, stats, o.webhook)];
+      return [200, renderMetrics(fw, stats, o.webhook, o.decisionLog?.errors ?? 0)];
     }
     if (!stats.ready) throw new HttpError(503, `not ready: ${stats.notReadyReason}`);
     if (path.startsWith('/ext_authz') && o.extAuthz !== undefined) return extAuthz(req, res, rid, url);

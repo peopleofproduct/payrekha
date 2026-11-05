@@ -116,6 +116,8 @@ export type LogRecord = DecisionRecord | AuditLogRecord;
 export interface DecisionLog {
   write(r: LogRecord): void;
   close(): Promise<void>;
+  /** Async stream failures observed so far — surfaced into metrics. */
+  readonly errors?: number;
 }
 
 /**
@@ -123,14 +125,23 @@ export interface DecisionLog {
  * never awaited on the verdict path. Audit records stay JSON even under
  * `cef`: a CEF parser sees them as foreign lines rather than wrong fields.
  */
-export function fileDecisionLog(path: string, format: 'jsonl' | 'cef' = 'jsonl'): DecisionLog {
+export function fileDecisionLog(path: string, format: 'jsonl' | 'cef' = 'jsonl', onError?: (e: unknown) => void): DecisionLog {
   const s: WriteStream = createWriteStream(path, { flags: 'a', mode: 0o600 });
-  s.on('error', () => {
-    /* counted by the caller via metrics; never crash the verdict path */
+  let errors = 0;
+  s.on('error', (e) => {
+    errors += 1;
+    try {
+      onError?.(e);
+    } catch {
+      /* the verdict path must never break on logging */
+    }
   });
   return {
     write: (r) => void s.write((format === 'cef' && r.type === 'decision' ? toCef(r) : JSON.stringify(r)) + '\n'),
     close: () => new Promise((res) => s.end(res)),
+    get errors() {
+      return errors;
+    },
   };
 }
 

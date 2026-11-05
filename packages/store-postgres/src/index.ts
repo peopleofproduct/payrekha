@@ -61,6 +61,9 @@ export class PostgresStateStore implements StateStore {
   }
 
   private init(): Promise<void> {
+    // A transient failure must not be cached: the gateway retries loads, and
+    // a rejected `ready` promise stored forever would keep the store broken
+    // until restart even though Postgres recovered.
     this.ready ??= this.pool
       .query(
         `CREATE TABLE IF NOT EXISTS ${this.table} (
@@ -70,7 +73,13 @@ export class PostgresStateStore implements StateStore {
            updated_at timestamptz NOT NULL DEFAULT now()
          )`,
       )
-      .then(() => undefined);
+      .then(
+        () => undefined,
+        (e: unknown) => {
+          this.ready = undefined;
+          throw e;
+        },
+      );
     return this.ready;
   }
 

@@ -27,6 +27,8 @@
 | **The intent-signing key itself** | **Yes, within the issuer's kinds** | Velocity, cooling, probes, canaries still apply; revoke the key |
 | **The Payrekha admin token** | They can switch to shadow mode | The mode change is logged and metrics show it; keep the token in a vault and alert on `PUT /v1/state` |
 | The ability to bypass Payrekha on the network path | Yes | Out of scope: enforce the path with network policy |
+| An `evaluate` key minting/impersonating `merchantId` | Partially | Per-key and per-merchant velocity state live in separate maps (churn cannot evict either), and `gateway.merchantScope` can pin a key to specific merchantIds — `merchantId` is a caller field, treat it as untrusted and scope keys that should only settle for known merchants |
+| A repackaged client claiming `clientAttested: true` | No change | `clientAttested` is a declaration, not proof — the payout API must assert it after its own attestation check (Play Integrity/App Attest), never forward the client's value |
 
 ## Payrekha's own hardening
 

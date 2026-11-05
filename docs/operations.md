@@ -77,5 +77,6 @@ Every Postgres save is a compare-and-set on a version counter. If another instan
 
 1. Replay a month in intent-less mode and read the false-positive list.
 2. Give known batch callers their own budget with `velocity.perSourceKeyOverrides` (for example, the nightly settlement run).
+3. **`merchantId` is untrusted caller input.** It scopes per-merchant velocity rings and the settlement-account ledger. If a key should only settle for known merchants, pin it with `gateway.merchantScope` — `{"gateway": {"merchantScope": {"pa-key-1": ["merch-a", "merch-b"]}}}` — the gateway then refuses (403) out-of-scope merchantIds and `PA_SETTLEMENT` payouts carrying none. Merchant velocity and key velocity are tracked in separate bounded maps, so churned merchantIds cannot evict either budget.
 3. Replay again with intents exported from your LOS. The REVIEW count should fall to the real anomalies.
 4. Deploy the same config file in shadow mode and compare its live log with the replay.

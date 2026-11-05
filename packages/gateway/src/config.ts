@@ -19,7 +19,11 @@ export interface PayrekhaFileConfig {
   readonly feedSnapshot?: string;
   readonly extAuthz?: ExtAuthzOptions;
   /** Gateway behaviour. `trustClientTimestamp` honours caller timestamps — leave false unless the caller is trusted. */
-  readonly gateway?: { readonly trustClientTimestamp?: boolean };
+  readonly gateway?: {
+    readonly trustClientTimestamp?: boolean;
+    /** Key id → merchantIds the key may submit for. Scopes the PA settlement surface. */
+    readonly merchantScope?: Readonly<Record<string, readonly string[]>>;
+  };
 }
 
 const sha = (s: string) => createHash('sha256').update(s).digest('hex');
@@ -98,6 +102,14 @@ export function bootFromEnv(env: NodeJS.ProcessEnv = process.env, log: (m: strin
   if (adminKey !== undefined && adminKey.length < 16) throw new Error('PAYREKHA_ADMIN_KEY must be at least 16 chars');
   const apiKeys = parseApiKeys(env['PAYREKHA_API_KEYS'] ?? '');
   if (apiKeys.length === 0) throw new Error('PAYREKHA_API_KEYS is required (id:prod|nonprod[:role+role]:token,…)');
+  const scope = cfg.gateway?.merchantScope ?? {};
+  for (const [keyId] of Object.entries(scope)) {
+    if (!apiKeys.some((k) => k.id === keyId)) throw new Error(`gateway.merchantScope names unknown key '${keyId}'`);
+  }
+  const scopedKeys = apiKeys.map((k) => {
+    const mids = scope[k.id];
+    return mids === undefined ? k : { ...k, merchantIds: mids };
+  });
   const hashKey = env['PAYREKHA_HASH_KEY'];
   const holidays = cfg.calendarFile !== undefined ? ((readJson(cfg.calendarFile) as { holidays?: [] }).holidays ?? []) : [];
   const fwCfg: FirewallConfig = {
@@ -113,7 +125,10 @@ export function bootFromEnv(env: NodeJS.ProcessEnv = process.env, log: (m: strin
     env['PAYREKHA_WEBHOOK_URL'] !== undefined ? new WebhookSender({ url: env['PAYREKHA_WEBHOOK_URL'], secret: env['PAYREKHA_WEBHOOK_SECRET'] ?? '' }) : undefined;
   if (webhook !== undefined && (env['PAYREKHA_WEBHOOK_SECRET'] ?? '').length < 16) throw new Error('PAYREKHA_WEBHOOK_SECRET (≥ 16 chars) is required with PAYREKHA_WEBHOOK_URL');
   const fmt = env['PAYREKHA_LOG_FORMAT'] === 'cef' ? 'cef' : 'jsonl';
-  const decisionLog = env['PAYREKHA_DECISION_LOG'] !== undefined ? fileDecisionLog(env['PAYREKHA_DECISION_LOG'], fmt) : undefined;
+  const decisionLog =
+    env['PAYREKHA_DECISION_LOG'] !== undefined
+      ? fileDecisionLog(env['PAYREKHA_DECISION_LOG'], fmt, (e) => log(`decision-log stream error: ${e instanceof Error ? e.message : String(e)}`))
+      : undefined;
   const firewall = new Payrekha(set.rules, {
     config: fwCfg,
     keys: secrets,
@@ -149,7 +164,7 @@ export function bootFromEnv(env: NodeJS.ProcessEnv = process.env, log: (m: strin
   }
   const gateway = createGateway({
     firewall,
-    apiKeys,
+    apiKeys: scopedKeys,
     ...(adminKey !== undefined ? { adminKeySha256: sha(adminKey) } : {}),
     ...(hashKey !== undefined ? { hashKey } : {}),
     ...(decisionLog !== undefined ? { decisionLog } : {}),

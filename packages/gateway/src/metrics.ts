@@ -8,7 +8,7 @@ import type { WebhookSender } from './webhook.js';
 const esc = (s: string) => s.replace(/\\/g, '\\\\').replace(/"/g, '\\"').replace(/\n/g, '\\n');
 
 /** Prometheus text exposition. Metric names are stable API. */
-export function renderMetrics(fw: Payrekha, stats: GatewayStats, webhook?: WebhookSender): string {
+export function renderMetrics(fw: Payrekha, stats: GatewayStats, webhook?: WebhookSender, logErrors = 0): string {
   const m = fw.metrics;
   const L: string[] = [];
   const metric = (name: string, type: string, help: string, rows: [string, number][]) => {
@@ -43,7 +43,7 @@ export function renderMetrics(fw: Payrekha, stats: GatewayStats, webhook?: Webho
   }));
   metric('payrekha_ready', 'gauge', '1 when the gateway is ready.', [['', stats.ready ? 1 : 0]]);
   metric('payrekha_state_save_errors_total', 'counter', 'Failed state snapshots.', [['', stats.stateSaveErrors]]);
-  metric('payrekha_decision_log_errors_total', 'counter', 'Failed decision-log writes.', [['', stats.logErrors]]);
+  metric('payrekha_decision_log_errors_total', 'counter', 'Failed decision-log writes.', [['', stats.logErrors + logErrors]]);
   metric('payrekha_hook_errors_total', 'counter', 'Decision/audit hooks that threw.', [['', m.hookErrors]]);
   if (webhook !== undefined)
     metric('payrekha_webhooks_total', 'counter', 'Webhook deliveries.', [

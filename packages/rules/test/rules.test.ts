@@ -177,6 +177,17 @@ describe('velocity.outflow', () => {
     const v = fw.evaluate(payout({ beneficiaryRef: A, kind: 'PA_SETTLEMENT', merchantId: 'm1', amountPaise: 2_000_00, timestampMs: T0 + 1000 }));
     assert.ok(ruleIds(v).includes('velocity.outflow'));
   });
+  it('merchant-churn cannot evict the source-key velocity budget', () => {
+    const { fw } = firewall(
+      { requireIntent: { PA_SETTLEMENT: false } },
+      { velocity: { perSourceKey: { count: 3, sumPaise: 1e12 }, perMerchant: { count: 1e6, sumPaise: 1e15 }, global: { count: 1e6, sumPaise: 1e15 }, maxTrackedKeys: 4 } },
+    );
+    fw.evaluate(payout({ beneficiaryRef: A, kind: 'PA_SETTLEMENT', merchantId: 'm1', amountPaise: 100_00 }));
+    fw.evaluate(payout({ beneficiaryRef: A, kind: 'PA_SETTLEMENT', merchantId: 'm2', amountPaise: 100_00, timestampMs: T0 + 1 }));
+    for (let k = 0; k < 6; k++) fw.evaluate(payout({ beneficiaryRef: A, kind: 'PA_SETTLEMENT', merchantId: `churn${k}`, amountPaise: 100_00, timestampMs: T0 + 2 + k }));
+    const v = fw.evaluate(payout({ beneficiaryRef: A, kind: 'PA_SETTLEMENT', merchantId: 'm9', amountPaise: 100_00, timestampMs: T0 + 10 }));
+    assert.ok(ruleIds(v).includes('velocity.outflow'), 'the source-key ring must survive merchant churn');
+  });
   it('state survives export/restore', () => {
     const cfg = { velocity: { perSourceKey: { count: 1, sumPaise: 1e12 } } };
     const { fw } = firewall({ requireIntent: { REFUND: false } }, cfg);

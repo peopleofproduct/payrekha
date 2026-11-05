@@ -28,6 +28,8 @@ export interface CalendarWindow {
  * Low-coverage windows in Asia/Kolkata: listed holidays, weekends and odd
  * hours — when SOC staffing is thin and CRAFTY FALCON-style actors strike.
  */
+const DAY_NAMES = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'] as const;
+
 export class Calendar {
   private readonly holidays: Map<string, string>;
   private readonly weekendDays: ReadonlySet<number>;
@@ -43,7 +45,7 @@ export class Calendar {
     const p = istParts(epochMs);
     const holiday = this.holidays.get(p.date);
     if (holiday !== undefined) return { kind: 'holiday', label: holiday, istDate: p.date, istHour: p.hour };
-    if (this.weekendDays.has(p.dayOfWeek)) return { kind: 'weekend', label: p.dayOfWeek === 0 ? 'Sunday' : 'Saturday', istDate: p.date, istHour: p.hour };
+    if (this.weekendDays.has(p.dayOfWeek)) return { kind: 'weekend', label: DAY_NAMES[p.dayOfWeek]!, istDate: p.date, istHour: p.hour };
     if (this.hours !== null) {
       const { from, to } = this.hours;
       const inNight = from > to ? p.hour >= from || p.hour < to : p.hour >= from && p.hour < to;

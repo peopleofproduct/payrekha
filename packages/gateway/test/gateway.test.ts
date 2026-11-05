@@ -15,6 +15,7 @@ const ADMIN = 'admin-token-0123456789';
 const EXT = 'ext-token-0123456789';
 const EVALTOK = 'eval-token-0123456789';
 const REGTOK = 'registrar-token-0123456789';
+const PATOK = 'pa-scoped-token-0123456789';
 const HK = 'gateway-hash-key-0123456789';
 const T0 = Date.UTC(2026, 10, 4, 5, 30);
 const LOS = generateIssuerKeyPair();
@@ -37,6 +38,7 @@ function boot(mode: 'shadow' | 'enforce', extra: { intentVerificationsPerMinute?
       { id: 'lms-uat', sha256: sha(UAT), origin: 'nonprod' },
       { id: 'eval-only', sha256: sha(EVALTOK), origin: 'prod', roles: ['evaluate'] },
       { id: 'registrar', sha256: sha(REGTOK), origin: 'prod', roles: ['intents'] },
+      { id: 'pa-scoped', sha256: sha(PATOK), origin: 'prod', roles: ['evaluate'], merchantIds: ['merch-a'] },
     ],
     adminKeySha256: sha(ADMIN),
     hashKey: HK,
@@ -153,6 +155,18 @@ describe('gateway (enforce)', () => {
     assert.equal((await post('/v1/evaluate', { payoutId: 'p-r1', kind: 'REFUND', amountPaise: 100_00, beneficiaryRef: benRef, channel: 'IMPS' }, REGTOK)).status, 403);
     assert.equal((await post('/v1/intents', loanIntent('int-r2'), REGTOK)).status, 201);
     assert.equal((await post('/v1/evaluate', { payoutId: 'p-r2', kind: 'REFUND', amountPaise: 100_00, beneficiaryRef: benRef, channel: 'IMPS' }, EVALTOK)).status, 200);
+  });
+
+  it('merchant scope: a scoped key cannot mint or impersonate merchants', async () => {
+    const settle = (mid?: string, token = PATOK, payoutId = 'p-ms1') =>
+      post('/v1/evaluate', { payoutId, kind: 'PA_SETTLEMENT', amountPaise: 100_00, beneficiaryRef: benRef, channel: 'IMPS', ...(mid !== undefined ? { merchantId: mid } : {}) }, token);
+    assert.equal((await settle('merch-b')).status, 403, 'out-of-scope merchantId refused');
+    assert.equal((await settle(undefined, PATOK, 'p-ms2')).status, 403, 'PA_SETTLEMENT without merchantId refuses under a scoped key');
+    assert.equal((await settle('merch-a', PATOK, 'p-ms3')).status, 200, 'in-scope merchantId allowed');
+    const refund = await post('/v1/evaluate', { payoutId: 'p-ms4', kind: 'REFUND', amountPaise: 100_00, beneficiaryRef: benRef, channel: 'IMPS' }, PATOK);
+    assert.equal(refund.status, 200, 'non-settlement kinds need no merchantId');
+    // An unscoped key is unaffected.
+    assert.equal((await settle('merch-b', API, 'p-ms5')).status, 200);
   });
 
   it('DELETE /v1/issuers/:keyId revokes a signing key at runtime (admin + reason, audited)', async () => {
