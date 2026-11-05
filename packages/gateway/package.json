@@ -6,22 +6,51 @@
   "author": "Kapil <kapil@theproduct.city>",
   "type": "module",
   "main": "dist/index.js",
+  "bin": {
+    "payrekha-gateway": "dist/bin.js"
+  },
   "types": "dist/index.d.ts",
   "exports": {
-    ".": { "types": "./dist/index.d.ts", "default": "./dist/index.js" }
+    ".": {
+      "types": "./dist/index.d.ts",
+      "default": "./dist/index.js"
+    }
   },
-  "bin": { "payrekha-gateway": "dist/bin.js" },
-  "files": ["dist", "NOTICE", "LICENSE", "README.md"],
+  "files": [
+    "dist",
+    "NOTICE",
+    "LICENSE",
+    "README.md"
+  ],
   "sideEffects": false,
-  "publishConfig": { "access": "public", "provenance": true },
-  "dependencies": { "@payrekha/core": "0.1.0-alpha.0", "@payrekha/rules": "0.1.0-alpha.0" },
+  "publishConfig": {
+    "access": "public",
+    "provenance": true
+  },
+  "dependencies": {
+    "@payrekha/core": "0.1.0-alpha.0",
+    "@payrekha/rules": "0.1.0-alpha.0"
+  },
   "repository": {
     "type": "git",
     "url": "git+https://github.com/peopleofproduct/payrekha.git",
     "directory": "packages/gateway"
   },
   "homepage": "https://github.com/peopleofproduct/payrekha#readme",
-  "bugs": { "url": "https://github.com/peopleofproduct/payrekha/issues" },
-  "engines": { "node": ">=22" },
-  "keywords": ["payrekha", "payout", "firewall", "nbfc", "payment-aggregator", "fraud", "india", "cert-in"]
+  "bugs": {
+    "url": "https://github.com/peopleofproduct/payrekha/issues"
+  },
+  "engines": {
+    "node": ">=22"
+  },
+  "keywords": [
+    "payrekha",
+    "payout",
+    "firewall",
+    "nbfc",
+    "payment-aggregator",
+    "fraud",
+    "india",
+    "cert-in"
+  ]
 }
