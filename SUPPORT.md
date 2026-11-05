@@ -6,6 +6,15 @@ features, no telemetry, no "open core" bait. That will not change.
 Everything below is optional support — it funds maintenance, the advisory
 rule corpus, and the client/benchmark roadmap. Not the code.
 
+## Support via GitHub Sponsors (card, Stripe-backed)
+
+The simplest way for most people — GitHub processes the payment (Stripe
+rails underneath), works with international cards, and handles receipts:
+
+**[github.com/sponsors/peopleofproduct](https://github.com/sponsors/peopleofproduct)**
+
+One-time or recurring, individual or org tier — pick whatever fits.
+
 ## Support via UPI (India)
 
 The simplest way to contribute — any amount, works in every UPI app (GPay,
