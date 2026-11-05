@@ -40,6 +40,35 @@ with your `PAYREKHA_READ_KEY`.
 Route: send your payout traffic to `http://<host>:10000` instead of the API
 directly — or run the evaluate-API path instead (Step 4).
 
+### Step 2b — map your payout JSON (2 min, do not skip)
+
+The shipped mapping assumes a specific body shape. **Paste one real payout
+JSON** (or a synthetic one with the same fields) and check before traffic:
+
+```bash
+node scripts/check-mapping.mjs --file sample-payout.json \
+  --headers "x-payout-kind=LOAN_DISBURSAL,x-client-id=los-core"
+```
+
+It prints what resolves, what's missing, *why* (e.g. "account number must be
+6–20 digits"), and every leaf path your JSON offers — then edit
+`deploy/quickstart/payrekha.shadow.json` → `extAuthz.mapping` to match.
+
+Common shapes → the mapping values to use:
+
+| Your payload | `payoutId` | `amountPaise` | `channel` | beneficiary |
+|---|---|---|---|---|
+| NBFC LMS (shipped default) | `body.request_id` | `body.amount_in_paise` | `body.mode` | `body.beneficiary.account_number` + `.ifsc` |
+| Payment aggregator (`{"id":…,"amount":…,"destination":{…}}`) | `body.id` | `body.amount` *(must be paise)* | `{"const":"IMPS"}` | `body.destination.account_number` + `.ifsc` |
+| Crypto exchange (`{"withdrawal_id":…,"address":…}`) | `body.withdrawal_id` | `body.amount_paise` or a minor-units field | `{"const":"CRYPTO"}` | `beneficiary.address` ← `body.address`, `beneficiary.network` ← `body.network` |
+
+Notes: `channel` accepts `IMPS|NEFT|RTGS|UPI|INTERNAL|CRYPTO` — use a
+`{"const":"…"}` if your payload has no channel field. `amountPaise` must be an
+integer in paise — if your API sends rupees, either convert upstream or send
+`{"const"}`-style test traffic to the evaluate API instead. `kind` is what
+your payout *is* (`LOAN_DISBURSAL`, `VENDOR_PAYOUT`, `REFUND`, `VERIFICATION`…);
+a single payout path can pin it with `{"const":"LOAN_DISBURSAL"}`.
+
 ## Step 3 — up (5 min)
 
 ```bash

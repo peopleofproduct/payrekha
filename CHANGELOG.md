@@ -6,6 +6,9 @@ All notable changes to Payrekha are listed here. The format follows [Keep a Chan
 
 ### Added
 
+- **`scripts/check-mapping.mjs`:** dry-run the ext_authz field mapping against a real payout sample — shows resolved fields, which required fields are missing, the exact rejection reason when beneficiary formats fail validation, and every leaf path the sample offers so remapping is a 2-minute edit.
+- **Crypto beneficiary mapping:** `extAuthz.mapping.beneficiary` gains `address` + `network` sources producing `vda:` refs — an exchange's `{"withdrawal_id","address","network"}` shape now maps through Envoy the same way bank `account+ifsc` does.
+- **CI `quickstart` job:** both compose files are config-validated, then the weekend kit is actually brought up (Payrekha + Envoy + Prometheus + Grafana) and `verify-deploy` runs its 12 checks against it — the 30-minute-install promise is now proven on every push.
 - **Weekend protection kit (`deploy/quickstart/` + `docs/weekend-kit.md`):** a one-compose shadow-mode stack (Payrekha + Envoy + Prometheus + Grafana) for lenders responding to the CERT-In advisory on a holiday weekend — `failure_mode_allow: true` and shadow pinned so the kit can never block a payout. Ships a pre-armed holiday `calendar.json`, an `env.example` secret checklist, and `npm run verify:deploy` (`scripts/verify-deploy.mjs`): a 12-check post-install proof that ends with a live canary trip → HIGH_ALERT → audited reset.
 - **Grafana dashboard (`deploy/grafana/`):** auto-provisioned Prometheus datasource + dashboard — alert-state banner, verdicts vs effective actions (shadow would-stop rate), rule-hit ranking, eval p99, and error panels keyed to `payrekha_*` metrics.
 - **SIEM shipper (`deploy/siem/vector.toml`):** decision-log tailer with parse transform and ready sinks for Splunk HEC, Elasticsearch data streams, and Sentinel (DCR) — plus the `PAYREKHA_LOG_FORMAT=cef` alternative.

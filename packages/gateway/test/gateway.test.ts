@@ -59,7 +59,7 @@ function boot(mode: 'shadow' | 'enforce', extra: { intentVerificationsPerMinute?
         kind: { const: 'LOAN_DISBURSAL' },
         amountPaise: 'body.amount_in_paise',
         intentId: 'header.x-payrekha-intent',
-        beneficiary: { account: 'body.beneficiary.account_number', ifsc: 'body.beneficiary.ifsc' },
+        beneficiary: { account: 'body.beneficiary.account_number', ifsc: 'body.beneficiary.ifsc', address: 'body.beneficiary.address', network: 'body.beneficiary.network' },
         channel: { const: 'IMPS' },
         sourceKeyId: 'header.x-client-id',
         timestampMs: 'body.claimed_ts',
@@ -132,6 +132,20 @@ describe('gateway (enforce)', () => {
     assert.equal(bad.headers.get('x-payrekha-verdict'), 'BLOCK');
     assert.equal(bad.headers.get('x-payrekha-rules'), 'intent.missing');
     assert.equal((await post('/ext_authz/payouts', {}, '', {})).status, 401);
+  });
+
+  it('ext_authz: crypto beneficiary (address+network) hashes to a vda ref and binds intents', async () => {
+    const vdaRef = hashBeneficiary({ address: 'bc1qexample0address0for0tests', network: 'BTC' }, HK);
+    const intent = signIntent(
+      { intentId: 'int-crypto', kind: 'LOAN_DISBURSAL', maxAmountPaise: 2_40_000_00, beneficiaryRef: vdaRef, maxUses: 1, notBeforeMs: T0 - 60_000, expiresAtMs: T0 + 3_600_000, issuer: 'los-prod', keyId: 'los-1' },
+      { alg: 'ed25519', privateKey: LOS.privateKey },
+    );
+    await post('/v1/intents', intent);
+    const res = await post('/ext_authz/payouts',
+      { request_id: 'c-1', amount_in_paise: '5000', beneficiary: { address: 'bc1qexample0address0for0tests', network: 'BTC' } },
+      '', { 'x-payrekha-key': EXT, 'x-payrekha-intent': 'int-crypto', 'x-client-id': 'lms' });
+    assert.equal(res.status, 200, JSON.stringify(await res.clone().json()));
+    assert.equal(res.headers.get('x-payrekha-verdict'), 'ALLOW');
   });
 
   it('state: GET with api key, PUT needs admin + reason; HIGH_ALERT raise/reset audited', async () => {

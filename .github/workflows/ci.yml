@@ -118,6 +118,41 @@ jobs:
           test "$(curl -s -o /dev/null -w '%{http_code}' -XPOST localhost:18080/v1/evaluate)" = "401"
           docker rm -f pr
 
+  quickstart:
+    # The weekend kit must actually boot — config-check, bring the stack up,
+    # prove healthz/readyz, then run the 12-check deploy verification.
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262  # v4
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020  # v4
+        with: { node-version: 24 }
+      - name: Validate compose files
+        run: |
+          docker compose -f deploy/quickstart/docker-compose.yml config -q
+          docker compose -f deploy/docker-compose.yml config -q
+      - name: Bring the weekend kit up and verify it
+        env:
+          PAYREKHA_EVALUATE_KEY: ci-evaluate-key-0123456789
+          PAYREKHA_READ_KEY: ci-read-key-0123456789
+          PAYREKHA_ADMIN_KEY: ci-admin-key-0123456789
+          PAYREKHA_HASH_KEY: ci-hash-key-0123456789abcdef01234567
+          PAYREKHA_STATE_KEY: ci-state-key-0123456789abcdef0123456789
+          PAYREKHA_EXT_AUTHZ_KEY: ci-ext-authz-key-0123456789
+          GRAFANA_ADMIN_PASSWORD: ci-grafana-admin-0123
+        run: |
+          docker compose -f deploy/quickstart/docker-compose.yml up --build -d
+          for i in $(seq 1 30); do
+            curl -sf localhost:8080/healthz >/dev/null && break
+            sleep 2
+          done
+          curl -sf localhost:8080/readyz
+          node scripts/verify-deploy.mjs --url http://localhost:8080 \
+            --api-key "$PAYREKHA_EVALUATE_KEY" --read-key "$PAYREKHA_READ_KEY" \
+            --admin-key "$PAYREKHA_ADMIN_KEY"
+      - name: Tear down
+        if: always()
+        run: docker compose -f deploy/quickstart/docker-compose.yml down -v
+
   helm:
     runs-on: ubuntu-latest
     steps:

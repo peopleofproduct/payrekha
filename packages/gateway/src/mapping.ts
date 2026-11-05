@@ -17,7 +17,7 @@ export interface FieldMapping {
   readonly amountPaise: Source;
   readonly intentId?: Source;
   readonly beneficiaryRef?: Source;
-  readonly beneficiary?: { readonly account?: Source; readonly ifsc?: Source; readonly vpa?: Source; readonly mobile?: Source };
+  readonly beneficiary?: { readonly account?: Source; readonly ifsc?: Source; readonly vpa?: Source; readonly mobile?: Source; readonly address?: Source; readonly network?: Source };
   readonly beneficiaryMobile?: Source;
   readonly channel?: Source;
   readonly sourceKeyId?: Source;
@@ -123,8 +123,10 @@ function hashRaw(req: ForwardedRequest, b: NonNullable<FieldMapping['beneficiary
   const ifsc = s(b.ifsc);
   const vpa = s(b.vpa);
   const mobile = s(b.mobile);
+  const address = s(b.address);
+  const network = s(b.network);
   const id: BeneficiaryIdentifier | undefined =
-    account !== undefined && ifsc !== undefined ? { account, ifsc } : vpa !== undefined ? { vpa } : mobile !== undefined ? { mobile } : undefined;
+    account !== undefined && ifsc !== undefined ? { account, ifsc } : vpa !== undefined ? { vpa } : mobile !== undefined ? { mobile } : address !== undefined && network !== undefined ? { address, network } : undefined;
   if (id === undefined) return undefined;
   try {
     return hashBeneficiary(id, key);

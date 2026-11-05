@@ -27,7 +27,9 @@
       "beneficiary": {
         "account": "body.beneficiary.account_number",
         "ifsc": "body.beneficiary.ifsc",
-        "vpa": "body.beneficiary.vpa"
+        "vpa": "body.beneficiary.vpa",
+        "address": "body.beneficiary.address",
+        "network": "body.beneficiary.network"
       },
       "channel": "body.mode",
       "sourceKeyId": "header.x-client-id",
