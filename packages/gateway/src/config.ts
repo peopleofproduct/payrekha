@@ -52,6 +52,15 @@ export function parseApiKeys(spec: string): ApiKey[] {
     });
 }
 
+/** A required-positive-integer env var. Fail loud at boot — `setInterval(NaN)` spins at ~1ms and a NaN port never listens. */
+export function envInt(env: NodeJS.ProcessEnv, name: string, fallback: number): number {
+  const raw = env[name];
+  if (raw === undefined) return fallback;
+  const n = Number(raw);
+  if (!Number.isSafeInteger(n) || n <= 0) throw new Error(`${name} must be a positive integer (got '${raw}')`);
+  return n;
+}
+
 export interface Booted {
   readonly firewall: Payrekha;
   readonly gateway: GatewayHandle;
@@ -138,7 +147,7 @@ export function bootFromEnv(env: NodeJS.ProcessEnv = process.env, log: (m: strin
   if (stateStore !== undefined) {
     // Fail closed: until the snapshot is read we might be hiding a HIGH_ALERT, so serve 503 and keep retrying.
     gateway.setReady(false, 'loading state');
-    const retryMs = Number(env['PAYREKHA_STATE_RETRY_MS'] ?? 5_000);
+    const retryMs = envInt(env, 'PAYREKHA_STATE_RETRY_MS', 5_000);
     const attempt = async (): Promise<void> => {
       try {
         if (await stateStore.load(firewall)) log(`state restored from ${stateStore.describe} (alert: ${firewall.alertState})`);

@@ -6,6 +6,19 @@ groups:
         for: 1m
         labels: { severity: critical }
         annotations: { summary: "Payrekha gateway unreachable — payouts follow your fail mode" }
+      - alert: PayrekhaNotReady
+        expr: payrekha_ready == 0
+        for: 1m
+        labels: { severity: critical }
+        annotations: { summary: "Gateway up but serving 503 — state store unreadable or fenced by another writer. Fail-closed by design; do not restart blindly." }
+      - alert: PayrekhaStateSaveErrors
+        expr: increase(payrekha_state_save_errors_total[10m]) > 0
+        labels: { severity: critical }
+        annotations: { summary: "State snapshots failing — intent uses, ledgers and HIGH_ALERT may be lost on restart" }
+      - alert: PayrekhaDecisionLogErrors
+        expr: increase(payrekha_decision_log_errors_total[10m]) > 0
+        labels: { severity: warning }
+        annotations: { summary: "Decision-log writes failing — audit trail gap; check disk/permissions" }
       - alert: PayrekhaHighAlert
         expr: payrekha_high_alert == 1
         labels: { severity: critical }

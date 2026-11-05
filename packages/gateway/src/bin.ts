@@ -2,15 +2,15 @@
 // SPDX-License-Identifier: Apache-2.0
 // Copyright 2026 Kapil — People of Product
 
-import { bootFromEnv } from './config.js';
+import { bootFromEnv, envInt } from './config.js';
 
 const { firewall, gateway, stateStore } = bootFromEnv();
-const port = Number(process.env['PORT'] ?? 8080);
+const port = envInt(process.env, 'PORT', 8080);
 const host = process.env['HOST'] ?? '0.0.0.0';
 gateway.server.listen(port, host, () => {
   console.error(`payrekha gateway on ${host}:${port} — mode ${firewall.currentMode.mode}, alert ${firewall.alertState}, rules ${firewall.ruleNames.length}`);
 });
-const timer = setInterval(() => void gateway.saveState(), Number(process.env['PAYREKHA_STATE_INTERVAL_MS'] ?? 5_000));
+const timer = setInterval(() => void gateway.saveState(), envInt(process.env, 'PAYREKHA_STATE_INTERVAL_MS', 5_000));
 timer.unref();
 const stop = () => {
   setTimeout(() => process.exit(0), 5_000).unref();
