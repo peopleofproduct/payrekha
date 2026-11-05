@@ -24,6 +24,8 @@ What must be true before Payrekha sits on a real payout path. Work top to bottom
 - [ ] Prometheus scraping `/metrics` (key with `read` role); the shipped alerts in `deploy/prometheus/alerts.yml` wired to paging: `PayrekhaNotReady`, `PayrekhaStateSaveErrors`, `PayrekhaHighAlert` are critical.
 - [ ] Decision log reaching the SIEM; someone owns the `outcome.denied` and `time.skew` signals.
 - [ ] Runbooks agreed for: HIGH_ALERT reset (who, what evidence, `PUT /v1/state` with reason), issuer-key compromise (revoke + re-register flow), standby promotion after writer fencing.
+- [ ] Drills run at least once with results logged (`docs/drills.md`): `npm run drill:crash` locally; D2–D7 on the real deployment before enforce.
+- [ ] `npm run loadcheck` re-run on production-class hardware; numbers recorded in `docs/runbook.md` (trigger for async snapshot serialization: snapshots > ~20 MB).
 - [ ] Rollback verified: redeploy previous image, state file still readable by it.
 
 ## Verdict safety
