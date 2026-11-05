@@ -3,7 +3,7 @@
 # (state and logs go to /var/lib/payrekha), HEALTHCHECK on /healthz.
 #
 #   docker build -f deploy/Dockerfile -t payrekha .
-FROM node:22-slim AS build
+FROM node:25-slim AS build
 WORKDIR /app
 COPY package.json package-lock.json tsconfig.json tsconfig.base.json ./
 COPY packages/core/package.json packages/core/package.json
@@ -15,7 +15,7 @@ RUN npm ci --ignore-scripts
 COPY packages packages
 RUN npx tsc -b packages/gateway packages/store-postgres && npm prune --omit=dev --ignore-scripts
 
-FROM node:22-slim AS runtime
+FROM node:25-slim AS runtime
 ENV NODE_ENV=production PORT=8080
 WORKDIR /app
 COPY --from=build --chown=root:root /app/node_modules node_modules
