@@ -37,12 +37,12 @@
     "playground": "tsc -b && esbuild playground/entry.mjs --bundle --format=esm --target=es2022 --outfile=playground/payrekha-web.js --alias:node:crypto=./playground/shims/node-crypto.mjs --alias:node:fs=./playground/shims/node-fs.mjs --inject:playground/shims/buffer.mjs"
   },
   "devDependencies": {
-    "@eslint/js": "^9.17.0",
-    "@types/node": "^22.10.0",
+    "@eslint/js": "^10.0.1",
+    "@types/node": "^26.6.6",
     "buffer": "^6.0.3",
     "esbuild": "^0.28.2",
-    "eslint": "^9.17.0",
-    "typescript": "^5.7.2",
+    "eslint": "^10.14.0",
+    "typescript": "^7.0.2",
     "typescript-eslint": "^8.18.0"
   },
   "engines": {
