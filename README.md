@@ -167,6 +167,7 @@ There is no UI console (an operations console is planned), no ML, and no hosted 
 
 ## Documentation
 
+- **Playbooks** — [Try it this weekend](docs/try-this-weekend.md) (hands-on runbook) · [PM playbook](docs/playbook-pm.md) · [CISO playbook](docs/playbook-ciso.md) · [CXO playbook](docs/playbook-cxo.md)
 - [Getting started](docs/getting-started.md): replay, then shadow via Envoy, then advise, then enforce
 - [Intents](docs/intents.md): the model, signing, key rotation, and "two keys to move money"
 - [Penny-drop](docs/penny-drop.md): why naive ₹1 rules fail at lenders

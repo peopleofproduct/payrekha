@@ -6,6 +6,7 @@ All notable changes to Payrekha are listed here. The format follows [Keep a Chan
 
 ### Added
 
+- **Adopter playbooks:** `docs/try-this-weekend.md` — a Friday-to-Sunday hands-on runbook for lender/NBFC teams covering the full replay→shadow→canaries→evidence loop with plug-and-play steps — and three audience playbooks: `docs/playbook-pm.md` (why it matters, effort tiers, objections, what a PM owns), `docs/playbook-ciso.md` (advisory→deployed-control mapping, trust boundaries, compliance evidence, incident playbook, honest limits) and `docs/playbook-cxo.md` (one-paragraph situation, cost/safety table, option comparison, decision asks).
 - **`scripts/check-mapping.mjs`:** dry-run the ext_authz field mapping against a real payout sample — shows resolved fields, which required fields are missing, the exact rejection reason when beneficiary formats fail validation, and every leaf path the sample offers so remapping is a 2-minute edit.
 - **Crypto beneficiary mapping:** `extAuthz.mapping.beneficiary` gains `address` + `network` sources producing `vda:` refs — an exchange's `{"withdrawal_id","address","network"}` shape now maps through Envoy the same way bank `account+ifsc` does.
 - **CI `quickstart` job:** both compose files are config-validated, then the weekend kit is actually brought up (Payrekha + Envoy + Prometheus + Grafana) and `verify-deploy` runs its 12 checks against it — the 30-minute-install promise is now proven on every push.
