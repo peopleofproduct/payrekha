@@ -91,6 +91,8 @@ export interface VelocityOptions {
   /** Default 10 min. */
   readonly windowMs?: number;
   readonly perSourceKey?: Budget;
+  /** Per-key budgets for known batch callers (settlement engine, AP/ERP run). */
+  readonly perSourceKeyOverrides?: Readonly<Record<string, Budget>>;
   readonly perMerchant?: Budget;
   readonly global?: Budget;
   /** BLOCK above budget × this. Default 2. */
@@ -108,6 +110,8 @@ export function velocityRule(o: VelocityOptions = {}): PayoutRule {
   const perMerchant = o.perMerchant ?? { count: 50, sumPaise: 2_00_00_000_00 };
   const global = o.global ?? { count: 500, sumPaise: 10_00_00_000_00 };
   const hardCap = o.hardCapFactor ?? 2;
+  const overrides = o.perSourceKeyOverrides ?? {};
+  const keyBudget = (id: string): Budget => (Object.hasOwn(overrides, id) ? overrides[id]! : perKey);
   const cap = (b: Budget) => Math.min(4_096, Math.max(64, Math.ceil(b.count * hardCap) + 8));
   const rings = new LruMap<string, TimeRing>(o.maxTrackedKeys ?? 100_000);
   let globalRing = new TimeRing(cap(global));
@@ -132,7 +136,7 @@ export function velocityRule(o: VelocityOptions = {}): PayoutRule {
     evaluate(p, ctx) {
       const m = ctx.multipliers.velocity;
       const results = [
-        check('sourceKey', ringFor(`k:${p.sourceKeyId}`, perKey), perKey, p, m),
+        check('sourceKey', ringFor(`k:${p.sourceKeyId}`, keyBudget(p.sourceKeyId)), keyBudget(p.sourceKeyId), p, m),
         p.merchantId !== undefined ? check('merchant', ringFor(`m:${p.merchantId}`, perMerchant), perMerchant, p, m) : null,
         check('global', globalRing, global, p, m),
       ];
@@ -158,7 +162,7 @@ export function velocityRule(o: VelocityOptions = {}): PayoutRule {
     restoreState(s) {
       const st = s as { global?: [number, number][]; keys?: [string, [number, number][]][] };
       globalRing = TimeRing.from(cap(global), st.global ?? []);
-      for (const [k, rows] of st.keys ?? []) rings.set(k, TimeRing.from(cap(k.startsWith('m:') ? perMerchant : perKey), rows));
+      for (const [k, rows] of st.keys ?? []) rings.set(k, TimeRing.from(cap(k.startsWith('m:') ? perMerchant : keyBudget(k.slice(2))), rows));
     },
     stats: () => ({ trackedKeys: rings.size, evictedKeys: rings.evictedCount }),
   };

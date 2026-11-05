@@ -1,0 +1,11 @@
+{
+  "calendarFile": "config/calendars/india-2026.example.json",
+  "rules": {
+    "velocity": {
+      "perSourceKeyOverrides": {
+        "settlement-svc": { "count": 40, "sumPaise": 50000000000 },
+        "ap-erp": { "count": 40, "sumPaise": 10000000000 }
+      }
+    }
+  }
+}
