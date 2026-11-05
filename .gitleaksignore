@@ -1,2 +1,6 @@
-# Dummy CI token in a pushed commit (moved to an env var since). Not a real credential.
+# LOS2.privateKey in gateway.test.ts is a per-run generated keypair (generateIssuerKeyPair),
+# not committed key material — false positive flagged by gitleaks >=8.30 generic-api-key rule.
+48a3f79bf0f02136221d9d55c87e9553a81310d0:packages/gateway/test/gateway.test.ts:generic-api-key:50
+# ci-api-token-0123456789 is an intentional dummy planted in ci.yml to verify the
+# secrets-scanning job itself catches planted secrets. Not a real credential.
 6b590929fafef15da2ccf39b663462e79aa3e5de:.github/workflows/ci.yml:curl-auth-header:43

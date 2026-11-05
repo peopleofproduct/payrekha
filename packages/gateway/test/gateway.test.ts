@@ -47,6 +47,7 @@ function boot(mode: 'shadow' | 'enforce', extra: { intentVerificationsPerMinute?
     decisionLog: log,
     now: () => T0,
     ...(extra.mint === true
+      // gitleaks:allow — LOS2 is a per-run generated keypair, not a committed secret
       ? { mint: { keyId: 'los-2', key: { alg: 'ed25519' as const, privateKey: LOS2.privateKey }, defaultTtlMs: 60_000, maxTtlMs: 3_600_000 } }
       : {}),
     ...(extra.intentVerificationsPerMinute !== undefined ? { intentVerificationsPerMinute: extra.intentVerificationsPerMinute } : {}),
