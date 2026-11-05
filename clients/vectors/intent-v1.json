@@ -1,0 +1,26 @@
+{
+  "note": "Test vector only. Never use these keys outside tests.",
+  "hashKey": "vector-hash-key-0123456789abcdef",
+  "beneficiary": {
+    "account": "000123456789",
+    "ifsc": "HDFC0001234"
+  },
+  "intent": {
+    "intentId": "loan-2026-000042-disb",
+    "kind": "LOAN_DISBURSAL",
+    "maxAmountPaise": 49999900,
+    "beneficiaryRef": "hb1_EQ4UDaWvB4xcHAxhm1UwtpIxhtu8zvNXq5TQZHxrYmY",
+    "subjectRef": "loan-2026-000042",
+    "maxUses": 1,
+    "notBeforeMs": 1793766600000,
+    "expiresAtMs": 1793853000000,
+    "issuer": "los-prod",
+    "keyId": "los-2026-11"
+  },
+  "payload": "payrekha-intent-v1\n{\"beneficiaryRef\":\"hb1_EQ4UDaWvB4xcHAxhm1UwtpIxhtu8zvNXq5TQZHxrYmY\",\"expiresAtMs\":1793853000000,\"intentId\":\"loan-2026-000042-disb\",\"issuer\":\"los-prod\",\"keyId\":\"los-2026-11\",\"kind\":\"LOAN_DISBURSAL\",\"maxAmountPaise\":49999900,\"maxUses\":1,\"notBeforeMs\":1793766600000,\"subjectRef\":\"loan-2026-000042\"}",
+  "hmacSecret": "vector-hmac-secret-0123456789abcdef",
+  "hmacSignature": "8CJ_EkJ2RRs8-i4kB_hg9HJdjxen9yRKgU60KIbnTbc",
+  "ed25519SeedHex": "8ed92f04a199097e9a1cf7a8f83985d5a73a6edfc2381531a681516cc007fc93",
+  "ed25519PublicKey": "MCowBQYDK2VwAyEA0aAMZgMR3vpOz6+STdbqihCAMfxtGDjtIhx2Emg+xYg=",
+  "ed25519Signature": "XWYPI2czcYgbB7uWD87wAzq1YawdHPAM02QQtZAD-JxVLnJWFewJYlntBY-RBlgSSw8LH1xKEQKVzsWXt-95Aw"
+}

@@ -1,0 +1,46 @@
+{
+  "name": "payrekha",
+  "version": "0.1.0-alpha.0",
+  "private": true,
+  "description": "Payrekha — open-source, in-process payout firewall for Indian BFSI. No matching intent, no payout — whoever is calling your API.",
+  "license": "Apache-2.0",
+  "author": "Kapil <kapil@theproduct.city>",
+  "type": "module",
+  "workspaces": [
+    "packages/core",
+    "packages/rules",
+    "packages/gateway",
+    "packages/replay"
+  ],
+  "scripts": {
+    "build": "tsc -b",
+    "clean": "tsc -b --clean",
+    "typecheck": "tsc -b --pretty && tsc -p tsconfig.test.json",
+    "lint": "eslint .",
+    "test": "npm run build && node --test --test-reporter=spec \"packages/*/test/*.test.ts\"",
+    "test:coverage": "npm run build && node --test --experimental-test-coverage --test-coverage-include=\"packages/*/dist/**\" \"packages/*/test/*.test.ts\"",
+    "demo": "tsc -b && node examples/demo.mjs",
+    "gateway": "tsc -b && node examples/reference-gateway.mjs",
+    "bench": "tsc -b && node --expose-gc benchmarks/run.mjs",
+    "replay": "tsc -b && node packages/replay/dist/cli.js",
+    "gen:data": "tsc -b && node tools/generate-synthetic-data.mjs",
+    "check:deps": "node tools/check-zero-deps.mjs",
+    "publish:check": "tsc -b && npm publish --workspaces --dry-run"
+  },
+  "devDependencies": {
+    "@eslint/js": "^9.17.0",
+    "@types/node": "^22.10.0",
+    "eslint": "^9.17.0",
+    "typescript": "^5.7.2",
+    "typescript-eslint": "^8.18.0"
+  },
+  "engines": {
+    "node": ">=22"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/peopleofproduct/payrekha.git"
+  },
+  "homepage": "https://github.com/peopleofproduct/payrekha#readme",
+  "bugs": "https://github.com/peopleofproduct/payrekha/issues"
+}

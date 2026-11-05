@@ -1,0 +1,14 @@
+[project]
+name = "payrekha"
+version = "0.1.0a0"
+description = "Sign Payrekha payout intents from your LOS/LMS or settlement engine."
+license = { text = "Apache-2.0" }
+requires-python = ">=3.9"
+dependencies = []
+
+[project.optional-dependencies]
+ed25519 = ["cryptography>=42"]
+
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"

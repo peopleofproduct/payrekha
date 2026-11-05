@@ -1,0 +1,26 @@
+{
+  "name": "@payrekha/rules",
+  "version": "0.1.0-alpha.0",
+  "description": "The Payrekha v0.1 payout rule set: intent binding, probe, cooling, velocity, band, settlement, non-prod origin, canary, calendar, feed and attestation rules. Zero runtime dependencies.",
+  "license": "Apache-2.0",
+  "author": "Kapil <kapil@theproduct.city>",
+  "type": "module",
+  "main": "dist/index.js",
+  "types": "dist/index.d.ts",
+  "exports": {
+    ".": { "types": "./dist/index.d.ts", "default": "./dist/index.js" }
+  },
+  "files": ["dist", "NOTICE", "LICENSE", "README.md"],
+  "sideEffects": false,
+  "publishConfig": { "access": "public", "provenance": true },
+  "dependencies": { "@payrekha/core": "0.1.0-alpha.0" },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/peopleofproduct/payrekha.git",
+    "directory": "packages/rules"
+  },
+  "homepage": "https://github.com/peopleofproduct/payrekha#readme",
+  "bugs": { "url": "https://github.com/peopleofproduct/payrekha/issues" },
+  "engines": { "node": ">=22" },
+  "keywords": ["payrekha", "payout", "firewall", "nbfc", "payment-aggregator", "fraud", "india", "cert-in"]
+}

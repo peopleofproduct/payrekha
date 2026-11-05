@@ -1,0 +1,25 @@
+node_modules/
+dist/
+coverage/
+*.tsbuildinfo
+.DS_Store
+*.log
+.env
+.env.*
+.npmrc
+report.html
+report.json
+/out/
+*.class
+__pycache__/
+*.pyc
+
+# Guard: business, pricing and market material never lives in this repo.
+private/
+business/
+*.private.md
+
+# clients
+clients/java/build/
+__pycache__/
+*.pyc
