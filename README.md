@@ -1,3 +1,7 @@
+<p align="center">
+  <img src="docs/assets/payrekha-social-preview-1280x640.png" alt="Payrekha — the Lakshman Rekha for money leaving your systems" width="640">
+</p>
+
 # Payrekha
 
 **The Lakshman Rekha for money leaving your systems.**
