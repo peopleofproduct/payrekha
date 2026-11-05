@@ -48,6 +48,8 @@
     "postgres",
     "state",
     "payout",
-    "firewall"
+    "fraud",
+    "firewall",
+    "cert-in"
   ]
 }

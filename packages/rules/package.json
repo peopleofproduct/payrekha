@@ -22,5 +22,5 @@
   "homepage": "https://github.com/peopleofproduct/payrekha#readme",
   "bugs": { "url": "https://github.com/peopleofproduct/payrekha/issues" },
   "engines": { "node": ">=22" },
-  "keywords": ["payrekha", "payout", "firewall", "nbfc", "payment-aggregator", "fraud", "india", "cert-in"]
+  "keywords": ["payrekha", "payout", "fraud", "firewall", "upi", "imps", "neft", "nbfc", "payment-aggregator", "cert-in", "india"]
 }

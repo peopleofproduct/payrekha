@@ -15,9 +15,11 @@ No matching intent, no payout — whoever is calling.
 
 ## The name, and the line it stands for
 
-In the Ramayana, when Lakshman has to leave Sita alone, he draws a line in the earth around her — the *Lakshman Rekha*: *"stay inside, and nothing can reach you."* The line kept standing when the guardian could not.
+In the Ramayana, when Lakshman has to leave Sita alone, he draws a line in the earth around her — the *Lakshman Rekha*. And here's the part that matters: **Ravana never broke that line. He couldn't.** He came disguised as someone harmless, and got Sita to step outside it.
 
-**Payrekha — *pay* + *rekha* — is that line for your payout rails.**
+Attackers work the same way. They don't break your payment rails — they show up dressed as your own systems: your API, your credentials, your app. Then they ask your money to step outside.
+
+**Payrekha — *pay* + *rekha* — is the line that holds anyway.**
 
 When your systems are present and honest, money moves freely: a sanctioned loan, a settled merchant, a whitelisted withdrawal. But when something is wrong — a stolen credential, a repackaged app, a payout call at 3 AM on a holiday — the line holds. Whoever is calling, whatever key they hold: **no matching intent, no payout.**
 
@@ -30,11 +32,22 @@ Payrekha is an open-source **payout firewall** for Indian NBFCs, digital lenders
 
 Get either answer wrong and the money stays. Even if the attacker is inside, with your real payout credential, they still don't hold the intent-signing key — **the money doesn't leave.**
 
+*Built against CERT-In Advisory CIAD-2026-0058 · open source · runs inside your walls · never phones home.*
+
 ## Why this week, of all weeks
 
 CERT-In advisory **CIAD-2026-0058** ("CRAFTY FALCON") describes attackers who get inside a lender and call its *own* payout APIs with valid credentials — and it warns they favour **holidays**, when the guardians are thinnest.
 
 This is Diwali week — the festival that celebrates the very epic the Lakshman Rekha comes from, and one of the longest low-staffing windows of the year. We open-sourced Payrekha the week the guardian steps away, because that's exactly when the line matters. The [weekend kit](docs/weekend-kit.md) stands it up in ~30 minutes in shadow mode — it watches, learns and alerts, and by construction **it cannot block a single payout.**
+
+## How you adopt it — four steps, each reversible
+
+| Step | When | What happens | What it can break |
+|---|---|---|---|
+| **Replay** | Day 1 · ~30 min | Your last month's payout export runs through it on a laptop — see what it would have caught | Nothing — it reads a file |
+| **Shadow** | Week 1 | Sits in front of the payout API in observe-only mode | Nothing — it cannot block by construction |
+| **Advise** | Week 2–3 | Your payout service reads each verdict; ops reviews the holds | Nothing — verdicts are advisory |
+| **Enforce** | When you're ready | Turn it on per payout type, riskiest first (crypto withdrawals, merchant settlements) | Only what you explicitly turn on |
 
 | | |
 |---|---|
@@ -163,8 +176,11 @@ There is no UI console (an operations console is planned), no ML, and no hosted 
 
 ## Family
 
-- [Krediwall](https://github.com/peopleofproduct/krediwall): the in-process fraud firewall for credit-funded UPI payments. Payrekha's engine semantics come from it.
-- [Panini](https://github.com/peopleofproduct/Panini): People of Product's open-source work for India's digital public infrastructure.
+One line of defence per surface, from the same People of Product workshop:
+
+- **[Panini](https://github.com/peopleofproduct/Panini)** — checks the financial story you're *shown* (India's digital public infrastructure).
+- **[Krediwall](https://github.com/peopleofproduct/krediwall)** — checks every rupee your *customers* spend on credit. Payrekha's engine semantics come from it.
+- **Payrekha** — checks every rupee your *own systems* send out.
 
 ## Project
 
