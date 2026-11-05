@@ -1,0 +1,106 @@
+name: ci
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  build-test:
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        node-version: [22, 24]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ matrix.node-version }}
+          cache: npm
+      - run: npm ci
+      - run: npm run lint
+      - run: npm run typecheck
+      - name: Tests with coverage
+        run: node --test --experimental-test-coverage "packages/*/test/*.test.ts"
+      - name: Zero runtime dependencies in core and rules
+        run: npm run check:deps
+      - name: Demo smoke (keeps README output honest)
+        run: npm run demo
+      - name: Replay smoke on the synthetic month
+        run: |
+          mkdir -p ci-out
+          node packages/replay/dist/cli.js --payouts examples/data/payouts.csv --intents examples/data/intents.csv --config examples/data/payrekha.json --out ci-out
+          test -s ci-out/report.html && test -s ci-out/report.json
+      - name: No raw beneficiary identifiers in the decision log
+        run: |
+          mkdir -p ci-tmp
+          PAYREKHA_API_KEYS=ci:prod:ci-api-token-0123456789 PAYREKHA_HASH_KEY=ci-hash-key-0123456789 \
+          PAYREKHA_DECISION_LOG=ci-tmp/decisions.jsonl PORT=18080 node examples/reference-gateway.mjs &
+          sleep 2
+          curl -sf -XPOST localhost:18080/v1/evaluate -H 'authorization: Bearer ci-api-token-0123456789' \
+            -d '{"payoutId":"ci-1","kind":"REFUND","amountPaise":100000,"beneficiary":{"account":"000123456789","ifsc":"HDFC0001234"},"channel":"IMPS"}' > /dev/null
+          sleep 1
+          test -s ci-tmp/decisions.jsonl
+          ! grep -E '000123456789|HDFC0001234' ci-tmp/decisions.jsonl
+
+  bench:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: npm
+      - run: npm ci
+      - run: npx tsc -b
+      # Budget is 5× the 1 ms target: shared runners are noisy; this catches bad regressions, not jitter.
+      - run: node benchmarks/run.mjs --payouts=100000 --http=1000 --budget-us=5000
+
+  java-client:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: 17
+      - run: sh clients/java/build.sh
+
+  python-client:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - run: pip install cryptography
+      - run: cd clients/python && python -m unittest discover -s tests -v
+
+  docker:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - run: docker compose -f deploy/docker-compose.yml config -q
+      - run: docker build -f deploy/Dockerfile -t payrekha:ci .
+      - name: Non-root, read-only root filesystem, answers /readyz
+        run: |
+          docker run -d --name pr --read-only --cap-drop ALL -p 18080:8080 \
+            -e PAYREKHA_API_KEYS=ci:prod:ci-api-token-0123456789 payrekha:ci
+          sleep 3
+          test "$(docker exec pr id -u)" != "0"
+          test "$(curl -s -o /dev/null -w '%{http_code}' localhost:18080/readyz)" = "200"
+          test "$(curl -s -o /dev/null -w '%{http_code}' -XPOST localhost:18080/v1/evaluate)" = "401"
+          docker rm -f pr
+
+  secrets:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: gitleaks/gitleaks-action@v2
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

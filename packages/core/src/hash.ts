@@ -29,7 +29,7 @@ export function beneficiaryPreimage(id: BeneficiaryIdentifier): string {
   }
   if ('vpa' in id) {
     const vpa = id.vpa.trim().toLowerCase();
-    if (!/^[a-z0-9.\-_]{2,256}@[a-z][a-z0-9.\-]{1,64}$/.test(vpa)) throw new TypeError('VPA must look like name@handle');
+    if (!/^[a-z0-9._-]{2,256}@[a-z][a-z0-9.-]{1,64}$/.test(vpa)) throw new TypeError('VPA must look like name@handle');
     return `vpa:${vpa}`;
   }
   if ('mobile' in id) {

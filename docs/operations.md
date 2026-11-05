@@ -1,0 +1,47 @@
+# Operations
+
+## Modes
+
+| Mode | What the caller gets | Use it for |
+|---|---|---|
+| `shadow` (default) | Always `ALLOW`; the real verdict is logged | Weeks 1–2, and any new payout kind |
+| `advise` | The real verdict; the caller decides | SDK integrations while tuning |
+| `enforce` | `HOLD` for REVIEW, `DECLINE` for BLOCK; ext_authz answers 403 | Production, one kind at a time via `modeByKind` |
+
+Change the mode at runtime with `PUT /v1/state` (admin token, `reason` required). The configuration file stays authoritative: restoring a snapshot never changes the mode.
+
+## Alert states
+
+- `NORMAL`.
+- `HOLIDAY`: set automatically from the calendar (`config/calendars/india-2026.example.json`) and in configured weekend or night windows. Velocity and probe thresholds are multiplied down, for example ×0.5.
+- `HIGH_ALERT`: entered on a canary hit, after N BLOCKs in a window (`highAlertOnBlocks`), or by a manual call. Every payout kind then needs an intent and probes block. **It never expires on its own.**
+
+Reset it after you have investigated:
+
+```bash
+curl -XPUT localhost:8080/v1/state -H "authorization: Bearer $ADMIN" \
+  -d '{"highAlert":"reset","actor":"soc-oncall","reason":"INC-2211 contained, keys rotated"}'
+```
+
+Alert on `payrekha_high_alert == 1` (see `deploy/prometheus/alerts.yml`).
+
+## Client fail modes
+
+If Payrekha is unreachable, the client decides using `onUnavailable`:
+
+- `hold-above:5000000` (**default**): hold anything above ₹50,000 and let smaller payouts through.
+- `hold`: hold everything. This is the safest option, but an outage of Payrekha becomes an outage of your payouts.
+- `allow`: let everything through. Use it only in shadow-mode trials.
+
+Envoy is configured with `failure_mode_allow: false`, which is the same as `hold`. Each client-side fallback verdict is marked `degraded: true` and `unavailable: true`. Log those decisions too.
+
+## State and restarts
+
+`PAYREKHA_STATE_FILE` holds ledgers, velocity windows, intents, dedupe and alert state. It is written atomically with mode `0600`, every 30 s and on SIGTERM. An unreadable state file makes `/readyz` return 503, so the gateway does not quietly start with an empty memory. Run one replica per state file. For multiple replicas, use the Postgres or Redis store when it lands ([ROADMAP](../ROADMAP.md)).
+
+## Tuning with replay
+
+1. Replay a month in intent-less mode and read the false-positive list.
+2. Give known batch callers their own budget with `velocity.perSourceKeyOverrides` (for example, the nightly settlement run).
+3. Replay again with intents exported from your LOS. The REVIEW count should fall to the real anomalies.
+4. Deploy the same config file in shadow mode and compare its live log with the replay.

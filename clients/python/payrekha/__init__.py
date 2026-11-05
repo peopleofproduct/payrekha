@@ -5,6 +5,7 @@
 Standard library only for HMAC; Ed25519 signing uses the optional
 ``cryptography`` package. Byte-for-byte compatible with @payrekha/core.
 """
+from .client import DEFAULT_ON_UNAVAILABLE, PayrekhaClient
 from .intent import (
     INTENT_DOMAIN,
     INTENT_KINDS,
@@ -16,6 +17,8 @@ from .intent import (
 )
 
 __all__ = [
+    "DEFAULT_ON_UNAVAILABLE",
+    "PayrekhaClient",
     "INTENT_DOMAIN",
     "INTENT_KINDS",
     "canonical_json",
