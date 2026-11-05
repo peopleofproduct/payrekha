@@ -5,7 +5,7 @@
 # Payrekha
 
 **The Lakshman Rekha for money leaving your systems.**
-No matching intent, no payout — whoever is calling your API.
+No matching intent, no payout — whoever is calling.
 
 [![CI](https://github.com/peopleofproduct/payrekha/actions/workflows/ci.yml/badge.svg)](https://github.com/peopleofproduct/payrekha/actions/workflows/ci.yml)
 [![License: Apache-2.0](https://img.shields.io/badge/license-Apache--2.0-blue)](LICENSE)
@@ -13,7 +13,28 @@ No matching intent, no payout — whoever is calling your API.
 [![Status: alpha](https://img.shields.io/badge/status-alpha-orange)](CHANGELOG.md)
 [![Maintained by People of Product™](https://img.shields.io/badge/maintained%20by-People%20of%20Product%E2%84%A2-1b1b1f)](https://github.com/peopleofproduct)
 
-Payrekha (*payout + rekha*, the line you do not cross) is an open-source, in-process **payout firewall** for Indian NBFCs, digital lenders, payment aggregators and crypto exchanges. It checks every rupee your *own* systems send out. A payout is allowed only if it matches a real business intent: a sanctioned loan, a reconciled settlement or a whitelisted withdrawal. It does not matter which API, credential or app made the call.
+## The name, and the line it stands for
+
+In the Ramayana, when Lakshman has to leave Sita alone, he draws a line in the earth around her — the *Lakshman Rekha*: *"stay inside, and nothing can reach you."* The line kept standing when the guardian could not.
+
+**Payrekha — *pay* + *rekha* — is that line for your payout rails.**
+
+When your systems are present and honest, money moves freely: a sanctioned loan, a settled merchant, a whitelisted withdrawal. But when something is wrong — a stolen credential, a repackaged app, a payout call at 3 AM on a holiday — the line holds. Whoever is calling, whatever key they hold: **no matching intent, no payout.**
+
+## What it does, in one breath
+
+Payrekha is an open-source **payout firewall** for Indian NBFCs, digital lenders, payment aggregators and crypto exchanges. It sits between your payout API and the money rails and asks two questions of every rupee leaving:
+
+1. **Was this payout actually decided?** Your system of record (LOS, reconciliation, withdrawal approver) signs an *intent* — this loan, this ceiling, this beneficiary, valid until this time. A payout must show a matching intent to pass.
+2. **Does it look like the attacks we've seen?** ₹1-then-large probes, brand-new beneficiaries, holiday bursts, UAT keys in prod — the patterns in the CERT-In advisory.
+
+Get either answer wrong and the money stays. Even if the attacker is inside, with your real payout credential, they still don't hold the intent-signing key — **the money doesn't leave.**
+
+## Why this week, of all weeks
+
+CERT-In advisory **CIAD-2026-0058** ("CRAFTY FALCON") describes attackers who get inside a lender and call its *own* payout APIs with valid credentials — and it warns they favour **holidays**, when the guardians are thinnest.
+
+This is Diwali week — the festival that celebrates the very epic the Lakshman Rekha comes from, and one of the longest low-staffing windows of the year. We open-sourced Payrekha the week the guardian steps away, because that's exactly when the line matters. The [weekend kit](docs/weekend-kit.md) stands it up in ~30 minutes in shadow mode — it watches, learns and alerts, and by construction **it cannot block a single payout.**
 
 | | |
 |---|---|
@@ -22,7 +43,7 @@ Payrekha (*payout + rekha*, the line you do not cross) is an open-source, in-pro
 | **What it is not** | Not an ML platform, not an EDR, and not a replacement for patching or cloud audit logs. It is the last check before the money leaves. |
 | **Maturity** | **Alpha** (`0.1.0-alpha.0`). Thresholds are illustrative and have not been tuned on production data. Run it in shadow mode first. |
 
-## In plain words
+## The attack it's built for
 
 CERT-In advisory CIAD-2026-0058 describes "CRAFTY FALCON": attackers get inside a lender or payment company and then **call the victim's own payout APIs**. They do ₹1 test transfers before large ones. They abuse merchant settlement APIs. They move from an exposed UAT box into production, call APIs directly from repackaged mobile apps, and strike on holidays. Every one of those calls uses a valid credential. Perimeter controls do not see a problem.
 
