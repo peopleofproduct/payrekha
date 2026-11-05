@@ -23,6 +23,12 @@ export interface FieldMapping {
   readonly sourceKeyId?: Source;
   readonly merchantId?: Source;
   readonly clientAttested?: Source;
+  /** Upstream risk signal (0..1) — advisory input for the `external` rule. Map from a proxy-asserted header (e.g. `header.x-risk-score`) rather than a client body field where possible. */
+  readonly riskScore?: Source;
+  /** Upstream verdict word ('block'|'decline'|'review'|…) — advisory input for the `external` rule. */
+  readonly externalVerdict?: Source;
+  /** Label for who produced the signal ('feedzai', 'los-heuristic') — evidence only. */
+  readonly externalSource?: Source;
   /**
    * Kept as `clientTimestampMs` evidence unless `extAuthz.trustClientTimestamp`
    * is set — a client-controlled clock is never the decision clock.
@@ -59,6 +65,10 @@ const resolve = (req: ForwardedRequest, s: Source | undefined): unknown =>
 
 const asInt = (v: unknown): unknown => (typeof v === 'string' && /^\d+$/.test(v) ? Number(v) : v);
 const asBool = (v: unknown): unknown => (v === 'true' ? true : v === 'false' ? false : v);
+const asNum = (v: unknown): number | undefined => {
+  const n = typeof v === 'string' ? Number(v) : typeof v === 'number' ? v : NaN;
+  return Number.isFinite(n) ? n : undefined;
+};
 
 /**
  * Build a PayoutRequest-shaped object. Anything missing or malformed is
@@ -84,6 +94,12 @@ export function mapPayout(req: ForwardedRequest, m: FieldMapping, hashKey: strin
   }
   const att = asBool(resolve(req, m.clientAttested));
   if (att !== undefined) out['clientAttested'] = att;
+  const rs = asNum(resolve(req, m.riskScore));
+  if (rs !== undefined) out['riskScore'] = rs;
+  for (const [k, s] of Object.entries({ externalVerdict: m.externalVerdict, externalSource: m.externalSource })) {
+    const v = resolve(req, s);
+    if (typeof v === 'string' && v !== '') out[k] = v;
+  }
   const ref = resolve(req, m.beneficiaryRef);
   if (typeof ref === 'string') out['beneficiaryRef'] = ref;
   else if (m.beneficiary !== undefined && hashKey !== undefined) out['beneficiaryRef'] = hashRaw(req, m.beneficiary, hashKey);

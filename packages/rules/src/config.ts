@@ -4,6 +4,7 @@
 import type { IntentKind, PayoutRule } from '@payrekha/core';
 import { bandRule, coolingRule, probeRule, velocityRule, type BandOptions, type CoolingOptions, type ProbeOptions, type VelocityOptions } from './behaviour.js';
 import { attestationRule, calendarRule, canaryRule, originRule, type OriginOptions } from './environment.js';
+import { externalRule, type ExternalOptions } from './external.js';
 import { FraudFeed, feedRule, type FeedRuleOptions } from './feed.js';
 import { intentRule } from './intent.js';
 import { settlementAccountChangedRule, settlementOverCapturedRule, type AccountChangedOptions } from './settlement.js';
@@ -16,6 +17,7 @@ export interface RulesConfig {
   readonly origin?: OriginOptions;
   readonly settlement?: AccountChangedOptions;
   readonly feed?: FeedRuleOptions;
+  readonly external?: ExternalOptions;
   readonly requireAttestation?: readonly IntentKind[];
 }
 
@@ -34,6 +36,7 @@ export function payrekhaRules(cfg: RulesConfig = {}, feed = new FraudFeed()): Ru
     canaryRule(),
     originRule(cfg.origin),
     intentRule(),
+    externalRule(cfg.external),
     settlementOverCapturedRule(),
     settlementAccountChangedRule(cfg.settlement),
     probeRule(cfg.probe),
@@ -58,6 +61,8 @@ export const RULE_IDS = [
   'intent.beneficiary-mismatch',
   'intent.reused',
   'intent.amount-exceeds',
+  'external.verdict',
+  'external.score',
   'settlement.over-captured',
   'settlement.account-changed',
   'probe.micro-then-large',

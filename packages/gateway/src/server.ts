@@ -184,6 +184,7 @@ export function createGateway(o: GatewayOptions): GatewayHandle {
   const onError = o.onError ?? (() => undefined);
 
   const intentCost = new Map<string, { reset: number; used: number }>();
+  const recentDecisions: ReturnType<typeof decisionRecord>[] = [];
   const authKey = (req: IncomingMessage, role: ApiRole): ApiKey => {
     const t = bearer(req);
     const k = t === undefined ? undefined : o.apiKeys.find((a) => hexEq(t, a.sha256));
@@ -198,8 +199,11 @@ export function createGateway(o: GatewayOptions): GatewayHandle {
   };
 
   const record = (v: PayoutVerdict, p: unknown, rid: string, via: 'evaluate' | 'ext_authz') => {
+    const rec = decisionRecord(v, p as Partial<PayoutRequest>, rid, via, now());
+    recentDecisions.push(rec);
+    if (recentDecisions.length > 1_000) recentDecisions.shift();
     try {
-      o.decisionLog?.write(decisionRecord(v, p as Partial<PayoutRequest>, rid, via, now()));
+      o.decisionLog?.write(rec);
     } catch (e) {
       stats.logErrors += 1;
       onError('decision-log', e);
@@ -317,6 +321,39 @@ export function createGateway(o: GatewayOptions): GatewayHandle {
     if (path === '/v1/state' && m === 'GET') {
       authKey(req, 'read');
       return [200, stateView()];
+    }
+    // Analyst surface: recent verdicts, audit trail and intent state — a
+    // documented read API so consoles/triage tools can sit on top.
+    if (path === '/v1/decisions' && m === 'GET') {
+      authKey(req, 'read');
+      const verdict = url.searchParams.get('verdict');
+      const payoutId = url.searchParams.get('payoutId');
+      const intentId = url.searchParams.get('intentId');
+      const limit = Math.min(Math.max(Number(url.searchParams.get('limit')) || 200, 1), 500);
+      let rows = recentDecisions;
+      if (verdict !== null) rows = rows.filter((r) => r.verdict === verdict.toUpperCase());
+      if (payoutId !== null) rows = rows.filter((r) => r.payoutId === payoutId.slice(0, 128));
+      if (intentId !== null) rows = rows.filter((r) => r.intentId === intentId);
+      return [200, { decisions: rows.slice(-limit).reverse(), total: rows.length }];
+    }
+    if (path === '/v1/audit' && m === 'GET') {
+      authKey(req, 'read');
+      const limit = Math.min(Math.max(Number(url.searchParams.get('limit')) || 200, 1), 1_000);
+      return [200, { audit: fw.auditEntries.slice(-limit).reverse() }];
+    }
+    if (path.startsWith('/v1/intents/') && path !== '/v1/intents/mint' && m === 'GET') {
+      authKey(req, 'read');
+      let intentId: string;
+      try {
+        intentId = decodeURIComponent(path.slice('/v1/intents/'.length));
+      } catch {
+        throw new HttpError(400, 'malformed intentId');
+      }
+      const rec = fw.intents.get(intentId);
+      if (rec === undefined) throw new HttpError(404, 'unknown intentId');
+      const { signature: _s, ...intent } = rec.intent;
+      void _s;
+      return [200, { intent, uses: rec.uses, usedPaise: rec.usedPaise, remainingPaise: Math.max(0, rec.intent.maxAmountPaise - rec.usedPaise), verification: rec.verification }];
     }
     if (path === '/v1/state' && m === 'PUT') {
       const token = authAdmin(req);
@@ -452,7 +489,10 @@ export function createGateway(o: GatewayOptions): GatewayHandle {
 
 function routeLabel(url: string): string {
   const p = url.split('?')[0] ?? '/';
-  return p.startsWith('/ext_authz') ? '/ext_authz' : p.startsWith('/v1/issuers/') ? '/v1/issuers' : ['/v1/evaluate', '/v1/intents', '/v1/intents/mint', '/v1/outcomes', '/v1/state', '/v1/canaries', '/healthz', '/readyz', '/metrics'].includes(p) ? p : 'other';
+  if (p.startsWith('/ext_authz')) return '/ext_authz';
+  if (p.startsWith('/v1/issuers/')) return '/v1/issuers';
+  if (p.startsWith('/v1/intents/') && p !== '/v1/intents/mint') return '/v1/intents/item';
+  return ['/v1/evaluate', '/v1/intents', '/v1/intents/mint', '/v1/outcomes', '/v1/state', '/v1/decisions', '/v1/audit', '/v1/canaries', '/healthz', '/readyz', '/metrics'].includes(p) ? p : 'other';
 }
 
 function send(res: ServerResponse, status: number, body: unknown, headers: Record<string, string> = {}): void {

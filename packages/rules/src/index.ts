@@ -4,6 +4,7 @@
 export * from './behaviour.js';
 export * from './config.js';
 export * from './environment.js';
+export * from './external.js';
 export * from './feed.js';
 export * from './intent.js';
 export * from './settlement.js';

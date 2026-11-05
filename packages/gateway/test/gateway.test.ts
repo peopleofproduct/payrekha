@@ -238,6 +238,44 @@ describe('gateway (enforce)', () => {
   });
 });
 
+describe('gateway (enforce): analyst read surface', () => {
+  const { gw } = boot('enforce');
+  let url = '';
+  before(async () => (url = await listen(gw)));
+  after(() => gw.server.close());
+  const get = (p: string, tok = API) => fetch(url + p, { headers: { authorization: `Bearer ${tok}` } });
+  it('decisions ring, intent lookup and audit entries serve consoles — read role only', async () => {
+    // Register + evaluate so the ring has a BLOCK and an ALLOW to filter on.
+    await fetch(url + '/v1/intents', { method: 'POST', headers: { authorization: `Bearer ${REGTOK}`, 'content-type': 'application/json' }, body: JSON.stringify(loanIntent('an-1')) });
+    const post = (b: unknown) => fetch(url + '/v1/evaluate', { method: 'POST', headers: { authorization: `Bearer ${API}`, 'content-type': 'application/json' }, body: JSON.stringify(b) });
+    const v1 = (await (await post({ payoutId: 'an-p1', kind: 'LOAN_DISBURSAL', amountPaise: 2_40_000_00, beneficiaryRef: benRef, channel: 'IMPS', intentId: 'an-1' })).json()) as { verdict: string; riskScore: number };
+    assert.equal(v1.verdict, 'ALLOW');
+    assert.equal(typeof v1.riskScore, 'number', 'verdicts carry the deterministic risk score');
+    await post({ payoutId: 'an-p2', kind: 'LOAN_DISBURSAL', amountPaise: 2_40_000_00, beneficiaryRef: benRef, channel: 'IMPS' });
+
+    const dec = (await (await get('/v1/decisions')).json()) as { decisions: { payoutId: string; verdict: string }[]; total: number };
+    assert.equal(dec.decisions[0]?.payoutId, 'an-p2', 'newest first');
+    const blocked = (await (await get('/v1/decisions?verdict=BLOCK')).json()) as { decisions: { verdict: string }[] };
+    assert.ok(blocked.decisions.length > 0 && blocked.decisions.every((d) => d.verdict === 'BLOCK'), 'verdict filter');
+    const byPid = (await (await get('/v1/decisions?payoutId=an-p1')).json()) as { decisions: { payoutId: string }[] };
+    assert.equal(byPid.decisions.length, 1);
+
+    const it1 = (await (await get('/v1/intents/an-1')).json()) as { intent: { intentId: string; signature?: string }; uses: number; verification: string };
+    assert.equal(it1.intent.intentId, 'an-1');
+    assert.equal(it1.uses, 1, 'the evaluate consumed the intent');
+    assert.equal(it1.verification, 'ok');
+    assert.equal(it1.intent.signature, undefined, 'signature is not served to readers');
+    assert.equal((await get('/v1/intents/nope')).status, 404);
+    assert.equal((await get('/v1/intents/%zz')).status, 400, 'malformed escape → 400 not 500');
+
+    const au = (await (await get('/v1/audit')).json()) as { audit: { action: string }[] };
+    assert.ok(Array.isArray(au.audit));
+    // Role discipline: an evaluate-only key cannot read the analyst surface.
+    assert.equal((await get('/v1/decisions', EVALTOK)).status, 403);
+    assert.equal((await get('/v1/audit', EVALTOK)).status, 403);
+    assert.equal((await get('/v1/intents/an-1', EVALTOK)).status, 403);
+  });
+});
 describe('gateway (enforce): managed intents', () => {
   const { gw, fw } = boot('enforce', { mint: true });
   let url = '';

@@ -306,6 +306,28 @@ describe('client.unattested', () => {
   });
 });
 
+describe('external.*', () => {
+  it('advisory upstream signals only ever make verdicts stricter', () => {
+    const { fw } = firewall({ requireIntent: { LOAN_DISBURSAL: false } });
+    // Small amounts so only the external rule can fire (cooling stays quiet).
+    const clean = payout({ beneficiaryRef: A, amountPaise: 100_00 });
+    assert.equal(fw.evaluate(clean).verdict, 'ALLOW', 'no signal → untouched verdict');
+    // Score bands.
+    assert.equal(fw.evaluate(payout({ beneficiaryRef: A, amountPaise: 100_00, riskScore: 0.95 })).hits[0]?.rule, 'external.score');
+    assert.equal(fw.evaluate(payout({ beneficiaryRef: A, amountPaise: 100_00, riskScore: 0.95 })).verdict, 'BLOCK');
+    assert.equal(fw.evaluate(payout({ beneficiaryRef: A, amountPaise: 100_00, riskScore: 0.75 })).verdict, 'REVIEW');
+    assert.equal(fw.evaluate(payout({ beneficiaryRef: A, amountPaise: 100_00, riskScore: 0.3 })).verdict, 'ALLOW');
+    // Verdict words.
+    assert.equal(fw.evaluate(payout({ beneficiaryRef: A, amountPaise: 100_00, externalVerdict: 'decline', externalSource: 'feedzai' })).hits[0]?.rule, 'external.verdict');
+    assert.equal(fw.evaluate(payout({ beneficiaryRef: A, amountPaise: 100_00, externalVerdict: 'challenge' })).verdict, 'REVIEW');
+    // Low/false claims are simply ignored — advisory means never-looser.
+    assert.equal(fw.evaluate(payout({ beneficiaryRef: A, amountPaise: 100_00, riskScore: 0, externalVerdict: 'allow' })).verdict, 'ALLOW');
+    // A tuned deployment can move the bands.
+    const strict = firewall({ requireIntent: { LOAN_DISBURSAL: false } }, { external: { reviewScore: 0.5, blockScore: 0.6 } });
+    assert.equal(strict.fw.evaluate(payout({ beneficiaryRef: A, amountPaise: 100_00, riskScore: 0.62 })).verdict, 'BLOCK');
+  });
+});
+
 describe('coverage', () => {
   it('every documented rule id is exercised by this file', async () => {
     const { readFileSync } = await import('node:fs');

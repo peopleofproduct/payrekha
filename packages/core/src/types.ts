@@ -89,6 +89,17 @@ export interface PayoutRequest {
   readonly merchantId?: string;
   /** Result of app attestation, if the operator has it. */
   readonly clientAttested?: boolean;
+  /**
+   * Upstream risk signal (0..1) from a fraud vendor or the caller's own
+   * scorer — advisory only: it can make a verdict stricter, never looser.
+   * A caller minimizing its own score only evades an advisory input; the
+   * intent binding and behaviour rules are unaffected.
+   */
+  readonly riskScore?: number;
+  /** Upstream verdict word ('block'|'decline'|'review'|'challenge'|…) — advisory, same deal as riskScore. */
+  readonly externalVerdict?: string;
+  /** Who produced the signal ('feedzai', 'sardine', 'los-heuristic') — evidence label. */
+  readonly externalSource?: string;
   readonly timestampMs: number;
   /**
    * Untrusted evidence, not an input: when the gateway overrides a
@@ -135,6 +146,12 @@ export interface PayoutVerdict extends Evaluation {
   readonly effectiveAction: EffectiveAction;
   /** True when this verdict is a retry served from the dedupe window. */
   readonly deduped: boolean;
+  /**
+   * Deterministic risk score 0..1 derived from the strongest rule hit
+   * (BLOCK severity → 1.0) with a small degraded-coverage bump — for
+   * analyst sorting/triage, not an ML confidence.
+   */
+  readonly riskScore: number;
 }
 
 /** Terminal payout status reported back by the payout service. */

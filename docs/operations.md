@@ -19,7 +19,10 @@ Change the mode at runtime with `PUT /v1/state` (admin token, `reason` required)
 | `evaluate` | `POST /v1/evaluate` | the payout caller (LMS, payment service) |
 | `outcomes` | `POST /v1/outcomes` | whoever reports rail status — see below |
 | `intents` | `POST /v1/intents` | the system of record that signs intents (LOS) |
-| `read` | `GET /v1/state`, `GET /metrics` | dashboards, Prometheus |
+| `mint` | `POST /v1/intents/mint` | managed-intents tier — see `docs/adoption.md` |
+| `read` | `GET /v1/state`, `GET /v1/decisions`, `GET /v1/audit`, `GET /v1/intents/{id}`, `GET /metrics` | dashboards, Prometheus, analyst consoles |
+
+`/v1/decisions` serves the last 1000 verdicts from an in-memory ring (newest first; `?verdict=&payoutId=&intentId=&limit=` filters) — the durable record is the decision log/SIEM, this is the triage view. `/v1/audit` serves the last 1000 audit entries the same way. Upstream fraud scores attach to payouts as `riskScore`/`externalVerdict`/`externalSource` — advisory inputs for the `external` rule that can only make verdicts stricter (assert them at the proxy via `extAuthz.mapping` where you can, rather than trusting the body).
 
 ```text
 PAYREKHA_API_KEYS='lms-prod:prod:evaluate+outcomes:<token>,los:prod:intents:<token>,grafana:prod:read:<token>'

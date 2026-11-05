@@ -15,8 +15,9 @@ const exact = [...server.matchAll(/path === '(\/[^']+)'/g)].map((m) => m[1]);
 const prefix = [...server.matchAll(/path\.startsWith\('(\/[^']+)'\)/g)].map((m) => m[1]);
 const toSpec = (p) =>
   p === '/v1/issuers/' ? '/v1/issuers/{keyId}'
-    : p === '/ext_authz' ? '/ext_authz/{path}'
-      : p;
+    : p === '/v1/intents/' ? '/v1/intents/{intentId}'
+      : p === '/ext_authz' ? '/ext_authz/{path}'
+        : p;
 const serverPaths = new Set([...exact, ...prefix.map(toSpec)]);
 
 // Spec paths are two-space-indented keys under `paths:`.

@@ -198,6 +198,9 @@ export function payoutShapeProblem(x: unknown): string | null {
   if (p['origin'] !== 'prod' && p['origin'] !== 'nonprod' && p['origin'] !== 'unknown') return 'origin';
   if (p['merchantId'] !== undefined && !isStr(p['merchantId'], 128)) return 'merchantId';
   if (p['clientAttested'] !== undefined && typeof p['clientAttested'] !== 'boolean') return 'clientAttested';
+  if (p['riskScore'] !== undefined && (typeof p['riskScore'] !== 'number' || !Number.isFinite(p['riskScore']) || p['riskScore'] < 0 || p['riskScore'] > 1)) return 'riskScore (number 0..1)';
+  if (p['externalVerdict'] !== undefined && !isStr(p['externalVerdict'], 64)) return 'externalVerdict';
+  if (p['externalSource'] !== undefined && !isStr(p['externalSource'], 64)) return 'externalSource';
   if (!Number.isSafeInteger(p['timestampMs']) || (p['timestampMs'] as number) <= 0) return 'timestampMs';
   return null;
 }
@@ -342,6 +345,9 @@ export class Payrekha {
       alertState,
       effectiveAction,
       deduped: false,
+      // Analyst-facing score: strongest hit normalized (BLOCK→1.0, REVIEW→0.5),
+      // +0.1 when coverage was incomplete. Deterministic — not an ML confidence.
+      riskScore: Math.min(1, ev.hits.reduce((m, h) => Math.max(m, severity(h.verdict) / 2), 0) + (ev.degraded ? 0.1 : 0)),
     };
     if (dedupeKey !== undefined) {
       this.dedupe.set(dedupeKey, verdict);
@@ -412,6 +418,11 @@ export class Payrekha {
 
   registerIntent(intent: unknown, nowMs: number = this.now()): RegisterResult {
     return this.intents.register(intent, nowMs);
+  }
+
+  /** The in-memory audit ring (last 1000 entries, oldest first) — for the read-only analyst API and consoles. */
+  get auditEntries(): readonly AuditEntry[] {
+    return this.audit;
   }
 
   /**

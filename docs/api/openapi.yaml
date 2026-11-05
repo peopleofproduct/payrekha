@@ -44,6 +44,9 @@ components:
         channel: { type: string, enum: [IMPS, NEFT, RTGS, UPI, INTERNAL, CRYPTO] }
         merchantId: { type: string }
         clientAttested: { type: boolean }
+        riskScore: { type: number, minimum: 0, maximum: 1, description: "Advisory upstream risk score (fraud vendor or LOS scorer). Can only make the verdict stricter, never looser — see the external rule." }
+        externalVerdict: { type: string, maxLength: 64, description: "Advisory upstream verdict word (block|decline|review|…)" }
+        externalSource: { type: string, maxLength: 64, description: "Evidence label for who produced the signal" }
         timestampMs:
           type: integer
           description: "The gateway stamps server time over this; the caller's value is kept as clientTimestampMs evidence only. A claim outside firewall.maxTimestampSkewMs degrades the verdict to REVIEW (time.skew)."
@@ -59,6 +62,7 @@ components:
         effectiveAction: { type: string, enum: [ALLOW, HOLD, DECLINE] }
         mode: { type: string, enum: [shadow, advise, enforce] }
         alertState: { type: string, enum: [NORMAL, HOLIDAY, HIGH_ALERT] }
+        riskScore: { type: number, minimum: 0, maximum: 1, description: "Deterministic score from the strongest rule hit (BLOCK→1.0, REVIEW→0.5) + 0.1 when degraded — analyst triage signal, not an ML confidence" }
         degraded: { type: boolean, description: Malformed input or a rule error; never a silent ALLOW }
         deduped: { type: boolean }
         hits: { type: array, items: { $ref: '#/components/schemas/RuleHit' } }
@@ -92,6 +96,35 @@ paths:
         '422': { description: "Signed but registration rejected (e.g. key not authorised for kind)" }
         '503': { description: Managed intents not configured on this gateway }
         '401': { $ref: '#/components/responses/Unauthorized' }
+  /v1/intents/{intentId}:
+    get:
+      summary: Intent state for an analyst console (requires the read role) — issuer, kind, window, uses, remaining paise, verification status. Signature is omitted.
+      parameters: [{ name: intentId, in: path, required: true, schema: { type: string } }]
+      responses:
+        '200': { description: Intent record }
+        '404': { description: Unknown intentId }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { description: Key lacks the read role }
+  /v1/decisions:
+    get:
+      summary: "Recent decision records, newest first — the analyst/triage surface (requires the read role). Bounded in-memory ring of the last 1000 verdicts; the durable source of truth is the decision log/SIEM."
+      parameters:
+        - { name: verdict, in: query, schema: { type: string, enum: [ALLOW, REVIEW, BLOCK] } }
+        - { name: payoutId, in: query, schema: { type: string } }
+        - { name: intentId, in: query, schema: { type: string } }
+        - { name: limit, in: query, schema: { type: integer, default: 200, maximum: 500 } }
+      responses:
+        '200': { description: '{decisions:[...], total:N}' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { description: Key lacks the read role }
+  /v1/audit:
+    get:
+      summary: "Admin and lifecycle audit entries, newest first (requires the read role). Mode flips, alert raises/resets, issuer revocations, minted intents, denied outcome reports."
+      parameters: [{ name: limit, in: query, schema: { type: integer, default: 200, maximum: 1000 } }]
+      responses:
+        '200': { description: '{audit:[...]}' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { description: Key lacks the read role }
   /v1/evaluate:
     post:
       summary: Evaluate a payout (requires the evaluate role)
