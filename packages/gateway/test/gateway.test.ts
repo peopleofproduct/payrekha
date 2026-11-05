@@ -377,7 +377,7 @@ describe('webhooks and CEF', () => {
     assert.equal(got[0]!.sig, `sha256=${createHmac('sha256', 'webhook-secret-0123456789').update(`${got[0]!.ts}.${got[0]!.body}`).digest('hex')}`);
   });
   it('CEF escapes header and extension fields', () => {
-    const line = toCef({ ts: new Date(T0).toISOString(), requestId: 'r', decisionId: 'd', payoutId: 'p=1|x', via: 'evaluate', mode: 'enforce', alertState: 'NORMAL', verdict: 'BLOCK', effectiveAction: 'DECLINE', degraded: false, deduped: false, rules: ['intent.missing'], hits: [{ rule: 'intent.missing', verdict: 'BLOCK', reason: 'a|b', evidence: {} }], ruleErrors: [], elapsedMicros: 3 });
+    const line = toCef({ type: 'decision' as const, ts: new Date(T0).toISOString(), requestId: 'r', decisionId: 'd', payoutId: 'p=1|x', via: 'evaluate', mode: 'enforce', alertState: 'NORMAL', verdict: 'BLOCK', effectiveAction: 'DECLINE', degraded: false, deduped: false, rules: ['intent.missing'], hits: [{ rule: 'intent.missing', verdict: 'BLOCK', reason: 'a|b', evidence: {} }], ruleErrors: [], elapsedMicros: 3 });
     assert.match(line, /^CEF:0\|People of Product\|Payrekha\|0\.1\.0\|intent\.missing\|a\\\|b\|9\|/);
     assert.ok(line.includes('cs1=p\\=1|x'));
   });

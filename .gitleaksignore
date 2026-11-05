@@ -4,3 +4,7 @@
 # ci-api-token-0123456789 is an intentional dummy planted in ci.yml to verify the
 # secrets-scanning job itself catches planted secrets. Not a real credential.
 6b590929fafef15da2ccf39b663462e79aa3e5de:.github/workflows/ci.yml:curl-auth-header:43
+# "holiday/weekend/night" is a doc phrase (entropy false positive); the
+# ci-*-key-* values were one-off CI dummy creds, since renamed to non-key strings.
+36fce6b6c9d766e77d122de2a94789d90ab1daa3:docs/weekend-kit.md:generic-api-key:91
+37b821489489ef66c09e8c5528b851dabd3c311c:.github/workflows/ci.yml:generic-api-key:135

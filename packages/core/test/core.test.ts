@@ -344,7 +344,7 @@ describe('Payrekha firewall', () => {
     const kp = generateIssuerKeyPair();
     const intentRule: Rule<PayoutRequest, PayoutContext> = {
       name: 'intent',
-      evaluate: (p, ctx) => (ctx.intent.status === 'reused' ? { rule: 'intent.reused', verdict: 'BLOCK', reason: 'reused', evidence: {} } : null),
+      evaluate: (_p, ctx) => (ctx.intent.status === 'reused' ? { rule: 'intent.reused', verdict: 'BLOCK', reason: 'reused', evidence: {} } : null),
     };
     const mk = () =>
       new Payrekha([intentRule], {
@@ -417,7 +417,7 @@ describe('Payrekha firewall', () => {
     const kp = generateIssuerKeyPair();
     const intentRule: Rule<PayoutRequest, PayoutContext> = {
       name: 'intent',
-      evaluate: (p, ctx) => (ctx.intent.status === 'bad-signature' ? { rule: 'intent.bad-signature', verdict: 'BLOCK', reason: 'bad-signature', evidence: {} } : null),
+      evaluate: (_p, ctx) => (ctx.intent.status === 'bad-signature' ? { rule: 'intent.bad-signature', verdict: 'BLOCK', reason: 'bad-signature', evidence: {} } : null),
     };
     const mk = () =>
       new Payrekha([intentRule], {

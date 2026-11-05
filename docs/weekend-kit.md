@@ -117,7 +117,7 @@ Raw values are hashed at the gateway edge — never stored, never logged.
 ## What this covers vs the advisory
 
 Every payout through the path is checked against probe-then-large, new-
-beneficiary velocity drains, UAT-origin keys, holiday/weekend/night windows
+beneficiary velocity drains, UAT-origin keys, holiday, weekend and night windows
 (armed by `calendar.json`), settlement account changes, and canary deception —
 the payout-layer behaviours in CIAD-2026-0058. Scope honestly: this is the
 payout control layer, not patching, EDR, or identity hardening — those run in
