@@ -1,0 +1,47 @@
+# Try-it-now stack: Envoy guarding a fake payout API with Payrekha ext_authz,
+# plus Prometheus.  docker compose -f deploy/docker-compose.yml up --build
+#
+#   payouts via Envoy  http://localhost:10000/payouts
+#   payrekha           http://localhost:8080  (Bearer demo-payrekha-api-key-0123)
+#   prometheus         http://localhost:9090
+#
+# Demo posture: fixed keys in this file. Shadow mode by default; flip with
+# PUT /v1/state {"mode":"enforce","reason":"…"} using the admin key.
+services:
+  payrekha:
+    build: { context: .., dockerfile: deploy/Dockerfile }
+    image: payrekha:local
+    read_only: true
+    security_opt: ['no-new-privileges:true']
+    cap_drop: [ALL]
+    environment:
+      PAYREKHA_API_KEYS: lms-prod:prod:demo-payrekha-api-key-0123
+      PAYREKHA_ADMIN_KEY: demo-payrekha-admin-key-0123
+      PAYREKHA_HASH_KEY: demo-payrekha-hash-key-0123
+      PAYREKHA_EXT_AUTHZ_KEY: demo-ext-authz-key-0123
+      PAYREKHA_CONFIG: /etc/payrekha/payrekha.json
+      PAYREKHA_STATE_FILE: /var/lib/payrekha/state.json
+      PAYREKHA_DECISION_LOG: /var/lib/payrekha/decisions.jsonl
+    volumes:
+      - ./envoy/payrekha.json:/etc/payrekha/payrekha.json:ro
+      - payrekha-data:/var/lib/payrekha
+    ports: ['8080:8080']
+  payout-api:
+    image: node:22-slim
+    read_only: true
+    user: node
+    command: ['node', '/app/fake-payout-api.mjs']
+    volumes: ['./fake-payout-api.mjs:/app/fake-payout-api.mjs:ro']
+  envoy:
+    image: envoyproxy/envoy:v1.31-latest
+    volumes: ['./envoy/envoy.yaml:/etc/envoy/envoy.yaml:ro']
+    ports: ['10000:10000']
+    depends_on: [payrekha, payout-api]
+  prometheus:
+    image: prom/prometheus:v2.55.1
+    volumes:
+      - ./prometheus/prometheus.yml:/etc/prometheus/prometheus.yml:ro
+      - ./prometheus/alerts.yml:/etc/prometheus/alerts.yml:ro
+    ports: ['9090:9090']
+volumes:
+  payrekha-data:

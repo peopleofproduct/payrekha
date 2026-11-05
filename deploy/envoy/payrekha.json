@@ -1,0 +1,18 @@
+{
+  "firewall": { "requireIntent": { "VERIFICATION": true } },
+  "calendarFile": "config/calendars/india-2026.example.json",
+  "issuers": [],
+  "extAuthz": {
+    "origin": "prod",
+    "originHeader": "x-payrekha-origin",
+    "mapping": {
+      "payoutId": "body.request_id",
+      "kind": "header.x-payout-kind",
+      "amountPaise": "body.amount_in_paise",
+      "intentId": "header.x-payrekha-intent",
+      "beneficiary": { "account": "body.beneficiary.account_number", "ifsc": "body.beneficiary.ifsc", "vpa": "body.beneficiary.vpa" },
+      "channel": "body.mode",
+      "sourceKeyId": "header.x-client-id"
+    }
+  }
+}

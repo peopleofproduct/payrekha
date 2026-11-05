@@ -1,0 +1,11 @@
+{
+  "note": "Example only. Replace with your own NI Act / RBI holiday list and the dates your SOC is thinly staffed.",
+  "holidays": [
+    { "date": "2026-01-26", "name": "Republic Day" },
+    { "date": "2026-08-15", "name": "Independence Day" },
+    { "date": "2026-10-02", "name": "Gandhi Jayanti" },
+    { "date": "2026-11-08", "name": "Diwali (Lakshmi Puja)" },
+    { "date": "2026-11-09", "name": "Diwali (Govardhan Puja)" },
+    { "date": "2026-12-25", "name": "Christmas" }
+  ]
+}

@@ -1,0 +1,20 @@
+groups:
+  - name: payrekha
+    rules:
+      - alert: PayrekhaDown
+        expr: up{job="payrekha"} == 0
+        for: 1m
+        labels: { severity: critical }
+        annotations: { summary: "Payrekha gateway unreachable — payouts follow your fail mode" }
+      - alert: PayrekhaHighAlert
+        expr: payrekha_high_alert == 1
+        labels: { severity: critical }
+        annotations: { summary: "HIGH_ALERT active — a canary was touched or blocks burst. Investigate before reset." }
+      - alert: PayrekhaRuleError
+        expr: increase(payrekha_rule_errors_total[10m]) > 0
+        labels: { severity: critical }
+        annotations: { summary: "A rule is throwing — verdicts are degraded" }
+      - alert: PayrekhaBlocks
+        expr: increase(payrekha_verdicts_total{verdict="BLOCK"}[5m]) > 0
+        labels: { severity: warning }
+        annotations: { summary: "Payrekha calculated BLOCK verdicts in the last 5 minutes" }
