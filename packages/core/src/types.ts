@@ -90,6 +90,12 @@ export interface PayoutRequest {
   /** Result of app attestation, if the operator has it. */
   readonly clientAttested?: boolean;
   readonly timestampMs: number;
+  /**
+   * Untrusted evidence, not an input: when the gateway overrides a
+   * caller-supplied `timestampMs` with server time, the caller's value is
+   * kept here so timestamp games show up in the decision log.
+   */
+  readonly clientTimestampMs?: number;
 }
 
 /** One positive rule firing. */

@@ -3,7 +3,7 @@
 
 import { createHash, timingSafeEqual } from 'node:crypto';
 import { Calendar, type CalendarConfig, type CalendarWindow } from './calendar.js';
-import { Engine, type EngineMetrics, type Rule } from './engine.js';
+import { Engine, severity, type EngineMetrics, type Rule } from './engine.js';
 import { looksLikeRawIdentifier } from './hash.js';
 import { Keyring, type IssuerKey } from './intent.js';
 import { BeneficiaryLedger, CanaryRegistry, MerchantLedger, type BeneficiaryEntry, type CanarySets, type MerchantEntry } from './ledger.js';
@@ -45,6 +45,13 @@ export interface FirewallConfig {
   /** Retry dedupe window (payoutIds). Default 10,000. */
   readonly dedupeCapacity?: number;
   readonly ledgerCapacity?: number;
+  /**
+   * Max |firewall clock − payout.timestampMs|. Outside the bound the payout
+   * is evaluated at firewall time and the verdict is marked degraded with a
+   * `time.skew` hit. Unset = caller timestamps are trusted (replay needs
+   * that). Set it whenever the caller is untrusted.
+   */
+  readonly maxTimestampSkewMs?: number;
   /** SHA-256 hex of the admin token. Lowering HIGH_ALERT or the mode needs it. */
   readonly adminTokenSha256?: string;
 }
@@ -87,7 +94,7 @@ export interface FirewallOptions {
   readonly onAudit?: (e: AuditEntry) => void;
   readonly onAlertChange?: (from: AlertState, to: AlertState, e: AuditEntry) => void;
   readonly onRuleError?: (rule: string, error: unknown) => void;
-  /** Clock for audit entries only. Verdicts use `payout.timestampMs`. */
+  /** Clock for audit entries and the `maxTimestampSkewMs` bound. Verdicts otherwise use `payout.timestampMs`. */
   readonly now?: () => number;
 }
 
@@ -183,43 +190,75 @@ export class Payrekha {
   // ---------------------------------------------------------------- verdicts
 
   evaluate(payout: PayoutRequest): PayoutVerdict {
-    const cached = typeof payout?.payoutId === 'string' ? this.dedupe.get(payout.payoutId) : undefined;
+    // Dedupe is scoped to the caller: one key must not preload another key's
+    // payout ids with verdicts it chose.
+    const dedupeKey = typeof payout?.payoutId === 'string' ? `${String(payout?.sourceKeyId ?? '')}\n${payout.payoutId}` : undefined;
+    const cached = dedupeKey !== undefined ? this.dedupe.get(dedupeKey) : undefined;
     if (cached !== undefined) {
       this.dedupedCount += 1;
       return { ...cached, deduped: true };
     }
     const ts = Number.isSafeInteger(payout?.timestampMs) ? payout.timestampMs : 0;
-    const calendarWindow = ts > 0 ? this.calendar.window(ts) : null;
+    const nowMs = this.now();
+    // A caller-controlled clock must not move intent windows, velocity budgets
+    // or the block-burst counter. The claim is `clientTimestampMs` when a
+    // stamping gateway kept it, else `timestampMs` itself. Outside the bound,
+    // evaluate at firewall time and mark the verdict degraded — the skew
+    // itself is evidence.
+    const clientTs = payout?.clientTimestampMs;
+    const claimMs = typeof clientTs === 'number' && Number.isSafeInteger(clientTs) ? clientTs : ts;
+    const skewMs = this.cfg.maxTimestampSkewMs;
+    const skewed = skewMs !== undefined && claimMs > 0 && Math.abs(nowMs - claimMs) > skewMs;
+    const evalPayout = skewed ? { ...payout, timestampMs: nowMs } : payout;
+    const evalTs = skewed ? nowMs : ts;
+    const calendarWindow = evalTs > 0 ? this.calendar.window(evalTs) : null;
     const alertState: AlertState = this.highAlert !== null ? 'HIGH_ALERT' : calendarWindow !== null ? 'HOLIDAY' : 'NORMAL';
-    const wellFormed = payoutShapeProblem(payout) === null;
-    const required = alertState === 'HIGH_ALERT' || (wellFormed && this.cfg.requireIntent?.[payout.kind] !== false);
+    const wellFormed = payoutShapeProblem(evalPayout) === null;
+    const required = alertState === 'HIGH_ALERT' || (wellFormed && this.cfg.requireIntent?.[evalPayout.kind] !== false);
     const ctx: PayoutContext = {
-      nowMs: ts,
+      nowMs: evalTs,
       alertState,
       multipliers: this.multipliers[alertState],
       calendarWindow,
-      intent: wellFormed ? this.intents.check(payout, required) : { status: 'missing', required },
-      beneficiary: wellFormed ? this.beneficiaries.get(payout.beneficiaryRef) : undefined,
-      merchant: wellFormed && payout.merchantId !== undefined ? this.merchants.get(payout.merchantId) : undefined,
+      intent: wellFormed ? this.intents.check(evalPayout, required) : { status: 'missing', required },
+      beneficiary: wellFormed ? this.beneficiaries.get(evalPayout.beneficiaryRef) : undefined,
+      merchant: wellFormed && evalPayout.merchantId !== undefined ? this.merchants.get(evalPayout.merchantId) : undefined,
       canaries: this.canaries,
       microPaise: this.cfg.microPaise ?? 1_000,
     };
-    const ev = this.engine.evaluate(payout, ctx);
-    const kind = wellFormed ? payout.kind : undefined;
+    let ev = this.engine.evaluate(evalPayout, ctx);
+    if (skewed && skewMs !== undefined) {
+      const offsetMs = Math.abs(nowMs - claimMs);
+      ev = {
+        ...ev,
+        hits: [
+          ...ev.hits,
+          {
+            rule: 'time.skew',
+            verdict: Verdict.Review,
+            reason: `Payout's claimed timestamp is ${Math.round(offsetMs / 60_000)} min off firewall time (allowed ±${Math.round(skewMs / 60_000)} min); evaluated at firewall time`,
+            evidence: { offsetMs, boundMs: skewMs, clientTimestampMs: claimMs },
+          },
+        ],
+        verdict: severity(ev.verdict) >= severity(Verdict.Review) ? ev.verdict : Verdict.Review,
+        degraded: true,
+      };
+    }
+    const kind = wellFormed ? evalPayout.kind : undefined;
     const mode = (kind !== undefined ? this.modeByKind[kind] : undefined) ?? this.mode;
     const effectiveAction: EffectiveAction =
       mode === 'shadow' ? 'ALLOW' : ev.verdict === Verdict.Block ? 'DECLINE' : ev.verdict === Verdict.Review ? 'HOLD' : 'ALLOW';
     this.effective[effectiveAction] += 1;
 
     for (const h of ev.hits) {
-      if (h.raiseAlert === 'HIGH_ALERT') this.enterHighAlert(`rule:${h.rule}`, h.reason, ts);
+      if (h.raiseAlert === 'HIGH_ALERT') this.enterHighAlert(`rule:${h.rule}`, h.reason, evalTs);
     }
-    if (ev.verdict === Verdict.Block) this.countBlock(ts);
+    if (ev.verdict === Verdict.Block) this.countBlock(evalTs);
 
-    if (wellFormed) this.remember(payout, ctx, effectiveAction);
+    if (wellFormed) this.remember(evalPayout, ctx, effectiveAction);
 
     this.seq += 1;
-    const decisionId = `pd_${createHash('sha256').update(`${String(payout?.payoutId)}|${ts}|${this.seq}`).digest('base64url').slice(0, 22)}`;
+    const decisionId = `pd_${createHash('sha256').update(`${String(payout?.payoutId)}|${evalTs}|${this.seq}`).digest('base64url').slice(0, 22)}`;
     const verdict: PayoutVerdict = {
       ...ev,
       decisionId,
@@ -229,8 +268,8 @@ export class Payrekha {
       effectiveAction,
       deduped: false,
     };
-    if (typeof payout?.payoutId === 'string') {
-      this.dedupe.set(payout.payoutId, verdict);
+    if (dedupeKey !== undefined) {
+      this.dedupe.set(dedupeKey, verdict);
       if (this.dedupe.size > this.dedupeCap) this.dedupe.delete(this.dedupe.keys().next().value!);
     }
     if (this.opts.onDecision !== undefined) {
@@ -265,7 +304,7 @@ export class Payrekha {
     if (entry !== prev) this.beneficiaries.set(p.beneficiaryRef, entry);
     if (p.kind === 'PA_SETTLEMENT' && p.merchantId !== undefined) this.merchants.observe(p.merchantId, p.beneficiaryRef, p.timestampMs);
     if (action !== 'DECLINE' && ctx.intent.status === 'ok' && p.intentId !== undefined) {
-      this.intents.reserve(p.intentId, p.payoutId, p.amountPaise);
+      this.intents.reserve(p.intentId, p.payoutId, p.amountPaise, p.sourceKeyId);
     }
   }
 
@@ -280,10 +319,17 @@ export class Payrekha {
     }
   }
 
-  /** Final payout status, so intent uses and baselines stay accurate. */
-  reportOutcome(payoutId: string, outcome: PayoutOutcome): boolean {
-    if (outcome === 'settled') return this.intents.settle(payoutId);
-    return this.intents.release(payoutId);
+  /**
+   * Final payout status, so intent uses and baselines stay accurate. When
+   * `sourceKeyId` is given, only the key that consumed the intent may report
+   * on it — a `failed`/`reversed` report frees the intent for reuse, so it
+   * is a money-lever and every release is audited.
+   */
+  reportOutcome(payoutId: string, outcome: PayoutOutcome, sourceKeyId?: string): boolean {
+    const r = outcome === 'settled' ? this.intents.settle(payoutId, sourceKeyId) : this.intents.release(payoutId, sourceKeyId);
+    if (r === 'denied') this.record({ atMs: this.now(), action: 'outcome.denied', actor: sourceKeyId ?? 'unknown', reason: `${outcome} reported for ${payoutId}` });
+    else if (r === 'released') this.record({ atMs: this.now(), action: `outcome.${outcome}`, actor: sourceKeyId ?? 'in-process', reason: payoutId });
+    return r === 'released' || r === 'settled';
   }
 
   registerIntent(intent: unknown, nowMs: number = this.now()): RegisterResult {

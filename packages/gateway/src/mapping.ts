@@ -23,6 +23,10 @@ export interface FieldMapping {
   readonly sourceKeyId?: Source;
   readonly merchantId?: Source;
   readonly clientAttested?: Source;
+  /**
+   * Kept as `clientTimestampMs` evidence unless `extAuthz.trustClientTimestamp`
+   * is set — a client-controlled clock is never the decision clock.
+   */
   readonly timestampMs?: Source;
 }
 
@@ -61,7 +65,8 @@ const asBool = (v: unknown): unknown => (v === 'true' ? true : v === 'false' ? f
  * left for the firewall's shape check to turn into a degraded REVIEW —
  * the adapter never guesses.
  */
-export function mapPayout(req: ForwardedRequest, m: FieldMapping, hashKey: string | undefined, fixed: { origin: string; sourceKeyId?: string; nowMs: number }): Record<string, unknown> {
+export function mapPayout(req: ForwardedRequest, m: FieldMapping, hashKey: string | undefined, fixed: { origin: string; sourceKeyId?: string; nowMs: number; trustClientTimestamp?: boolean }): Record<string, unknown> {
+  const mappedTs = asInt(resolve(req, m.timestampMs));
   const out: Record<string, unknown> = {
     payoutId: resolve(req, m.payoutId),
     kind: resolve(req, m.kind),
@@ -69,8 +74,9 @@ export function mapPayout(req: ForwardedRequest, m: FieldMapping, hashKey: strin
     channel: resolve(req, m.channel) ?? 'IMPS',
     sourceKeyId: fixed.sourceKeyId ?? resolve(req, m.sourceKeyId) ?? 'ext_authz',
     origin: fixed.origin,
-    timestampMs: asInt(resolve(req, m.timestampMs)) ?? fixed.nowMs,
+    timestampMs: fixed.trustClientTimestamp === true ? (mappedTs ?? fixed.nowMs) : fixed.nowMs,
   };
+  if (fixed.trustClientTimestamp !== true && typeof mappedTs === 'number') out['clientTimestampMs'] = mappedTs;
   const opt = { intentId: m.intentId, merchantId: m.merchantId };
   for (const [k, s] of Object.entries(opt)) {
     const v = resolve(req, s);

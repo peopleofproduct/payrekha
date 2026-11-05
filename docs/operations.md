@@ -10,6 +10,29 @@
 
 Change the mode at runtime with `PUT /v1/state` (admin token, `reason` required). The configuration file stays authoritative: restoring a snapshot never changes the mode.
 
+## API keys and roles
+
+`PAYREKHA_API_KEYS` is `id:prod|nonprod[:role+role]:token` per entry, comma-separated. Without a role list a key can call everything (legacy behaviour). Grant narrowly:
+
+| Role | Allows | Give it to |
+|---|---|---|
+| `evaluate` | `POST /v1/evaluate` | the payout caller (LMS, payment service) |
+| `outcomes` | `POST /v1/outcomes` | whoever reports rail status — see below |
+| `intents` | `POST /v1/intents` | the system of record that signs intents (LOS) |
+| `read` | `GET /v1/state`, `GET /metrics` | dashboards, Prometheus |
+
+```text
+PAYREKHA_API_KEYS='lms-prod:prod:evaluate+outcomes:<token>,los:prod:intents:<token>,grafana:prod:read:<token>'
+```
+
+A stolen payout key then cannot register intents (which would let it evict live ones from the bounded registry), read state, or free another key's intent.
+
+`POST /v1/outcomes` is bound to the evaluating key: `failed` and `reversed` refund the intent's use, so only the key that evaluated the payout may report on it — every accepted release and every denied attempt is written to the audit trail and the decision log. In the ext_authz path the "key" is the Envoy-asserted `sourceKeyId`; name the reporting API key the same thing.
+
+## Caller clocks
+
+`timestampMs` from a client is evidence, not input. The gateway stamps server time and keeps the caller's value as `clientTimestampMs` in the decision record. Set `gateway.trustClientTimestamp` / `extAuthz.trustClientTimestamp` only for a caller whose clock you genuinely trust, and bound it with `firewall.maxTimestampSkewMs`: a claim outside the bound is evaluated at firewall time and the verdict is marked degraded with a `time.skew` hit. The same check guards in-process embedding, where there is no gateway to stamp for you.
+
 ## Alert states
 
 - `NORMAL`.

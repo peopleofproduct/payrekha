@@ -38,14 +38,19 @@ static_resources:
                         server_uri: { uri: payrekha:8080, cluster: payrekha, timeout: 0.25s }
                         path_prefix: /ext_authz
                         authorization_request:
+                          # Only fields Payrekha maps. Note what is NOT here:
+                          # x-client-id — the caller must never name its own
+                          # source key. Envoy asserts the identity below; in
+                          # production inject it per-route or from mTLS/JWT
+                          # claims, never forward a client-supplied value.
                           allowed_headers:
                             patterns:
                               - { exact: x-payrekha-intent }
                               - { exact: x-payout-kind }
-                              - { exact: x-client-id }
                               - { exact: x-request-id }
                           headers_to_add:
                             - { key: x-payrekha-key, value: demo-ext-authz-key-0123 }
+                            - { key: x-client-id, value: demo-payout-api }
                         authorization_response:
                           allowed_upstream_headers:
                             patterns: [{ prefix: x-payrekha- }]

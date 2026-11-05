@@ -16,6 +16,10 @@
 | A real intent, with the amount inflated | No | `intent.amount-exceeds` |
 | A refund-signing key, used to mint a disbursal | No | `intent.kind-mismatch` (keys are scoped to kinds) |
 | A UAT/staging key or box | No | `origin.nonprod`; the origin comes from the key, not the request body |
+| A stolen payout key minting intents or reading state | No | Role-scoped keys (`evaluate`/`outcomes`/`intents`/`read`); a payout key holds only `evaluate` |
+| A stolen payout key reporting `failed` on another caller's payout to free its intent | No | Outcome reports are bound to the evaluating `sourceKeyId`; denials are audited |
+| Replaying a taken `payoutId` under a fresh intent to dodge `intent.reused` | No | A `payoutId` is bound to one intent for life, even across restarts (reservations persist) |
+| A forged `timestampMs` that backdates cooling or fast-forwards the block-burst window | No | The gateway stamps server time; the caller's value is `clientTimestampMs` evidence and `maxTimestampSkewMs` degrades wild claims to REVIEW (`time.skew`) |
 | Control of a merchant's settlement account | Delayed: REVIEW | `settlement.account-changed`, `settlement.over-captured` |
 | Small test transfers before a big one | Delayed: REVIEW, then BLOCK in HIGH_ALERT | `probe.micro-then-large` |
 | A burst on a holiday night | Tighter budgets | `calendar.window` multipliers, `velocity.outflow` |
@@ -27,7 +31,7 @@
 ## Payrekha's own hardening
 
 - Container runs as non-root with a read-only root filesystem, `cap_drop: ALL` and `no-new-privileges`.
-- Bearer tokens are held as SHA-256 hashes and compared in constant time. Admin operations use a separate token and require a reason.
+- Bearer tokens are held as SHA-256 hashes and compared in constant time. Admin operations use a separate token and require a reason. Caller-supplied identity fields (`origin`, `sourceKeyId`, `timestampMs`) never come from the request body — `timestampMs` is stamped at the gateway unless the caller is explicitly trusted.
 - HIGH_ALERT persists across restarts and only clears with an authenticated reset. The advisory says to assume the attacker persists.
 - Restoring a state snapshot cannot change the configured mode.
 - Malformed input and rule exceptions become a degraded REVIEW, never an ALLOW.

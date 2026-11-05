@@ -13,8 +13,13 @@ http_filters:
         server_uri: { uri: payrekha:8080, cluster: payrekha, timeout: 0.25s }
         path_prefix: /ext_authz
         authorization_request:
-          headers_to_add: [{ key: authorization, value: "Bearer <ext-authz token>" }]
-          allowed_headers: { patterns: [{ prefix: x-payout- }, { exact: x-payrekha-intent }, { exact: x-client-id }] }
+          headers_to_add:
+            - { key: authorization, value: "Bearer <ext-authz token>" }
+            # Envoy asserts the caller identity — a client-supplied
+            # x-client-id must never reach this list. Derive it per-route
+            # or from mTLS/JWT claims; fixed value only for a single tenant.
+            - { key: x-client-id, value: "<payout-api-id>" }
+          allowed_headers: { patterns: [{ prefix: x-payout- }, { exact: x-payrekha-intent }] }
         authorization_response:
           allowed_upstream_headers: { patterns: [{ prefix: x-payrekha- }] }
 ```
@@ -29,5 +34,10 @@ The ext_authz token authenticates Envoy itself (`PAYREKHA_EXT_AUTHZ_KEY`). Map y
 ```
 
 Roots are `body.`, `header.`, `query.` and `path.`; `{ "const": "REFUND" }` sets a fixed value. Missing fields are not guessed: the payout becomes a degraded REVIEW. Raw beneficiary fields are hashed at the gateway and never logged.
+
+Two trust rules the mapping cannot enforce for you:
+
+- **`sourceKeyId` must come from a header Envoy sets** (`headers_to_add` or an auth-derived header), not one the client sends. A client that can name its own key can jump to a quieter velocity bucket or a nonprod origin. The demo `envoy.yaml` injects `x-client-id: demo-payout-api` and drops it from `allowed_headers` — copy that shape.
+- **Caller clocks are evidence, not input.** If `mapping.timestampMs` resolves a client-controlled field, the value is recorded as `clientTimestampMs` and the check still runs at gateway time. Set `extAuthz.trustClientTimestamp` (and `firewall.maxTimestampSkewMs`) only when the upstream clock is genuinely trusted.
 
 Responses: in `shadow`, always 200 with `x-payrekha-verdict` set to the real verdict. In `enforce`, a `HOLD` or `DECLINE` returns 403 with `x-payrekha-verdict`, `x-payrekha-action`, `x-payrekha-decision-id` and `x-payrekha-rules`.

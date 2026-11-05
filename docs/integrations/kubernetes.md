@@ -5,7 +5,7 @@ The Helm chart is in [`deploy/helm/payrekha`](../../deploy/helm/payrekha). It ru
 ```bash
 # 1. Secrets stay out of values.yaml: create them yourself.
 kubectl create secret generic payrekha \
-  --from-literal=PAYREKHA_API_KEYS='payout-svc:prod:<token ≥16 chars>' \
+  --from-literal=PAYREKHA_API_KEYS='payout-svc:prod:evaluate+outcomes:<token ≥16 chars>,los:prod:intents:<token>' \
   --from-literal=PAYREKHA_ADMIN_KEY='<admin token>' \
   --from-literal=PAYREKHA_HASH_KEY='<hash key>'
 

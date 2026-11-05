@@ -82,6 +82,13 @@ export interface IntentCheck {
 interface Reservation {
   readonly intentId: string;
   readonly amountPaise: number;
+  /**
+   * API key that consumed the intent. When set, only that key may report the
+   * outcome — a `failed`/`reversed` report frees the intent for reuse, so it
+   * must not be callable by whoever holds any key. Absent on reservations
+   * restored from snapshots written before binding existed.
+   */
+  readonly sourceKeyId?: string;
 }
 
 /**
@@ -157,38 +164,50 @@ export class IntentRegistry {
     if (i.kind !== p.kind) return { ...base, status: 'kind-mismatch', detail: `intent ${i.kind}, payout ${p.kind}` };
     if (p.timestampMs < i.notBeforeMs || p.timestampMs > i.expiresAtMs) return { ...base, status: 'expired' };
     if (i.beneficiaryRef !== p.beneficiaryRef) return { ...base, status: 'beneficiary-mismatch' };
-    if (rec.uses >= i.maxUses) return { ...base, status: 'reused' };
+    // A payoutId may only ever be bound to one intent. Its own reservation is
+    // already counted in `uses` (retry = ok, also across restarts where dedupe
+    // is gone but reservations persist); any other reservation is identity
+    // confusion, and citing a fresh intent under a taken payoutId must not
+    // get a free pass — `reserve` would not consume it.
+    const held = this.reservations.get(p.payoutId);
+    if (held !== undefined && held.intentId !== p.intentId) return { ...base, status: 'reused', detail: 'payoutId already bound to another intent' };
+    if (rec.uses >= i.maxUses && held === undefined) return { ...base, status: 'reused' };
     if (p.amountPaise > base.remainingPaise) return { ...base, status: 'amount-exceeds' };
     return { ...base, status: 'ok' };
   }
 
   /** Consume one use for a payout that is going ahead. Idempotent per payoutId. */
-  reserve(intentId: string, payoutId: string, amountPaise: number): void {
+  reserve(intentId: string, payoutId: string, amountPaise: number, sourceKeyId?: string): void {
     if (this.reservations.has(payoutId)) return;
     const rec = this.store.get(intentId);
     if (rec === undefined) return;
     rec.uses += 1;
     rec.usedPaise += amountPaise;
     this.store.put(rec);
-    this.reservations.set(payoutId, { intentId, amountPaise });
+    this.reservations.set(payoutId, { intentId, amountPaise, ...(sourceKeyId !== undefined ? { sourceKeyId } : {}) });
   }
 
-  /** A payout failed or was reversed: give the use and amount back. */
-  release(payoutId: string): boolean {
+  /** A payout failed or was reversed: give the use and amount back. `denied` when another key holds the reservation. */
+  release(payoutId: string, sourceKeyId?: string): 'released' | 'unknown' | 'denied' {
     const r = this.reservations.get(payoutId);
-    if (r === undefined) return false;
+    if (r === undefined) return 'unknown';
+    if (r.sourceKeyId !== undefined && sourceKeyId !== undefined && r.sourceKeyId !== sourceKeyId) return 'denied';
     this.reservations.delete(payoutId);
     const rec = this.store.get(r.intentId);
-    if (rec === undefined) return true;
+    if (rec === undefined) return 'released';
     rec.uses = Math.max(0, rec.uses - 1);
     rec.usedPaise = Math.max(0, rec.usedPaise - r.amountPaise);
     this.store.put(rec);
-    return true;
+    return 'released';
   }
 
-  /** Settled: the reservation is final; forget the payout id. */
-  settle(payoutId: string): boolean {
-    return this.reservations.delete(payoutId);
+  /** Settled: the reservation is final; forget the payout id. `denied` when another key holds it. */
+  settle(payoutId: string, sourceKeyId?: string): 'settled' | 'unknown' | 'denied' {
+    const r = this.reservations.get(payoutId);
+    if (r === undefined) return 'unknown';
+    if (r.sourceKeyId !== undefined && sourceKeyId !== undefined && r.sourceKeyId !== sourceKeyId) return 'denied';
+    this.reservations.delete(payoutId);
+    return 'settled';
   }
 
   exportState(): unknown {

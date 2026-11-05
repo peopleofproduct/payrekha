@@ -5,8 +5,8 @@ import { createHash } from 'node:crypto';
 import { readFileSync } from 'node:fs';
 import { FileStateStore, Payrekha, type FirewallConfig, type IssuerKey, type StateStore } from '@payrekha/core';
 import { payrekhaRules, type RulesConfig } from '@payrekha/rules';
-import { fileDecisionLog } from './log.js';
-import { createGateway, type ApiKey, type ExtAuthzOptions, type GatewayHandle } from './server.js';
+import { auditRecord, fileDecisionLog } from './log.js';
+import { API_ROLES, createGateway, type ApiKey, type ApiRole, type ExtAuthzOptions, type GatewayHandle } from './server.js';
 import { WebhookSender } from './webhook.js';
 
 /** `payrekha.json`: everything except secrets, which come from the environment. */
@@ -18,12 +18,21 @@ export interface PayrekhaFileConfig {
   readonly calendarFile?: string;
   readonly feedSnapshot?: string;
   readonly extAuthz?: ExtAuthzOptions;
+  /** Gateway behaviour. `trustClientTimestamp` honours caller timestamps — leave false unless the caller is trusted. */
+  readonly gateway?: { readonly trustClientTimestamp?: boolean };
 }
 
 const sha = (s: string) => createHash('sha256').update(s).digest('hex');
 const readJson = (p: string): unknown => JSON.parse(readFileSync(p, 'utf8'));
 
-/** `id:origin:token,…` → hashed ApiKey list. Tokens are hashed immediately and never kept. */
+const ROLE_SET = new Set<string>(API_ROLES);
+
+/**
+ * `id:origin:token,…` (every role, legacy) or `id:origin:role+role:token,…`
+ * → hashed ApiKey list. Tokens are hashed immediately and never kept. The
+ * role segment is read as roles only when every `+`-separated part names a
+ * known role, so a token containing colons still parses.
+ */
 export function parseApiKeys(spec: string): ApiKey[] {
   return spec
     .split(',')
@@ -31,9 +40,15 @@ export function parseApiKeys(spec: string): ApiKey[] {
     .filter(Boolean)
     .map((s) => {
       const [id, origin, ...rest] = s.split(':');
+      let roles: ApiRole[] | undefined;
+      if (rest.length > 1 && rest[0] !== undefined && rest[0].split('+').every((r) => ROLE_SET.has(r))) {
+        roles = rest[0].split('+') as ApiRole[];
+        rest.shift();
+      }
       const token = rest.join(':');
-      if (id === undefined || (origin !== 'prod' && origin !== 'nonprod') || token.length < 16) throw new Error('PAYREKHA_API_KEYS entries are id:prod|nonprod:token (token ≥ 16 chars)');
-      return { id, origin, sha256: sha(token) };
+      if (id === undefined || (origin !== 'prod' && origin !== 'nonprod') || token.length < 16)
+        throw new Error('PAYREKHA_API_KEYS entries are id:prod|nonprod[:role+role]:token (token ≥ 16 chars)');
+      return { id, origin, sha256: sha(token), ...(roles !== undefined ? { roles } : {}) };
     });
 }
 
@@ -73,7 +88,7 @@ export function bootFromEnv(env: NodeJS.ProcessEnv = process.env, log: (m: strin
   const adminKey = env['PAYREKHA_ADMIN_KEY'];
   if (adminKey !== undefined && adminKey.length < 16) throw new Error('PAYREKHA_ADMIN_KEY must be at least 16 chars');
   const apiKeys = parseApiKeys(env['PAYREKHA_API_KEYS'] ?? '');
-  if (apiKeys.length === 0) throw new Error('PAYREKHA_API_KEYS is required (id:prod|nonprod:token,…)');
+  if (apiKeys.length === 0) throw new Error('PAYREKHA_API_KEYS is required (id:prod|nonprod[:role+role]:token,…)');
   const hashKey = env['PAYREKHA_HASH_KEY'];
   const holidays = cfg.calendarFile !== undefined ? ((readJson(cfg.calendarFile) as { holidays?: [] }).holidays ?? []) : [];
   const fwCfg: FirewallConfig = {
@@ -88,10 +103,14 @@ export function bootFromEnv(env: NodeJS.ProcessEnv = process.env, log: (m: strin
   const webhook =
     env['PAYREKHA_WEBHOOK_URL'] !== undefined ? new WebhookSender({ url: env['PAYREKHA_WEBHOOK_URL'], secret: env['PAYREKHA_WEBHOOK_SECRET'] ?? '' }) : undefined;
   if (webhook !== undefined && (env['PAYREKHA_WEBHOOK_SECRET'] ?? '').length < 16) throw new Error('PAYREKHA_WEBHOOK_SECRET (≥ 16 chars) is required with PAYREKHA_WEBHOOK_URL');
+  const fmt = env['PAYREKHA_LOG_FORMAT'] === 'cef' ? 'cef' : 'jsonl';
+  const decisionLog = env['PAYREKHA_DECISION_LOG'] !== undefined ? fileDecisionLog(env['PAYREKHA_DECISION_LOG'], fmt) : undefined;
   const firewall = new Payrekha(set.rules, {
     config: fwCfg,
     keys: secrets,
     onAlertChange: (_from, to, e) => webhook?.send({ type: to === 'HIGH_ALERT' ? 'alert.entered' : 'alert.cleared', atMs: e.atMs, actor: e.actor, reason: e.reason }),
+    // Admin actions and denied/issued outcome reports must reach the SIEM.
+    ...(decisionLog !== undefined ? { onAudit: (e) => decisionLog.write(auditRecord(e)) } : {}),
   });
   const pgUrl = env['PAYREKHA_STATE_PG_URL'];
   if (pgUrl !== undefined && env['PAYREKHA_STATE_FILE'] !== undefined) throw new Error('set PAYREKHA_STATE_FILE or PAYREKHA_STATE_PG_URL, not both');
@@ -101,7 +120,6 @@ export function bootFromEnv(env: NodeJS.ProcessEnv = process.env, log: (m: strin
       : env['PAYREKHA_STATE_FILE'] !== undefined
         ? new FileStateStore(env['PAYREKHA_STATE_FILE'])
         : undefined;
-  const fmt = env['PAYREKHA_LOG_FORMAT'] === 'cef' ? 'cef' : 'jsonl';
   const extKey = env['PAYREKHA_EXT_AUTHZ_KEY'];
   const extAuthz = cfg.extAuthz !== undefined ? { ...cfg.extAuthz, ...(extKey !== undefined ? { keySha256: sha(extKey) } : {}) } : undefined;
   const gateway = createGateway({
@@ -109,7 +127,8 @@ export function bootFromEnv(env: NodeJS.ProcessEnv = process.env, log: (m: strin
     apiKeys,
     ...(adminKey !== undefined ? { adminKeySha256: sha(adminKey) } : {}),
     ...(hashKey !== undefined ? { hashKey } : {}),
-    ...(env['PAYREKHA_DECISION_LOG'] !== undefined ? { decisionLog: fileDecisionLog(env['PAYREKHA_DECISION_LOG'], fmt) } : {}),
+    ...(decisionLog !== undefined ? { decisionLog } : {}),
+    ...(cfg.gateway?.trustClientTimestamp === true ? { trustClientTimestamp: true } : {}),
     ...(webhook !== undefined ? { webhook } : {}),
     ...(extAuthz !== undefined ? { extAuthz } : {}),
     ...(stateStore !== undefined ? { stateStore } : {}),

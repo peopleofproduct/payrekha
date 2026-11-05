@@ -8,7 +8,8 @@ image:
 replicaCount: 1
 
 # Secret you create yourself (the chart never takes secret values). Keys:
-#   PAYREKHA_API_KEYS   id:prod|nonprod:token,…   (required)
+#   PAYREKHA_API_KEYS   id:prod|nonprod[:role+role]:token,…   (required)
+#                       roles: evaluate, outcomes, intents, read
 #   PAYREKHA_ADMIN_KEY  admin bearer token         (recommended)
 #   PAYREKHA_HASH_KEY   beneficiary hash key       (needed for raw fields / ext_authz)
 #   PAYREKHA_EXT_AUTHZ_KEY, PAYREKHA_WEBHOOK_SECRET, PAYREKHA_ISSUER_SECRET_<KEYID>

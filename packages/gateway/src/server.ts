@@ -9,6 +9,10 @@ import { mapPayout, type FieldMapping } from './mapping.js';
 import { renderMetrics } from './metrics.js';
 import type { WebhookSender } from './webhook.js';
 
+/** What an API key may call. `read` covers GET /v1/state and /metrics. */
+export type ApiRole = 'evaluate' | 'intents' | 'outcomes' | 'read';
+export const API_ROLES: readonly ApiRole[] = ['evaluate', 'intents', 'outcomes', 'read'];
+
 export interface ApiKey {
   /** Stable id: becomes `sourceKeyId` on every payout this key evaluates. */
   readonly id: string;
@@ -16,6 +20,12 @@ export interface ApiKey {
   readonly sha256: string;
   /** Network origin the key belongs to. Never taken from the request body. */
   readonly origin: 'prod' | 'nonprod';
+  /**
+   * What the key may call. Absent = every role (legacy behaviour). Grant
+   * narrowly: the payout caller gets `evaluate` (+`outcomes` if it reports
+   * rail status), the system of record gets `intents`, dashboards `read`.
+   */
+  readonly roles?: readonly ApiRole[];
 }
 
 export interface ExtAuthzOptions {
@@ -26,6 +36,13 @@ export interface ExtAuthzOptions {
   readonly originHeader?: string;
   /** SHA-256 hex of the shared key Envoy sends in `x-payrekha-key`. Omit only on an isolated network. */
   readonly keySha256?: string;
+  /**
+   * Honour the timestamp that `mapping.timestampMs` resolves. Default false:
+   * the check runs at gateway time and the mapped value is kept as
+   * `clientTimestampMs` evidence — a client-controlled clock must not move
+   * intent windows, velocity budgets or cooling periods.
+   */
+  readonly trustClientTimestamp?: boolean;
 }
 
 export interface GatewayOptions {
@@ -39,6 +56,13 @@ export interface GatewayOptions {
   readonly webhook?: WebhookSender;
   readonly extAuthz?: ExtAuthzOptions;
   readonly stateStore?: StateStore;
+  /**
+   * Trust a `timestampMs` field in the request body. Default false: the
+   * gateway stamps server time (and keeps the caller's value as
+   * `clientTimestampMs` evidence). Only for callers trusted to report time;
+   * `FirewallConfig.maxTimestampSkewMs` still bounds whatever is sent.
+   */
+  readonly trustClientTimestamp?: boolean;
   readonly maxBodyBytes?: number;
   readonly now?: () => number;
   readonly version?: string;
@@ -126,10 +150,11 @@ export function createGateway(o: GatewayOptions): GatewayHandle {
   const stats: GatewayStats = { requests: new Map(), stateSaveErrors: 0, logErrors: 0, ready: true, notReadyReason: '' };
   const onError = o.onError ?? (() => undefined);
 
-  const authKey = (req: IncomingMessage): ApiKey => {
+  const authKey = (req: IncomingMessage, role: ApiRole): ApiKey => {
     const t = bearer(req);
     const k = t === undefined ? undefined : o.apiKeys.find((a) => hexEq(t, a.sha256));
     if (k === undefined) throw new HttpError(401, 'missing or unknown API key');
+    if (k.roles !== undefined && !k.roles.includes(role)) throw new HttpError(403, `key '${k.id}' lacks the '${role}' role`);
     return k;
   };
   const authAdmin = (req: IncomingMessage): string => {
@@ -156,7 +181,12 @@ export function createGateway(o: GatewayOptions): GatewayHandle {
       hashAtEntry(b, o.hashKey);
       b['sourceKeyId'] = key.id;
       b['origin'] = key.origin;
-      if (b['timestampMs'] === undefined) b['timestampMs'] = now();
+      const claimed = b['timestampMs'];
+      delete b['clientTimestampMs'];
+      b['timestampMs'] = now();
+      // The caller's clock never moves a rule: its value is kept as evidence.
+      if (o.trustClientTimestamp === true && claimed !== undefined) b['timestampMs'] = claimed;
+      else if (typeof claimed === 'number' && Number.isFinite(claimed) && claimed !== b['timestampMs']) b['clientTimestampMs'] = claimed;
     }
     const v = fw.evaluate(p as PayoutRequest);
     record(v, p, rid, 'evaluate');
@@ -170,19 +200,19 @@ export function createGateway(o: GatewayOptions): GatewayHandle {
     if (path === '/healthz') return [200, { ok: true }];
     if (path === '/readyz') return stats.ready ? [200, { ready: true }] : [503, { ready: false, reason: stats.notReadyReason }];
     if (path === '/metrics' && m === 'GET') {
-      authKey(req);
+      authKey(req, 'read');
       res.setHeader('content-type', 'text/plain; version=0.0.4');
       return [200, renderMetrics(fw, stats, o.webhook)];
     }
     if (!stats.ready) throw new HttpError(503, `not ready: ${stats.notReadyReason}`);
     if (path.startsWith('/ext_authz') && o.extAuthz !== undefined) return extAuthz(req, res, rid, url);
     if (path === '/v1/evaluate' && m === 'POST') {
-      const key = authKey(req);
+      const key = authKey(req, 'evaluate');
       const body = await readBody(req, max);
       return [200, evaluate(body, key, rid)];
     }
     if (path === '/v1/intents' && m === 'POST') {
-      authKey(req);
+      authKey(req, 'intents');
       const body = await readBody(req, max);
       const list = Array.isArray(body) ? body : [body];
       if (list.length > 1_000) throw new HttpError(413, 'at most 1000 intents per call');
@@ -191,13 +221,13 @@ export function createGateway(o: GatewayOptions): GatewayHandle {
       return [status, Array.isArray(body) ? { results } : results[0]];
     }
     if (path === '/v1/outcomes' && m === 'POST') {
-      authKey(req);
+      const key = authKey(req, 'outcomes');
       const b = (await readBody(req, max)) as { payoutId?: unknown; outcome?: unknown } | undefined;
       if (typeof b?.payoutId !== 'string' || !['settled', 'failed', 'reversed'].includes(b.outcome as string)) throw new HttpError(400, 'payoutId and outcome (settled|failed|reversed) required');
-      return [200, { payoutId: b.payoutId, known: fw.reportOutcome(b.payoutId, b.outcome as PayoutOutcome) }];
+      return [200, { payoutId: b.payoutId, known: fw.reportOutcome(b.payoutId, b.outcome as PayoutOutcome, key.id) }];
     }
     if (path === '/v1/state' && m === 'GET') {
-      authKey(req);
+      authKey(req, 'read');
       return [200, stateView()];
     }
     if (path === '/v1/state' && m === 'PUT') {
@@ -241,7 +271,7 @@ export function createGateway(o: GatewayOptions): GatewayHandle {
       { path: url.pathname.replace(/^\/ext_authz/, '') || '/', headers: req.headers, query: Object.fromEntries(url.searchParams), body: typeof body === 'symbol' ? undefined : body },
       x.mapping,
       o.hashKey,
-      { origin, nowMs: now() },
+      { origin, nowMs: now(), trustClientTimestamp: x.trustClientTimestamp === true },
     );
     const v = fw.evaluate(payout as unknown as PayoutRequest);
     record(v, payout, rid, 'ext_authz');

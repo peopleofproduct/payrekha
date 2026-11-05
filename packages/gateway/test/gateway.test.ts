@@ -5,7 +5,7 @@ import { createServer } from 'node:http';
 import type { AddressInfo } from 'node:net';
 import { after, before, describe, it } from 'node:test';
 import { generateIssuerKeyPair, hashBeneficiary, Payrekha, signIntent } from '@payrekha/core';
-import { createGateway, memoryDecisionLog, signWebhook, toCef, WebhookSender, type GatewayHandle } from '@payrekha/gateway';
+import { auditRecord, createGateway, memoryDecisionLog, parseApiKeys, signWebhook, toCef, WebhookSender, type GatewayHandle } from '@payrekha/gateway';
 import { payrekhaRules } from '@payrekha/rules';
 
 const sha = (s: string) => createHash('sha256').update(s).digest('hex');
@@ -13,6 +13,8 @@ const API = 'api-token-0123456789';
 const UAT = 'uat-token-0123456789';
 const ADMIN = 'admin-token-0123456789';
 const EXT = 'ext-token-0123456789';
+const EVALTOK = 'eval-token-0123456789';
+const REGTOK = 'registrar-token-0123456789';
 const HK = 'gateway-hash-key-0123456789';
 const T0 = Date.UTC(2026, 10, 4, 5, 30);
 const LOS = generateIssuerKeyPair();
@@ -29,6 +31,8 @@ function boot(mode: 'shadow' | 'enforce') {
     apiKeys: [
       { id: 'lms-prod', sha256: sha(API), origin: 'prod' },
       { id: 'lms-uat', sha256: sha(UAT), origin: 'nonprod' },
+      { id: 'eval-only', sha256: sha(EVALTOK), origin: 'prod', roles: ['evaluate'] },
+      { id: 'registrar', sha256: sha(REGTOK), origin: 'prod', roles: ['intents'] },
     ],
     adminKeySha256: sha(ADMIN),
     hashKey: HK,
@@ -45,6 +49,7 @@ function boot(mode: 'shadow' | 'enforce') {
         beneficiary: { account: 'body.beneficiary.account_number', ifsc: 'body.beneficiary.ifsc' },
         channel: { const: 'IMPS' },
         sourceKeyId: 'header.x-client-id',
+        timestampMs: 'body.claimed_ts',
       },
     },
   });
@@ -136,6 +141,52 @@ describe('gateway (enforce)', () => {
     assert.equal(o.known, true);
   });
 
+  it('roles: an evaluate-only key cannot register intents or read; a registrar cannot evaluate', async () => {
+    assert.equal((await post('/v1/intents', loanIntent('int-r1'), EVALTOK)).status, 403);
+    assert.equal((await fetch(url + '/metrics', { headers: { authorization: `Bearer ${EVALTOK}` } })).status, 403);
+    assert.equal((await fetch(url + '/v1/state', { headers: { authorization: `Bearer ${EVALTOK}` } })).status, 403);
+    assert.equal((await post('/v1/evaluate', { payoutId: 'p-r1', kind: 'REFUND', amountPaise: 100_00, beneficiaryRef: benRef, channel: 'IMPS' }, REGTOK)).status, 403);
+    assert.equal((await post('/v1/intents', loanIntent('int-r2'), REGTOK)).status, 201);
+    assert.equal((await post('/v1/evaluate', { payoutId: 'p-r2', kind: 'REFUND', amountPaise: 100_00, beneficiaryRef: benRef, channel: 'IMPS' }, EVALTOK)).status, 200);
+  });
+
+  it('caller timestamps are evidence, not the decision clock (gateway stamps server time)', async () => {
+    // Intent valid only 1-2h after T0; the caller claims a time inside that window.
+    const future = signIntent(
+      { intentId: 'int-future', kind: 'LOAN_DISBURSAL', maxAmountPaise: 2_40_000_00, beneficiaryRef: benRef, maxUses: 1, notBeforeMs: T0 + 3_600_000, expiresAtMs: T0 + 7_200_000, issuer: 'los-prod', keyId: 'los-1' },
+      { alg: 'ed25519', privateKey: LOS.privateKey },
+    );
+    assert.equal((await post('/v1/intents', future)).status, 201);
+    const res = await post('/v1/evaluate', { payoutId: 'p-ts', kind: 'LOAN_DISBURSAL', intentId: 'int-future', amountPaise: 2_40_000_00, beneficiary: { account: '000123456789', ifsc: 'HDFC0001234' }, channel: 'IMPS', timestampMs: T0 + 5_400_000 });
+    const v = (await res.json()) as { verdict: string; hits: { rule: string }[] };
+    assert.equal(v.verdict, 'BLOCK');
+    assert.ok(v.hits.some((h) => h.rule === 'intent.expired'), JSON.stringify(v.hits));
+    assert.equal((log.lines.at(-1) as { clientTimestampMs?: number }).clientTimestampMs, T0 + 5_400_000);
+  });
+
+  it('outcomes bind to the evaluating key: another key cannot free its intent', async () => {
+    assert.equal((await post('/v1/intents', loanIntent('int-bind'))).status, 201);
+    const first = (await (await post('/v1/evaluate', { payoutId: 'p-bind', kind: 'LOAN_DISBURSAL', intentId: 'int-bind', amountPaise: 2_40_000_00, beneficiary: { account: '000123456789', ifsc: 'HDFC0001234' }, channel: 'IMPS' })).json()) as { verdict: string };
+    assert.equal(first.verdict, 'ALLOW');
+    const denied = (await (await post('/v1/outcomes', { payoutId: 'p-bind', outcome: 'failed' }, UAT)).json()) as { known: boolean };
+    assert.equal(denied.known, false);
+    const replay = (await (await post('/v1/evaluate', { payoutId: 'p-bind-2', kind: 'LOAN_DISBURSAL', intentId: 'int-bind', amountPaise: 2_40_000_00, beneficiaryRef: benRef, channel: 'IMPS' })).json()) as { hits: { rule: string }[] };
+    assert.ok(replay.hits.some((h) => h.rule === 'intent.reused'), JSON.stringify(replay.hits));
+    const released = (await (await post('/v1/outcomes', { payoutId: 'p-bind', outcome: 'failed' })).json()) as { known: boolean };
+    assert.equal(released.known, true);
+    const third = (await (await post('/v1/evaluate', { payoutId: 'p-bind-3', kind: 'LOAN_DISBURSAL', intentId: 'int-bind', amountPaise: 2_40_000_00, beneficiaryRef: benRef, channel: 'IMPS' })).json()) as { verdict: string };
+    assert.equal(third.verdict, 'ALLOW');
+    assert.ok(fw.auditTrail().some((e) => e.action === 'outcome.denied'));
+  });
+
+  it('ext_authz: a claimed_ts in the body is kept as clientTimestampMs evidence, not honoured', async () => {
+    assert.equal((await post('/v1/intents', loanIntent('int-ts'))).status, 201);
+    // int-ts is valid at T0 but expired by T0+2.5h — trusting claimed_ts would flip this to BLOCK.
+    const res = await post('/ext_authz/payouts', { request_id: 'x-ts', amount_in_paise: 24000000, beneficiary: { account_number: '000123456789', ifsc: 'HDFC0001234' }, claimed_ts: T0 + 9_000_000 }, '', { 'x-payrekha-key': EXT, 'x-payrekha-intent': 'int-ts', 'x-client-id': 'lms' });
+    assert.equal(res.status, 200, JSON.stringify(await res.clone().json()));
+    assert.equal((log.lines.at(-1) as { clientTimestampMs?: number }).clientTimestampMs, T0 + 9_000_000);
+  });
+
   it('metrics in Prometheus text', async () => {
     const t = await (await fetch(url + '/metrics', { headers: { authorization: `Bearer ${API}` } })).text();
     assert.match(t, /payrekha_verdicts_total\{verdict="BLOCK"\} \d+/);
@@ -221,5 +272,24 @@ describe('bootFromEnv state loading', () => {
   it('rejects both state backends at once', async () => {
     const { bootFromEnv } = await import('@payrekha/gateway');
     assert.throws(() => bootFromEnv({ PAYREKHA_API_KEYS: `lms:prod:${API}`, PAYREKHA_STATE_FILE: '/tmp/x', PAYREKHA_STATE_PG_URL: 'postgres://x' }, () => undefined), /not both/);
+  });
+});
+
+describe('audit records and key parsing', () => {
+  it('auditRecord stamps type:audit with ts/actor/action/reason', () => {
+    const r = auditRecord({ atMs: T0, action: 'mode.set', actor: 'soc', reason: 'drill' });
+    assert.equal(r.type, 'audit');
+    assert.equal(r.action, 'mode.set');
+    assert.equal(r.actor, 'soc');
+    assert.equal(r.reason, 'drill');
+    assert.equal(r.ts, '2026-11-04T05:30:00.000Z');
+  });
+  it('parseApiKeys reads an optional role list and keeps colon-bearing tokens', () => {
+    const keyed = parseApiKeys('lms:prod:evaluate+read:tok-0123456789ab');
+    assert.equal(keyed[0]?.id, 'lms');
+    assert.deepEqual(keyed[0]?.roles, ['evaluate', 'read']);
+    const legacy = parseApiKeys('lms:prod:tok:with:colons-0123');
+    assert.equal(legacy[0]?.roles, undefined);
+    assert.equal(legacy[0]?.sha256, sha('tok:with:colons-0123'));
   });
 });

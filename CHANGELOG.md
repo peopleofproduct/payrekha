@@ -7,6 +7,18 @@ All notable changes to Payrekha are listed here. The format follows [Keep a Chan
 ### Added
 
 - **Go client (`clients/go`):** standard library only, with Ed25519/HMAC intent signing that matches the shared test vector, and the same fail mode as the Java and Python clients.
+- **Role-scoped API keys:** `PAYREKHA_API_KEYS` entries accept `id:prod|nonprod[:role+role]:token` with roles `evaluate`, `outcomes`, `intents`, `read`. Keys without a role list keep access to everything.
+- **`firewall.maxTimestampSkewMs`:** a caller's claimed timestamp outside the bound is evaluated at firewall time with a degraded `time.skew` REVIEW — protecting in-process embedding and trusted-caller paths.
+- **Audit entries in the decision log:** admin actions and denied/accepted outcome reports (`outcome.denied`, `outcome.<outcome>`) are written as `type:"audit"` records alongside verdicts when `PAYREKHA_DECISION_LOG` is set.
+
+### Changed
+
+- **Caller timestamps are no longer the decision clock.** The gateway stamps server time on `/v1/evaluate` and `ext_authz` payouts and keeps the caller's value as `clientTimestampMs` evidence in the decision record. This closes timestamp spoofing of intent windows, velocity budgets, cooling periods and the block-burst counter. Opt back in per trusted caller with `gateway.trustClientTimestamp` / `extAuthz.trustClientTimestamp`.
+- **`POST /v1/outcomes` is bound to the evaluating key.** `failed`/`reversed` refund an intent use, so only the key whose evaluation consumed it may report — reports from other keys return `known:false` and are audited.
+- **Intent reservations record the evaluating `sourceKeyId`**, and dedupe is scoped per key so one key cannot preload another key's payout ids.
+- **A `payoutId` is bound to one intent for life.** A retry after restart correctly sees its own reservation instead of `intent.reused`, while replaying a taken `payoutId` under a different intent is blocked as reuse — previously it evaluated `ok` and was never consumed.
+- **Demo Envoy config:** `x-client-id` is now asserted by Envoy (`headers_to_add`) instead of forwarded from the client — a caller must never name its own source key.
+- **OpenAPI:** corrected drift — `channel` enum (`INTERNAL`, not `OTHER`), `/v1/intents` status codes (201/207/422), `/v1/outcomes` outcome values and binding semantics, `/v1/canaries` 201, `/metrics` requires a key.
 
 ## [0.1.0-alpha.0] - 2026-11-06
 

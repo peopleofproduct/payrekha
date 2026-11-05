@@ -24,6 +24,7 @@ import {
   signIntent,
   TimeRing,
   Verdict,
+  type PayoutContext,
   type PayoutRequest,
   type Rule,
   type UnsignedIntent,
@@ -254,6 +255,104 @@ describe('Payrekha firewall', () => {
     const fw = new Payrekha([], { onDecision: () => { throw new Error('x'); } });
     assert.equal(fw.evaluate(po()).verdict, 'ALLOW');
     assert.equal(fw.metrics.hookErrors, 1);
+  });
+  it('dedupe is scoped to the caller: one key cannot preload another key\'s payoutId', () => {
+    const fw = new Payrekha([], { config: { mode: 'enforce' } });
+    const id = 'shared-id-1';
+    const a = fw.evaluate(po({ payoutId: id, sourceKeyId: 'key-a' }));
+    const b = fw.evaluate(po({ payoutId: id, sourceKeyId: 'key-b' }));
+    const retry = fw.evaluate(po({ payoutId: id, sourceKeyId: 'key-a' }));
+    assert.equal(a.deduped, false);
+    assert.equal(b.deduped, false);
+    assert.notEqual(b.decisionId, a.decisionId);
+    assert.equal(retry.deduped, true);
+    assert.equal(retry.decisionId, a.decisionId);
+  });
+  it('outcome reports bind to the consuming key; denials and releases are audited', () => {
+    const audits: string[] = [];
+    const kp = generateIssuerKeyPair();
+    const fw = new Payrekha([], {
+      config: { mode: 'enforce', adminTokenSha256: sha },
+      keys: [{ keyId: 'k1', issuer: 'los-prod', alg: 'ed25519', publicKey: kp.publicKey, kinds: ['LOAN_DISBURSAL'] }],
+      onAudit: (e) => audits.push(e.action),
+    });
+    fw.registerIntent(signIntent(unsigned(), { alg: 'ed25519', privateKey: kp.privateKey }), T0);
+    const uses = () => fw.intents.get('i-1')?.uses;
+    const first = po({ intentId: 'i-1', kind: 'LOAN_DISBURSAL', amountPaise: 100, sourceKeyId: 'key-a' });
+    assert.equal(fw.evaluate(first).verdict, 'ALLOW');
+    assert.equal(uses(), 1);
+    assert.equal(fw.reportOutcome(first.payoutId, 'failed', 'key-b'), false, 'another key must not free the intent');
+    assert.equal(uses(), 1, 'denied release must not refund the intent use');
+    assert.equal(fw.reportOutcome(first.payoutId, 'failed', 'key-a'), true);
+    assert.equal(uses(), 0, 'the consuming key\'s failure report refunds the use');
+    assert.deepEqual(audits, ['outcome.denied', 'outcome.failed']);
+  });
+  it('a payoutId is bound to one intent for life — even across restarts', () => {
+    const kp = generateIssuerKeyPair();
+    const intentRule: Rule<PayoutRequest, PayoutContext> = {
+      name: 'intent',
+      evaluate: (p, ctx) => (ctx.intent.status === 'reused' ? { rule: 'intent.reused', verdict: 'BLOCK', reason: 'reused', evidence: {} } : null),
+    };
+    const mk = () =>
+      new Payrekha([intentRule], {
+        config: { mode: 'enforce' },
+        keys: [{ keyId: 'k1', issuer: 'los-prod', alg: 'ed25519', publicKey: kp.publicKey, kinds: ['LOAN_DISBURSAL'] }],
+        now: () => T0,
+      });
+    const fw = mk();
+    fw.registerIntent(signIntent(unsigned(), { alg: 'ed25519', privateKey: kp.privateKey }), T0);
+    fw.registerIntent(signIntent(unsigned({ intentId: 'i-2' }), { alg: 'ed25519', privateKey: kp.privateKey }), T0);
+    const p1 = po({ intentId: 'i-1', kind: 'LOAN_DISBURSAL', amountPaise: 100 });
+    assert.equal(fw.evaluate(p1).verdict, 'ALLOW');
+    // Snapshot → restore into a fresh firewall: dedupe is gone, reservations persist.
+    const fw2 = mk();
+    fw2.restoreState(JSON.parse(JSON.stringify(fw.exportState())));
+    assert.equal(fw2.evaluate(p1).verdict, 'ALLOW', 'same payoutId + same intent must not read as reuse after a restart');
+    // Restart again: replaying the taken payoutId under a different (valid)
+    // intent is reuse, not a free pass — reserve() is idempotent per payoutId,
+    // so without this check the new intent would be cited but never consumed.
+    const fw3 = mk();
+    fw3.restoreState(JSON.parse(JSON.stringify(fw.exportState())));
+    const swap = fw3.evaluate({ ...p1, intentId: 'i-2' });
+    assert.equal(swap.verdict, 'BLOCK');
+    assert.equal(fw3.intents.get('i-2')?.uses, 0, 'a rebound payoutId must neither consume nor green-light the new intent');
+    // A genuinely new payout citing the spent intent is still reused.
+    assert.equal(fw3.evaluate(po({ intentId: 'i-1', kind: 'LOAN_DISBURSAL', amountPaise: 100 })).verdict, 'BLOCK');
+  });
+});
+
+describe('timestamp trust boundary (maxTimestampSkewMs)', () => {
+  const bound = { mode: 'enforce' as const, maxTimestampSkewMs: 60_000 };
+  it('a timestamp inside the bound is honoured normally', () => {
+    const fw = new Payrekha([], { config: bound, now: () => T0 });
+    const v = fw.evaluate(po({ timestampMs: T0 - 30_000 }));
+    assert.equal(v.verdict, 'ALLOW');
+    assert.equal(v.degraded, false);
+  });
+  it('a timestamp outside the bound: evaluated at firewall time, degraded REVIEW + time.skew', () => {
+    const fw = new Payrekha([], { config: bound, now: () => T0 });
+    const v = fw.evaluate(po({ timestampMs: T0 - 25 * 3_600_000 }));
+    assert.equal(v.verdict, 'REVIEW');
+    assert.equal(v.effectiveAction, 'HOLD');
+    assert.equal(v.degraded, true);
+    const h = v.hits.at(-1)!;
+    assert.equal(h.rule, 'time.skew');
+    assert.equal(h.evidence['clientTimestampMs'], T0 - 25 * 3_600_000);
+  });
+  it('BLOCKs still block; the skew hit never whitewashes a verdict', () => {
+    const fw = new Payrekha([blockAll as never], { config: bound, now: () => T0 });
+    const v = fw.evaluate(po({ timestampMs: T0 + 86_400_000 }));
+    assert.equal(v.verdict, 'BLOCK');
+    assert.equal(v.degraded, true);
+    assert.ok(v.hits.some((h) => h.rule === 'time.skew'));
+  });
+  it('a skewed clock cannot backdate a beneficiary out of the ledger', () => {
+    // Beneficiary ledger ages from the stamped time, not the caller's claim.
+    const fw = new Payrekha([], { config: bound, now: () => T0 });
+    const ref = po().beneficiaryRef;
+    fw.evaluate(po({ beneficiaryRef: ref, timestampMs: T0 - 86_400_000 }));
+    const entry = fw.beneficiaries.get(ref);
+    assert.equal(entry?.firstSeenMs, T0, 'firstSeen is firewall time, not the caller claim');
   });
 });
 

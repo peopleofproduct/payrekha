@@ -2,10 +2,11 @@
 // Copyright 2026 Kapil — People of Product
 
 import { createWriteStream, type WriteStream } from 'node:fs';
-import type { PayoutRequest, PayoutVerdict } from '@payrekha/core';
+import type { AuditEntry, PayoutRequest, PayoutVerdict } from '@payrekha/core';
 
 /** One decision-log line. Hashed refs only — never a raw account, VPA or mobile. */
 export interface DecisionRecord {
+  readonly type: 'decision';
   readonly ts: string;
   readonly requestId: string;
   readonly decisionId: string;
@@ -18,6 +19,8 @@ export interface DecisionRecord {
   readonly sourceKeyId?: string;
   readonly origin?: string;
   readonly merchantId?: string;
+  /** Caller's claimed timestamp when the gateway overrode it. Untrusted evidence. */
+  readonly clientTimestampMs?: number;
   readonly mode: string;
   readonly alertState: string;
   readonly verdict: string;
@@ -33,10 +36,11 @@ export interface DecisionRecord {
 export function decisionRecord(v: PayoutVerdict, p: Partial<PayoutRequest> | undefined, requestId: string, via: DecisionRecord['via'], nowMs: number): DecisionRecord {
   const safe = (x: unknown) => (typeof x === 'string' && x.startsWith('hb1_') ? x : undefined);
   const r: Record<string, unknown> = {
+    type: 'decision',
     ts: new Date(nowMs).toISOString(),
     requestId,
     decisionId: v.decisionId,
-    payoutId: v.payoutId,
+    payoutId: v.payoutId.slice(0, 128),
     via,
     mode: v.mode,
     alertState: v.alertState,
@@ -56,8 +60,19 @@ export function decisionRecord(v: PayoutVerdict, p: Partial<PayoutRequest> | und
     const b = safe(p.beneficiaryRef);
     if (b !== undefined) r['beneficiaryRef'] = b;
     for (const k of ['intentId', 'sourceKeyId', 'origin', 'merchantId'] as const) if (typeof p[k] === 'string') r[k] = (p[k] as string).slice(0, 128);
+    if (Number.isSafeInteger(p.clientTimestampMs)) r['clientTimestampMs'] = p.clientTimestampMs;
   }
   return r as unknown as DecisionRecord;
+}
+
+/** An audit-trail line (mode changes, alert raises/resets, denied outcomes) for the same log. */
+export interface AuditLogRecord extends Record<string, unknown> {
+  readonly type: 'audit';
+  readonly ts: string;
+}
+export function auditRecord(e: AuditEntry): AuditLogRecord {
+  const { atMs, ...rest } = e;
+  return { type: 'audit', ts: new Date(atMs).toISOString(), ...rest };
 }
 
 const cefHeader = (s: string) => s.replace(/\\/g, '\\\\').replace(/\|/g, '\\|');
@@ -96,24 +111,30 @@ export function toCef(r: DecisionRecord, version = '0.1.0'): string {
   return `CEF:0|People of Product|Payrekha|${cefHeader(version)}|${cefHeader(sig)}|${cefHeader(name)}|${sev}|${e}`;
 }
 
+export type LogRecord = DecisionRecord | AuditLogRecord;
+
 export interface DecisionLog {
-  write(r: DecisionRecord): void;
+  write(r: LogRecord): void;
   close(): Promise<void>;
 }
 
-/** Append-only JSONL (default) or CEF. Writes are buffered by the stream; never awaited on the verdict path. */
+/**
+ * Append-only JSONL (default) or CEF. Writes are buffered by the stream;
+ * never awaited on the verdict path. Audit records stay JSON even under
+ * `cef`: a CEF parser sees them as foreign lines rather than wrong fields.
+ */
 export function fileDecisionLog(path: string, format: 'jsonl' | 'cef' = 'jsonl'): DecisionLog {
   const s: WriteStream = createWriteStream(path, { flags: 'a', mode: 0o600 });
   s.on('error', () => {
     /* counted by the caller via metrics; never crash the verdict path */
   });
   return {
-    write: (r) => void s.write((format === 'cef' ? toCef(r) : JSON.stringify(r)) + '\n'),
+    write: (r) => void s.write((format === 'cef' && r.type === 'decision' ? toCef(r) : JSON.stringify(r)) + '\n'),
     close: () => new Promise((res) => s.end(res)),
   };
 }
 
-export function memoryDecisionLog(): DecisionLog & { readonly lines: DecisionRecord[] } {
-  const lines: DecisionRecord[] = [];
+export function memoryDecisionLog(): DecisionLog & { readonly lines: LogRecord[] } {
+  const lines: LogRecord[] = [];
   return { lines, write: (r) => void lines.push(r), close: async () => undefined };
 }
