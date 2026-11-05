@@ -5,7 +5,7 @@ import { createHash, timingSafeEqual } from 'node:crypto';
 import { Calendar, type CalendarConfig, type CalendarWindow } from './calendar.js';
 import { Engine, severity, type EngineMetrics, type Rule } from './engine.js';
 import { looksLikeRawIdentifier } from './hash.js';
-import { Keyring, type IssuerKey } from './intent.js';
+import { intentSigningPayload, signIntent, Keyring, type IssuerKey, type SignerKey, type UnsignedIntent } from './intent.js';
 import { BeneficiaryLedger, CanaryRegistry, MerchantLedger, type BeneficiaryEntry, type CanarySets, type MerchantEntry } from './ledger.js';
 import { IntentRegistry, MemoryIntentStore, type IntentCheck, type IntentStore, type RegisterResult } from './registry.js';
 import {
@@ -21,6 +21,27 @@ import {
   type PayoutRequest,
   type PayoutVerdict,
 } from './types.js';
+
+/** Parameters for a managed (gateway-minted) intent — see `mintIntent`. */
+export interface MintSpec {
+  /** Signing keyId registered in the keyring; issuer/kinds come from its meta. */
+  readonly keyId: string;
+  /** The signing key itself — held by the gateway in the managed tier only. */
+  readonly key: SignerKey;
+  /** Idempotency id; when omitted it is derived from the signed fields. */
+  readonly intentId?: string;
+  readonly kind: IntentKind;
+  readonly maxAmountPaise: number;
+  /** Hashed beneficiary reference (hashBeneficiary output) — raw ids are rejected by the shape check. */
+  readonly beneficiaryRef: string;
+  readonly subjectRef?: string;
+  readonly maxUses?: number;
+  readonly notBeforeMs?: number;
+  readonly ttlMs?: number;
+  readonly expiresAtMs?: number;
+}
+
+export type MintResult = RegisterResult & { readonly intentId?: string };
 
 /** Threshold multipliers applied by rules for the current alert state. ≤ 1 tightens. */
 export interface Multipliers {
@@ -391,6 +412,36 @@ export class Payrekha {
 
   registerIntent(intent: unknown, nowMs: number = this.now()): RegisterResult {
     return this.intents.register(intent, nowMs);
+  }
+
+  /**
+   * Build, sign and register an intent in one call — the managed-intents
+   * tier (gateway holds the signing key). The caller's system never touches
+   * canonical JSON or key management; the trade-off is that this host can
+   * mint, so prefer externally-signed intents in enforce mode.
+   * `intentId` is derived from the signed fields when omitted, so a retried
+   * mint is idempotent.
+   */
+  mintIntent(spec: MintSpec, actor: string, nowMs: number = this.now()): MintResult {
+    const issuer = this.keyring.list().find((k) => k.keyId === spec.keyId);
+    if (issuer === undefined) return { accepted: false, reason: `unknown signing keyId '${spec.keyId}'` };
+    const unsigned = {
+      kind: spec.kind,
+      maxAmountPaise: spec.maxAmountPaise,
+      beneficiaryRef: spec.beneficiaryRef,
+      ...(spec.subjectRef !== undefined ? { subjectRef: spec.subjectRef } : {}),
+      maxUses: spec.maxUses ?? 1,
+      notBeforeMs: spec.notBeforeMs ?? nowMs,
+      expiresAtMs: spec.expiresAtMs ?? nowMs + (spec.ttlMs ?? 300_000),
+      issuer: issuer.issuer,
+      keyId: spec.keyId,
+      intentId: '',
+    };
+    const intentId = spec.intentId ?? `mint-${createHash('sha256').update(intentSigningPayload(unsigned as UnsignedIntent)).digest('base64url').slice(0, 32)}`;
+    const intent = signIntent({ ...unsigned, intentId }, spec.key);
+    const res = this.intents.register(intent, nowMs);
+    if (res.accepted) this.record({ atMs: nowMs, action: 'intent.minted', actor, reason: `${intentId} ${spec.kind} ₹${spec.maxAmountPaise / 100} via ${spec.keyId}` });
+    return { ...res, intentId };
   }
 
   // ----------------------------------------------------------- state & audit

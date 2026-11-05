@@ -16,6 +16,9 @@ replicaCount: 1
 #   PAYREKHA_STATE_PG_URL                          (when state.type=postgres)
 #   PAYREKHA_STATE_KEY    snapshot HMAC key, ≥32 chars     (recommended)
 #   PAYREKHA_STATE_KEY_PREVIOUS  retiring keys during rotation (comma-separated)
+#   PAYREKHA_MINT_KEY_ID + PAYREKHA_MINT_KEY    managed intents (ed25519 issuer
+#                                             keyId + pkcs8 base64 key) — optional,
+#                                             see docs/adoption.md tier 1
 existingSecret: payrekha
 
 # Rendered to /etc/payrekha/payrekha.json. No secrets here.

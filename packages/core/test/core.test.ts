@@ -309,6 +309,37 @@ describe('Payrekha firewall', () => {
     assert.equal(uses(), 0, 'the consuming key\'s failure report refunds the use');
     assert.deepEqual(audits, ['outcome.denied', 'outcome.failed']);
   });
+  it('mintIntent builds, signs and registers — idempotent, audited, scope-checked', () => {
+    const audits: string[] = [];
+    const kp = generateIssuerKeyPair();
+    const fw = new Payrekha([], {
+      config: { mode: 'enforce' },
+      keys: [{ keyId: 'mint-1', issuer: 'payrekha-managed', alg: 'ed25519', publicKey: kp.publicKey, kinds: ['LOAN_DISBURSAL'] }],
+      onAudit: (e) => audits.push(e.action),
+      now: () => T0,
+    });
+    const signer = { alg: 'ed25519' as const, privateKey: kp.privateKey };
+    const spec = { keyId: 'mint-1', key: signer, kind: 'LOAN_DISBURSAL' as const, maxAmountPaise: 500_000, beneficiaryRef: 'h:v1:abc', ttlMs: 60_000 };
+    const first = fw.mintIntent(spec, 'los-key-a');
+    assert.equal(first.accepted, true);
+    assert.ok(first.intentId?.startsWith('mint-'));
+    // Same fields → same intentId → a retried mint is idempotent, not a duplicate.
+    const retry = fw.mintIntent(spec, 'los-key-a');
+    assert.equal(retry.accepted, true);
+    assert.equal(retry.intentId, first.intentId);
+    // A caller-chosen id wins (their own idempotency key, e.g. the loan id).
+    const named = fw.mintIntent({ ...spec, intentId: 'loan-42' }, 'los-key-a');
+    assert.equal(named.intentId, 'loan-42');
+    // The minted intent verifies and binds a payout end to end.
+    const v = fw.evaluate(po({ kind: 'LOAN_DISBURSAL', amountPaise: 500_000, beneficiaryRef: 'h:v1:abc', intentId: first.intentId }));
+    assert.equal(v.verdict, 'ALLOW');
+    // Negative: unknown signing key and an out-of-scope kind both fail closed.
+    assert.equal(fw.mintIntent({ ...spec, keyId: 'nope' }, 'los-key-a').accepted, false);
+    const badKind = fw.mintIntent({ ...spec, kind: 'VDA_WITHDRAWAL' }, 'los-key-a');
+    assert.equal(badKind.accepted, false);
+    assert.match(badKind.reason ?? '', /kind-not-allowed/);
+    assert.deepEqual(audits.filter((a) => a === 'intent.minted').length, 3, 'every accepted mint call is audited, including idempotent retries');
+  });
   it('a payoutId is bound to one intent for life — even across restarts', () => {
     const kp = generateIssuerKeyPair();
     const intentRule: Rule<PayoutRequest, PayoutContext> = {

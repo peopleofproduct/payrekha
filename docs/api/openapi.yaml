@@ -81,6 +81,17 @@ paths:
         '429': { description: "Key's per-minute verification budget spent (intentVerificationsPerMinute, default 5000)" }
         '401': { $ref: '#/components/responses/Unauthorized' }
         '403': { description: Key lacks the intents role }
+  /v1/intents/mint:
+    post:
+      summary: "Mint a managed intent (requires the mint role). Payrekha builds, signs and registers the intent with a gateway-held key — the lowest-effort adoption tier. Send raw beneficiary fields (account/ifsc/vpa) or a pre-hashed beneficiaryRef. Retries are idempotent: pass intentId or the same fields derive the same id. Weaker trust than externally-signed intents — see docs/adoption.md."
+      requestBody: { required: true, content: { application/json: { schema: { type: object, required: [kind], properties: { kind: { $ref: '#/components/schemas/Kind' }, maxAmountPaise: { type: integer, description: 'amountPaise also accepted' }, amountPaise: { type: integer }, beneficiaryRef: { type: string, description: 'hashBeneficiary output; or send beneficiary' }, beneficiary: { $ref: '#/components/schemas/Beneficiary' }, intentId: { type: string, maxLength: 128 }, subjectRef: { type: string }, maxUses: { type: integer, minimum: 1, default: 1 }, ttlMs: { type: integer }, notBeforeMs: { type: integer } } } } } }
+      responses:
+        '201': { description: "Minted and registered: {accepted, intentId}", content: { application/json: { schema: { type: object, properties: { accepted: { type: boolean }, intentId: { type: string }, reason: { type: string } } } } } }
+        '400': { description: Bad fields (also 415 for an encoded body) }
+        '403': { description: Key lacks the mint role }
+        '422': { description: "Signed but registration rejected (e.g. key not authorised for kind)" }
+        '503': { description: Managed intents not configured on this gateway }
+        '401': { $ref: '#/components/responses/Unauthorized' }
   /v1/evaluate:
     post:
       summary: Evaluate a payout (requires the evaluate role)

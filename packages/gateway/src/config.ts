@@ -3,7 +3,7 @@
 
 import { createHash } from 'node:crypto';
 import { readFileSync } from 'node:fs';
-import { FileStateStore, Payrekha, type FirewallConfig, type IssuerKey, type StateStore } from '@payrekha/core';
+import { FileStateStore, Payrekha, signIntent, type FirewallConfig, type IssuerKey, type SignerKey, type StateStore } from '@payrekha/core';
 import { payrekhaRules, type RulesConfig } from '@payrekha/rules';
 import { auditRecord, fileDecisionLog } from './log.js';
 import { API_ROLES, createGateway, type ApiKey, type ApiRole, type ExtAuthzOptions, type GatewayHandle } from './server.js';
@@ -23,6 +23,11 @@ export interface PayrekhaFileConfig {
     readonly trustClientTimestamp?: boolean;
     /** Key id → merchantIds the key may submit for. Scopes the PA settlement surface. */
     readonly merchantScope?: Readonly<Record<string, readonly string[]>>;
+    /**
+     * Managed intents (POST /v1/intents/mint): keyId must be an ed25519 issuer
+     * in `issuers`; the private key comes from PAYREKHA_MINT_KEY.
+     */
+    readonly mint?: { readonly keyId?: string; readonly defaultTtlMs?: number; readonly maxTtlMs?: number };
   };
 }
 
@@ -162,12 +167,48 @@ export function bootFromEnv(env: NodeJS.ProcessEnv = process.env, log: (m: strin
     if (extAuthz.keySha256 === undefined)
       log('warning: ext_authz has no key (PAYREKHA_EXT_AUTHZ_KEY or extAuthz.keySha256) — anyone who can reach this port can evaluate payouts and spend intents under sourceKeyId "ext_authz"');
   }
+  // Managed intents: the gateway holds a signing key so an adopter needs only
+  // POST /v1/intents/mint. Probe it at boot — a private key that does not match
+  // the keyring entry must fail startup, not the first real mint.
+  const mintKeyId = env['PAYREKHA_MINT_KEY_ID'] ?? cfg.gateway?.mint?.keyId;
+  const mintSecret = env['PAYREKHA_MINT_KEY'];
+  let mint: { keyId: string; key: SignerKey; defaultTtlMs: number; maxTtlMs: number } | undefined;
+  if (mintKeyId !== undefined || mintSecret !== undefined) {
+    if (mintKeyId === undefined || mintSecret === undefined || mintSecret === '')
+      throw new Error('managed intents need both PAYREKHA_MINT_KEY_ID and PAYREKHA_MINT_KEY (pkcs8 base64 or PEM)');
+    const meta = firewall.keyring.list().find((k) => k.keyId === mintKeyId);
+    if (meta === undefined) throw new Error(`PAYREKHA_MINT_KEY_ID '${mintKeyId}' is not a configured issuer key`);
+    if (meta.alg !== 'ed25519') throw new Error(`mint key '${mintKeyId}' must be ed25519 — managed intents are only as strong as their key`);
+    mint = {
+      keyId: mintKeyId,
+      key: { alg: 'ed25519', privateKey: mintSecret },
+      defaultTtlMs: cfg.gateway?.mint?.defaultTtlMs ?? 300_000,
+      maxTtlMs: cfg.gateway?.mint?.maxTtlMs ?? 86_400_000,
+    };
+    const probe = signIntent(
+      {
+        intentId: '__mint_probe__',
+        kind: meta.kinds[0] ?? 'VERIFICATION',
+        maxAmountPaise: 1,
+        beneficiaryRef: 'probe',
+        maxUses: 1,
+        notBeforeMs: 0,
+        expiresAtMs: Number.MAX_SAFE_INTEGER,
+        issuer: meta.issuer,
+        keyId: mintKeyId,
+      },
+      mint.key,
+    );
+    if (!firewall.keyring.verify(probe, Date.now()).ok) throw new Error(`PAYREKHA_MINT_KEY does not verify against issuer key '${mintKeyId}'`);
+    log(`warning: managed intents enabled (keyId '${mintKeyId}') — this host can mint intents. Prefer externally-signed intents in enforce mode; see docs/adoption.md`);
+  }
   const gateway = createGateway({
     firewall,
     apiKeys: scopedKeys,
     ...(adminKey !== undefined ? { adminKeySha256: sha(adminKey) } : {}),
     ...(hashKey !== undefined ? { hashKey } : {}),
     ...(decisionLog !== undefined ? { decisionLog } : {}),
+    ...(mint !== undefined ? { mint } : {}),
     ...(cfg.gateway?.trustClientTimestamp === true ? { trustClientTimestamp: true } : {}),
     ...(webhook !== undefined ? { webhook } : {}),
     ...(extAuthz !== undefined ? { extAuthz } : {}),

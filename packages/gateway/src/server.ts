@@ -3,15 +3,15 @@
 
 import { createHash, randomUUID, timingSafeEqual } from 'node:crypto';
 import { createServer, type IncomingMessage, type Server, type ServerResponse } from 'node:http';
-import { AuthorizationError, hashBeneficiary, looksLikeRawIdentifier, type BeneficiaryIdentifier, type IntentKind, type Mode, type Payrekha, type PayoutOutcome, type PayoutRequest, type PayoutVerdict, type StateStore } from '@payrekha/core';
+import { AuthorizationError, hashBeneficiary, looksLikeRawIdentifier, INTENT_KINDS, type BeneficiaryIdentifier, type IntentKind, type MintSpec, type Mode, type Payrekha, type PayoutOutcome, type PayoutRequest, type PayoutVerdict, type SignerKey, type StateStore } from '@payrekha/core';
 import { decisionRecord, type DecisionLog } from './log.js';
 import { mapPayout, type FieldMapping } from './mapping.js';
 import { renderMetrics } from './metrics.js';
 import type { WebhookSender } from './webhook.js';
 
 /** What an API key may call. `read` covers GET /v1/state and /metrics. */
-export type ApiRole = 'evaluate' | 'intents' | 'outcomes' | 'read';
-export const API_ROLES: readonly ApiRole[] = ['evaluate', 'intents', 'outcomes', 'read'];
+export type ApiRole = 'evaluate' | 'intents' | 'outcomes' | 'read' | 'mint';
+export const API_ROLES: readonly ApiRole[] = ['evaluate', 'intents', 'outcomes', 'read', 'mint'];
 
 export interface ApiKey {
   /** Stable id: becomes `sourceKeyId` on every payout this key evaluates. */
@@ -78,6 +78,14 @@ export interface GatewayOptions {
    * stall the event loop with Ed25519 spam.
    */
   readonly intentVerificationsPerMinute?: number;
+  /**
+   * Managed intents: POST /v1/intents/mint builds, signs and registers an
+   * intent with a gateway-held key — the lowest-effort adoption tier for a
+   * system of record. Anyone who can call mint can authorise payouts up to
+   * the signing key's kinds, so keep it on a separate `mint`-role API key and
+   * prefer externally-signed intents in enforce mode.
+   */
+  readonly mint?: { readonly keyId: string; readonly key: SignerKey; readonly defaultTtlMs: number; readonly maxTtlMs: number };
   readonly maxBodyBytes?: number;
   readonly now?: () => number;
   readonly version?: string;
@@ -253,6 +261,45 @@ export function createGateway(o: GatewayOptions): GatewayHandle {
       const status = results.every((r) => r.accepted) ? 201 : results.some((r) => r.accepted) ? 207 : 422;
       return [status, Array.isArray(body) ? { results } : results[0]];
     }
+    if (path === '/v1/intents/mint' && m === 'POST') {
+      const key = authKey(req, 'mint');
+      if (o.mint === undefined) throw new HttpError(503, 'managed intents are not configured on this gateway');
+      const body = await readBody(req, max);
+      if (typeof body !== 'object' || body === null) throw new HttpError(400, 'a JSON object is required');
+      const b = body as Record<string, unknown>;
+      // Same deal as /v1/evaluate: raw beneficiary fields are hashed at entry.
+      hashAtEntry(b, o.hashKey);
+      const kind = b['kind'];
+      const amount = b['maxAmountPaise'] ?? b['amountPaise'];
+      const ref = b['beneficiaryRef'];
+      const intentId = b['intentId'];
+      const subjectRef = b['subjectRef'];
+      const maxUses = b['maxUses'];
+      const ttlMs = b['ttlMs'];
+      const notBeforeMs = b['notBeforeMs'];
+      if (!INTENT_KINDS.includes(kind as IntentKind)) throw new HttpError(400, 'kind must be a known IntentKind');
+      if (!Number.isSafeInteger(amount) || (amount as number) <= 0) throw new HttpError(400, 'maxAmountPaise (or amountPaise) must be a positive integer');
+      if (typeof ref !== 'string' || looksLikeRawIdentifier(ref)) throw new HttpError(400, 'beneficiaryRef (hashed) or raw beneficiary fields are required');
+      if (intentId !== undefined && (typeof intentId !== 'string' || intentId.length === 0 || intentId.length > 128)) throw new HttpError(400, 'intentId must be a string of at most 128 chars');
+      if (subjectRef !== undefined && typeof subjectRef !== 'string') throw new HttpError(400, 'subjectRef must be a string');
+      if (maxUses !== undefined && (!Number.isSafeInteger(maxUses) || (maxUses as number) < 1 || (maxUses as number) > 1_000_000)) throw new HttpError(400, 'maxUses must be an integer 1..1e6');
+      if (ttlMs !== undefined && (!Number.isSafeInteger(ttlMs) || (ttlMs as number) < 1 || (ttlMs as number) > o.mint.maxTtlMs)) throw new HttpError(400, `ttlMs must be within 1..${o.mint.maxTtlMs}`);
+      if (notBeforeMs !== undefined && !Number.isSafeInteger(notBeforeMs)) throw new HttpError(400, 'notBeforeMs must be epoch ms');
+      const spec: MintSpec = {
+        keyId: o.mint.keyId,
+        key: o.mint.key,
+        kind: kind as IntentKind,
+        maxAmountPaise: amount as number,
+        beneficiaryRef: ref,
+        ...(intentId !== undefined ? { intentId } : {}),
+        ...(subjectRef !== undefined ? { subjectRef } : {}),
+        ...(maxUses !== undefined ? { maxUses: maxUses as number } : {}),
+        ...(ttlMs !== undefined ? { ttlMs: ttlMs as number } : { ttlMs: o.mint.defaultTtlMs }),
+        ...(notBeforeMs !== undefined ? { notBeforeMs: notBeforeMs as number } : {}),
+      };
+      const res = fw.mintIntent(spec, key.id, now());
+      return [res.accepted ? 201 : 422, res];
+    }
     if (path === '/v1/outcomes' && m === 'POST') {
       const key = authKey(req, 'outcomes');
       const b = (await readBody(req, max)) as { payoutId?: unknown; outcome?: unknown } | undefined;
@@ -397,7 +444,7 @@ export function createGateway(o: GatewayOptions): GatewayHandle {
 
 function routeLabel(url: string): string {
   const p = url.split('?')[0] ?? '/';
-  return p.startsWith('/ext_authz') ? '/ext_authz' : p.startsWith('/v1/issuers/') ? '/v1/issuers' : ['/v1/evaluate', '/v1/intents', '/v1/outcomes', '/v1/state', '/v1/canaries', '/healthz', '/readyz', '/metrics'].includes(p) ? p : 'other';
+  return p.startsWith('/ext_authz') ? '/ext_authz' : p.startsWith('/v1/issuers/') ? '/v1/issuers' : ['/v1/evaluate', '/v1/intents', '/v1/intents/mint', '/v1/outcomes', '/v1/state', '/v1/canaries', '/healthz', '/readyz', '/metrics'].includes(p) ? p : 'other';
 }
 
 function send(res: ServerResponse, status: number, body: unknown, headers: Record<string, string> = {}): void {

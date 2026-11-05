@@ -16,12 +16,13 @@ const EXT = 'ext-token-0123456789';
 const EVALTOK = 'eval-token-0123456789';
 const REGTOK = 'registrar-token-0123456789';
 const PATOK = 'pa-scoped-token-0123456789';
+const MINTTOK = 'minter-token-0123456789';
 const HK = 'gateway-hash-key-0123456789';
 const T0 = Date.UTC(2026, 10, 4, 5, 30);
 const LOS = generateIssuerKeyPair();
 const LOS2 = generateIssuerKeyPair();
 
-function boot(mode: 'shadow' | 'enforce', extra: { intentVerificationsPerMinute?: number } = {}) {
+function boot(mode: 'shadow' | 'enforce', extra: { intentVerificationsPerMinute?: number; mint?: boolean } = {}) {
   const log = memoryDecisionLog();
   const fw = new Payrekha(payrekhaRules({ band: false }).rules, {
     config: { mode, adminTokenSha256: sha(ADMIN) },
@@ -39,11 +40,15 @@ function boot(mode: 'shadow' | 'enforce', extra: { intentVerificationsPerMinute?
       { id: 'eval-only', sha256: sha(EVALTOK), origin: 'prod', roles: ['evaluate'] },
       { id: 'registrar', sha256: sha(REGTOK), origin: 'prod', roles: ['intents'] },
       { id: 'pa-scoped', sha256: sha(PATOK), origin: 'prod', roles: ['evaluate'], merchantIds: ['merch-a'] },
+      { id: 'minter', sha256: sha(MINTTOK), origin: 'prod', roles: ['mint'] },
     ],
     adminKeySha256: sha(ADMIN),
     hashKey: HK,
     decisionLog: log,
     now: () => T0,
+    ...(extra.mint === true
+      ? { mint: { keyId: 'los-2', key: { alg: 'ed25519' as const, privateKey: LOS2.privateKey }, defaultTtlMs: 60_000, maxTtlMs: 3_600_000 } }
+      : {}),
     ...(extra.intentVerificationsPerMinute !== undefined ? { intentVerificationsPerMinute: extra.intentVerificationsPerMinute } : {}),
     extAuthz: {
       origin: 'prod',
@@ -233,6 +238,39 @@ describe('gateway (enforce)', () => {
   });
 });
 
+describe('gateway (enforce): managed intents', () => {
+  const { gw, fw } = boot('enforce', { mint: true });
+  let url = '';
+  before(async () => (url = await listen(gw)));
+  after(() => gw.server.close());
+  const mint = (body: unknown, tok = MINTTOK) => fetch(url + '/v1/intents/mint', { method: 'POST', headers: { authorization: `Bearer ${tok}`, 'content-type': 'application/json' }, body: JSON.stringify(body) });
+  it('mint → evaluate round-trip; retries are idempotent; scope and roles hold', async () => {
+    // The LOS sends payout-shaped JSON — raw beneficiary fields get hashed at
+    // entry. los-2 may only mint LOAN_DISBURSAL.
+    const body = { kind: 'LOAN_DISBURSAL', amountPaise: 2_40_000_00, beneficiary: { account: '000123456789', ifsc: 'HDFC0001234' }, subjectRef: 'loan-007' };
+    const r1 = await mint(body);
+    assert.equal(r1.status, 201);
+    const m1 = (await r1.json()) as { accepted: boolean; intentId: string };
+    assert.equal(m1.accepted, true);
+    assert.ok(m1.intentId.length > 0);
+    const m2 = (await (await mint(body)).json()) as { intentId: string };
+    assert.equal(m2.intentId, m1.intentId, 'identical fields derive the same intentId');
+    // The minted intent actually authorises the payout it describes.
+    const v = (await (await fetch(url + '/v1/evaluate', {
+      method: 'POST',
+      headers: { authorization: `Bearer ${API}`, 'content-type': 'application/json' },
+      body: JSON.stringify({ payoutId: 'mint-p1', kind: 'LOAN_DISBURSAL', amountPaise: 2_40_000_00, beneficiaryRef: benRef, channel: 'IMPS', intentId: m1.intentId }),
+    })).json()) as { verdict: string };
+    assert.equal(v.verdict, 'ALLOW');
+    // Negative paths.
+    assert.equal((await mint({ ...body, kind: 'VDA_WITHDRAWAL' })).status, 422, 'mint key kind scope is enforced');
+    assert.equal((await mint({ ...body, ttlMs: 99_999_999 })).status, 400, 'ttl above maxTtlMs refused');
+    assert.equal((await mint({ kind: 'LOAN_DISBURSAL' })).status, 400, 'missing amount/ref');
+    assert.equal((await mint(body, EVALTOK)).status, 403, 'evaluate role cannot mint');
+    assert.equal((await fetch(url + '/v1/intents', { method: 'POST', headers: { authorization: `Bearer ${MINTTOK}`, 'content-type': 'application/json' }, body: JSON.stringify(loanIntent('m-x')) })).status, 403, 'mint role cannot register foreign-signed intents');
+    assert.equal(fw.intents.get(m1.intentId)?.intent.issuer, 'los-prod');
+  });
+});
 describe('gateway (enforce): intent verification budget', () => {
   const { gw } = boot('enforce', { intentVerificationsPerMinute: 3 });
   let url = '';
