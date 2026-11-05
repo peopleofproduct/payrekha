@@ -28,6 +28,7 @@
     "gen:data": "tsc -b && node tools/generate-synthetic-data.mjs",
     "check:deps": "node tools/check-zero-deps.mjs",
     "check:openapi": "node scripts/check-openapi.mjs",
+    "loadcheck": "npm run build >/dev/null && node scripts/load-check.mjs",
     "publish:check": "tsc -b && npm publish --workspaces --dry-run"
   },
   "devDependencies": {

@@ -55,6 +55,21 @@ A rule threw — verdicts for that payout are `degraded`. Pull `payrekha_degrade
 
 One writer only. Promote a standby by scaling the fenced/down active to 0 first, then the standby up — never two writers at once. The standby serves 503 until it has read the snapshot (`/readyz` green = it is serving the *restored* state, not a guess).
 
+## Capacity envelope (measured — `npm run loadcheck`)
+
+On an M-series laptop, enforce mode with behaviour rules + intent checks:
+
+| State size | eval p99 | snapshot serialize+HMAC stall | heap after run |
+|---|---|---|---|
+| 20k beneficiaries / 5k intents | ~42 µs | ~20 ms (0.4% of the 5 s cycle) | ~140 MB |
+| 100k beneficiaries / 30k intents | ~64 µs | ~205 ms (4.1%) | ~260 MB |
+
+The stall scales roughly linearly with snapshot bytes and is HMAC-dominated.
+**Trigger for async snapshot serialization: snapshots routinely > ~20 MB.**
+Watch `payrekha_eval_latency_micros` p99 and pod RSS against the 512 Mi limit
+on day one — dedupe entries grow toward their cap under unique payoutIds, so
+heap is driven by payout *rate*, not just beneficiary count.
+
 ## Rollback
 
 Redeploy the previous image. State snapshots are forward-readable by older builds within the same minor line; if the snapshot format changed, restore from the pre-upgrade file copy you made (you did make one — it's in the deploy step).
