@@ -27,6 +27,11 @@ groups:
         expr: increase(payrekha_rule_errors_total[10m]) > 0
         labels: { severity: critical }
         annotations: { summary: "A rule is throwing — verdicts are degraded" }
+      - alert: PayrekhaWebhookDropped
+        expr: increase(payrekha_webhooks_total{result="dropped"}[5m]) > 0
+        for: 1m
+        labels: { severity: warning }
+        annotations: { summary: 'Webhook queue is dropping notifications — a BLOCK alert may never reach the SOAR/SIEM webhook consumer' }
       - alert: PayrekhaBlocks
         expr: increase(payrekha_verdicts_total{verdict="BLOCK"}[5m]) > 0
         labels: { severity: warning }

@@ -164,8 +164,9 @@ export function bootFromEnv(env: NodeJS.ProcessEnv = process.env, log: (m: strin
       throw new Error('extAuthz.mapping.sourceKeyId must not read from the request body or query — the caller would name its own key');
     if (typeof sks === 'string' && sks.startsWith('header.'))
       log('warning: extAuthz sourceKeyId comes from a header — the asserting proxy must set it; a forwarded client value defeats key binding');
-    if (extAuthz.keySha256 === undefined)
-      log('warning: ext_authz has no key (PAYREKHA_EXT_AUTHZ_KEY or extAuthz.keySha256) — anyone who can reach this port can evaluate payouts and spend intents under sourceKeyId "ext_authz"');
+    if (extAuthz.keySha256 === undefined && extAuthz.allowInsecure !== true)
+      throw new Error('ext_authz has no key (PAYREKHA_EXT_AUTHZ_KEY or extAuthz.keySha256) — anyone who can reach this port could evaluate payouts and spend intents. On a genuinely isolated network set extAuthz.allowInsecure: true to acknowledge this');
+    if (extAuthz.keySha256 === undefined) log('warning: ext_authz running unauthenticated (allowInsecure) — acceptable only on an isolated network');
   }
   // Managed intents: the gateway holds a signing key so an adopter needs only
   // POST /v1/intents/mint. Probe it at boot — a private key that does not match

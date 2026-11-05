@@ -45,6 +45,12 @@ export interface ExtAuthzOptions {
   /** SHA-256 hex of the shared key Envoy sends in `x-payrekha-key`. Omit only on an isolated network. */
   readonly keySha256?: string;
   /**
+   * Permit ext_authz without a key — anyone who can reach the port can then
+   * evaluate payouts and spend intents under sourceKeyId 'ext_authz'. Required
+   * explicitly when keySha256 is unset; absent this + absent key, boot refuses.
+   */
+  readonly allowInsecure?: boolean;
+  /**
    * Honour the timestamp that `mapping.timestampMs` resolves. Default false:
    * the check runs at gateway time and the mapped value is kept as
    * `clientTimestampMs` evidence — a client-controlled clock must not move
@@ -168,6 +174,8 @@ function hashAtEntry(body: Record<string, unknown>, key: string | undefined): vo
 }
 
 export function createGateway(o: GatewayOptions): GatewayHandle {
+  if (o.extAuthz !== undefined && o.extAuthz.keySha256 === undefined && o.extAuthz.allowInsecure !== true)
+    throw new Error('ext_authz configured without a key — set keySha256 or explicitly set allowInsecure: true (isolated networks only)');
   const fw = o.firewall;
   const now = o.now ?? Date.now;
   const max = o.maxBodyBytes ?? 64 * 1024;
