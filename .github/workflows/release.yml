@@ -67,6 +67,8 @@ jobs:
           format: cyclonedx-json
           output-file: payrekha-sbom.cdx.json
       - name: SLSA build provenance
+        # GitHub attestations are unavailable for user-owned private repos; runs once public.
+        if: ${{ !github.event.repository.private }}
         uses: actions/attest-build-provenance@v2
         with:
           subject-name: ghcr.io/${{ github.repository }}
