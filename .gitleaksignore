@@ -8,3 +8,7 @@
 # ci-*-key-* values were one-off CI dummy creds, since renamed to non-key strings.
 36fce6b6c9d766e77d122de2a94789d90ab1daa3:docs/weekend-kit.md:generic-api-key:91
 37b821489489ef66c09e8c5528b851dabd3c311c:.github/workflows/ci.yml:generic-api-key:135
+# Same quickstart env values after the *-key-* rename — shape still tripped
+# the rule before they were switched to per-run generated values.
+5adc6fd09330af7e0174d9ea87310ba046853b5b:.github/workflows/ci.yml:generic-api-key:135
+5adc6fd09330af7e0174d9ea87310ba046853b5b:.github/workflows/ci.yml:generic-api-key:141
