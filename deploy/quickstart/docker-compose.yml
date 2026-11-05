@@ -1,0 +1,62 @@
+# Weekend protection kit — Payrekha in SHADOW mode in front of a payout API.
+# Zero-liability posture: Payrekha cannot decline a payout (shadow) and Envoy
+# fails OPEN if Payrekha is unreachable (failure_mode_allow: true in envoy.yaml).
+#
+#   cp .env.example .env      # fill in secrets first
+#   docker compose -f deploy/quickstart/docker-compose.yml up --build -d
+#
+#   envoy    http://localhost:10000   route your payout traffic here
+#   payrekha http://localhost:8080    API (Bearer keys from .env)
+#   grafana  http://localhost:3000    dashboard auto-loaded (admin password in .env)
+#   prometheus http://localhost:9090
+#
+# Then: node ../.. --experimental-strip-types ../../scripts/verify-deploy.mjs
+# or:   npm run verify:deploy -- --url http://localhost:8080
+services:
+  payrekha:
+    build: { context: ../.., dockerfile: deploy/Dockerfile }
+    image: payrekha:local
+    read_only: true
+    security_opt: ['no-new-privileges:true']
+    cap_drop: [ALL]
+    environment:
+      # Keys come from .env — never hardcode real secrets in this file.
+      PAYREKHA_API_KEYS: lms-prod:prod:evaluate:${PAYREKHA_EVALUATE_KEY},soc-reader:prod:read:${PAYREKHA_READ_KEY}
+      PAYREKHA_ADMIN_KEY: ${PAYREKHA_ADMIN_KEY}
+      PAYREKHA_HASH_KEY: ${PAYREKHA_HASH_KEY}
+      PAYREKHA_STATE_KEY: ${PAYREKHA_STATE_KEY}
+      PAYREKHA_EXT_AUTHZ_KEY: ${PAYREKHA_EXT_AUTHZ_KEY}
+      PAYREKHA_CONFIG: /etc/payrekha/payrekha.json
+      PAYREKHA_STATE_FILE: /var/lib/payrekha/state.json
+      PAYREKHA_DECISION_LOG: /var/lib/payrekha/decisions.jsonl
+    volumes:
+      - ./payrekha.shadow.json:/etc/payrekha/payrekha.json:ro
+      - ./calendar.json:/etc/payrekha/calendar.json:ro
+      - payrekha-data:/var/lib/payrekha
+    ports: ['8080:8080']
+  envoy:
+    image: envoyproxy/envoy:v1.31-latest
+    volumes: ['./envoy.yaml:/etc/envoy/envoy.yaml:ro']
+    ports: ['10000:10000']
+    depends_on: [payrekha]
+  prometheus:
+    image: prom/prometheus:v2.55.1
+    volumes:
+      - ./prometheus.yml:/etc/prometheus/prometheus.yml:ro
+      - ../prometheus/alerts.yml:/etc/prometheus/alerts.yml:ro
+    ports: ['9090:9090']
+  grafana:
+    image: grafana/grafana:11.3.0
+    environment:
+      GF_SECURITY_ADMIN_USER: admin
+      GF_SECURITY_ADMIN_PASSWORD: ${GRAFANA_ADMIN_PASSWORD}
+      GF_USERS_ALLOW_SIGN_UP: 'false'
+    volumes:
+      - ../grafana/provisioning:/etc/grafana/provisioning:ro
+      - ../grafana/dashboards:/var/lib/grafana/dashboards:ro
+      - grafana-data:/var/lib/grafana
+    ports: ['3000:3000']
+    depends_on: [prometheus]
+volumes:
+  payrekha-data:
+  grafana-data:

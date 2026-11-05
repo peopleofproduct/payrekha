@@ -6,6 +6,10 @@ All notable changes to Payrekha are listed here. The format follows [Keep a Chan
 
 ### Added
 
+- **Weekend protection kit (`deploy/quickstart/` + `docs/weekend-kit.md`):** a one-compose shadow-mode stack (Payrekha + Envoy + Prometheus + Grafana) for lenders responding to the CERT-In advisory on a holiday weekend — `failure_mode_allow: true` and shadow pinned so the kit can never block a payout. Ships a pre-armed holiday `calendar.json`, an `env.example` secret checklist, and `npm run verify:deploy` (`scripts/verify-deploy.mjs`): a 12-check post-install proof that ends with a live canary trip → HIGH_ALERT → audited reset.
+- **Grafana dashboard (`deploy/grafana/`):** auto-provisioned Prometheus datasource + dashboard — alert-state banner, verdicts vs effective actions (shadow would-stop rate), rule-hit ranking, eval p99, and error panels keyed to `payrekha_*` metrics.
+- **SIEM shipper (`deploy/siem/vector.toml`):** decision-log tailer with parse transform and ready sinks for Splunk HEC, Elasticsearch data streams, and Sentinel (DCR) — plus the `PAYREKHA_LOG_FORMAT=cef` alternative.
+
 - **Go client (`clients/go`):** standard library only, with Ed25519/HMAC intent signing that matches the shared test vector, and the same fail mode as the Java and Python clients.
 - **Role-scoped API keys:** `PAYREKHA_API_KEYS` entries accept `id:prod|nonprod[:role+role]:token` with roles `evaluate`, `outcomes`, `intents`, `read`. Keys without a role list keep access to everything.
 - **`firewall.maxTimestampSkewMs`:** a caller's claimed timestamp outside the bound is evaluated at firewall time with a degraded `time.skew` REVIEW — protecting in-process embedding and trusted-caller paths.

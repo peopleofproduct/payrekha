@@ -2,7 +2,7 @@
   "name": "payrekha",
   "version": "0.1.0-alpha.0",
   "private": true,
-  "description": "Payrekha — open-source, in-process payout firewall for Indian BFSI. No matching intent, no payout — whoever is calling your API.",
+  "description": "Payrekha \u2014 open-source, in-process payout firewall for Indian BFSI. No matching intent, no payout \u2014 whoever is calling your API.",
   "license": "Apache-2.0",
   "author": "Kapil <kapil@theproduct.city>",
   "type": "module",
@@ -30,7 +30,8 @@
     "check:openapi": "node scripts/check-openapi.mjs",
     "loadcheck": "npm run build >/dev/null && node scripts/load-check.mjs",
     "drill:crash": "npm run build >/dev/null && node scripts/drill-crash.mjs",
-    "publish:check": "tsc -b && npm publish --workspaces --dry-run --tag alpha"
+    "publish:check": "tsc -b && npm publish --workspaces --dry-run --tag alpha",
+    "verify:deploy": "node scripts/verify-deploy.mjs"
   },
   "devDependencies": {
     "@eslint/js": "^9.17.0",

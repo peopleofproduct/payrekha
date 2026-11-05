@@ -1,0 +1,10 @@
+{
+  "note": "Holiday-staffing calendar for the low-coverage rule (IST). Edit to your NI Act / RBI list plus the nights your SOC is thinly manned. Pre-filled around the Nov-2026 Diwali window the CERT-In advisory flagged; weekends and nights are detected automatically.",
+  "holidays": [
+    { "date": "2026-11-08", "name": "Diwali (Lakshmi Puja)" },
+    { "date": "2026-11-09", "name": "Diwali (Govardhan Puja)" },
+    { "date": "2026-11-24", "name": "Guru Nanak Jayanti" },
+    { "date": "2026-12-25", "name": "Christmas" },
+    { "date": "2027-01-01", "name": "New Year" }
+  ]
+}

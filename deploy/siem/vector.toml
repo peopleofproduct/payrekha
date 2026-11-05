@@ -1,0 +1,82 @@
+# Ship the Payrekha decision log + audit events to your SIEM.
+# The gateway writes one JSON object per line to PAYREKHA_DECISION_LOG
+# (default /var/lib/payrekha/decisions.jsonl). This config tails that file,
+# parses each event, and forwards it — pick ONE sink below and uncomment.
+#
+#   docker run -d --name payrekha-siem \
+#     -v /var/lib/payrekha:/var/lib/payrekha:ro \
+#     -v $(pwd)/vector.toml:/etc/vector/vector.toml:ro \
+#     timberio/vector:0.42.X-alpine
+#
+# Fields per line (types.ts → DecisionRecord): ts, payoutId, kind, sourceKeyId,
+# merchantId, amountPaise, channel, origin, verdict, effectiveAction, mode,
+# riskScore, rules[], intentId, dedupe, degraded. Raw beneficiary identifiers
+# are never present — only h:v1: hashes — so forwarding is DPDP-safe.
+# Audit events (mode changes, canary registration, issuer revocation, outcome
+# releases) appear in the same stream with type:"audit".
+# Prefer CEF? Set PAYREKHA_LOG_FORMAT=cef on the gateway — decision lines ship
+# as CEF:0 while audit lines stay JSON; tail this file with a plain file
+# source and no parse transform.
+
+[sources.decision_log]
+type = "file"
+include = ["/var/lib/payrekha/decisions.jsonl"]
+read_from = "end"           # change to "beginning" once to backfill
+fingerprint.strategy = "checksum"
+fingerprint.bytes = 256
+
+[transforms.parse]
+type = "remap"
+inputs = ["decision_log"]
+source = '''
+  . = parse_json!(.message)
+  .collector = "payrekha"
+'''
+
+# ── Pick one sink ────────────────────────────────────────────────────────────
+
+# [sinks.splunk]
+# type = "splunk_hec_logs"
+# inputs = ["parse"]
+# endpoint = "https://splunk.example.com:8088"
+# default_token = "${SPLUNK_HEC_TOKEN}"
+# encoding.codec = "json"
+# compression = "gzip"
+# index = "payrekha"
+# sourcetype = "_json"
+# batch.max_bytes = 1048576
+
+# [sinks.elastic]
+# type = "elasticsearch"
+# inputs = ["parse"]
+# endpoints = ["https://elastic.example.com:9200"]
+# mode = "data_stream"
+# data_stream = { type = "logs", dataset = "payrekha.decisions" }
+# auth.strategy = "basic"
+# auth.user = "${ES_USER}"
+# auth.password = "${ES_PASSWORD}"
+
+# [sinks.sentinel]   # via Azure Monitor Logs ingestion (DCR)
+# type = "http"
+# inputs = ["parse"]
+# uri = "${LOGS_INGESTION_ENDPOINT}/dataCollectionRules/${DCR_IMMUTABLE_ID}/streams/Custom-Payrekha_CL?api-version=2023-01-01"
+# method = "post"
+# encoding.codec = "json"
+# framing.method = "newline_delimited"
+# auth.strategy = "bearer"
+# auth.token = "${AAD_TOKEN}"
+# request.headers.content-type = "application/json"
+
+# [sinks.webhook]    # generic HTTPS POST (anything with an ingestion endpoint)
+# type = "http"
+# inputs = ["parse"]
+# uri = "https://your-siem.example.com/ingest"
+# method = "post"
+# encoding.codec = "json"
+# batch.max_events = 500
+
+# Local stdout sink — uncomment to sanity-check parsing before wiring a SIEM:
+# [sinks.stdout]
+# type = "console"
+# inputs = ["parse"]
+# encoding.codec = "json"

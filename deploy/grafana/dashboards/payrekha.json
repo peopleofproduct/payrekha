@@ -1,0 +1,134 @@
+{
+  "uid": "payrekha-overview",
+  "title": "Payrekha — Payout Protection",
+  "tags": ["payrekha", "security", "payouts"],
+  "timezone": "browser",
+  "schemaVersion": 39,
+  "version": 1,
+  "refresh": "10s",
+  "time": { "from": "now-6h", "to": "now" },
+  "annotations": { "list": [] },
+  "panels": [
+    {
+      "id": 1, "type": "stat", "title": "ALERT STATE",
+      "description": "1 = HIGH_ALERT active (persistent across restarts; requires admin reset). Driven by block bursts, canary trips, or manual raise.",
+      "gridPos": { "h": 4, "w": 6, "x": 0, "y": 0 },
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "fieldConfig": {
+        "defaults": {
+          "mappings": [
+            { "type": "value", "options": { "0": { "text": "NORMAL", "color": "green" }, "1": { "text": "HIGH ALERT", "color": "red" } } }
+          ],
+          "thresholds": { "mode": "absolute", "steps": [{ "color": "green", "value": null }, { "color": "red", "value": 1 }] },
+          "color": { "mode": "background" }
+        }, "overrides": []
+      },
+      "options": { "colorMode": "background", "graphMode": "none", "textMode": "value", "reduceOptions": { "calcs": ["lastNotNull"] } },
+      "targets": [{ "expr": "payrekha_high_alert", "legendFormat": "alert" }]
+    },
+    {
+      "id": 2, "type": "stat", "title": "Gateway ready",
+      "gridPos": { "h": 4, "w": 3, "x": 6, "y": 0 },
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "fieldConfig": { "defaults": { "mappings": [{ "type": "value", "options": { "0": { "text": "NOT READY", "color": "red" }, "1": { "text": "READY", "color": "green" } } }], "color": { "mode": "background" } }, "overrides": [] },
+      "options": { "colorMode": "background", "graphMode": "none", "textMode": "value", "reduceOptions": { "calcs": ["lastNotNull"] } },
+      "targets": [{ "expr": "payrekha_ready" }]
+    },
+    {
+      "id": 3, "type": "stat", "title": "Evaluations / min",
+      "gridPos": { "h": 4, "w": 5, "x": 9, "y": 0 },
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "options": { "colorMode": "value", "graphMode": "area", "reduceOptions": { "calcs": ["lastNotNull"] } },
+      "targets": [{ "expr": "sum(rate(payrekha_evaluations_total[5m])) * 60", "legendFormat": "evals/min" }]
+    },
+    {
+      "id": 4, "type": "stat", "title": "Intents · Beneficiaries · Canaries",
+      "gridPos": { "h": 4, "w": 10, "x": 14, "y": 0 },
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "options": { "colorMode": "value", "graphMode": "none", "orientation": "horizontal", "reduceOptions": { "calcs": ["lastNotNull"] } },
+      "targets": [
+        { "expr": "payrekha_intents", "legendFormat": "intents" },
+        { "expr": "payrekha_beneficiaries_tracked", "legendFormat": "beneficiaries" },
+        { "expr": "payrekha_canaries", "legendFormat": "canaries" }
+      ]
+    },
+    {
+      "id": 5, "type": "timeseries", "title": "Verdicts (what the engine decided)",
+      "description": "Calculated verdicts. In shadow mode these are what Payrekha WOULD have done — compare with the panel to the right.",
+      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 4 },
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "fieldConfig": { "defaults": { "custom": { "drawStyle": "line", "fillOpacity": 15, "stacking": { "mode": "normal" } }, "color": { "mode": "palette-classic" }, "unit": "short" }, "overrides": [
+        { "matcher": { "id": "byName", "options": "BLOCK" }, "properties": [{ "id": "color", "value": { "mode": "fixed", "fixedColor": "red" } }] },
+        { "matcher": { "id": "byName", "options": "REVIEW" }, "properties": [{ "id": "color", "value": { "mode": "fixed", "fixedColor": "orange" } }] },
+        { "matcher": { "id": "byName", "options": "ALLOW" }, "properties": [{ "id": "color", "value": { "mode": "fixed", "fixedColor": "green" } }] }
+      ] },
+      "options": { "legend": { "displayMode": "table", "placement": "right", "calcs": ["lastNotNull", "sum"] }, "tooltip": { "mode": "multi" } },
+      "targets": [{ "expr": "sum by (verdict) (increase(payrekha_verdicts_total[5m]))", "legendFormat": "{{verdict}}" }]
+    },
+    {
+      "id": 6, "type": "timeseries", "title": "Effective actions (what callers were told)",
+      "description": "Shadow mode keeps this at ALLOW even when the verdict was BLOCK/REVIEW — the gap between these two panels is your would-stop rate.",
+      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 4 },
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "fieldConfig": { "defaults": { "custom": { "drawStyle": "line", "fillOpacity": 15, "stacking": { "mode": "normal" } }, "unit": "short" }, "overrides": [] },
+      "options": { "legend": { "displayMode": "table", "placement": "right", "calcs": ["lastNotNull", "sum"] }, "tooltip": { "mode": "multi" } },
+      "targets": [{ "expr": "sum by (action) (increase(payrekha_effective_actions_total[5m]))", "legendFormat": "{{action}}" }]
+    },
+    {
+      "id": 7, "type": "bargauge", "title": "Rule hits — last hour",
+      "description": "Which controls are firing. canary.tripped → investigate immediately.",
+      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 12 },
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "options": { "orientation": "horizontal", "displayMode": "gradient", "showUnfilled": true, "reduceOptions": { "calcs": ["sum"] } },
+      "targets": [{ "expr": "topk(12, sum by (rule) (increase(payrekha_rule_hits_total[1h])))", "legendFormat": "{{rule}}" }]
+    },
+    {
+      "id": 8, "type": "timeseries", "title": "Eval latency (µs)",
+      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 12 },
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "fieldConfig": { "defaults": { "unit": "µs" }, "overrides": [] },
+      "options": { "legend": { "displayMode": "list", "placement": "bottom" }, "tooltip": { "mode": "multi" } },
+      "targets": [
+        { "expr": "histogram_quantile(0.99, sum by (le) (rate(payrekha_eval_latency_micros_bucket[5m])))", "legendFormat": "p99" },
+        { "expr": "histogram_quantile(0.50, sum by (le) (rate(payrekha_eval_latency_micros_bucket[5m])))", "legendFormat": "p50" }
+      ]
+    },
+    {
+      "id": 9, "type": "stat", "title": "Degraded verdicts (last hour)",
+      "description": "Verdicts degraded by malformed input or a throwing rule. >0 deserves a look — check payrekha_rule_errors_total.",
+      "gridPos": { "h": 4, "w": 6, "x": 0, "y": 20 },
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "fieldConfig": { "defaults": { "thresholds": { "mode": "absolute", "steps": [{ "color": "green", "value": null }, { "color": "red", "value": 1 }] }, "color": { "mode": "value" } }, "overrides": [] },
+      "options": { "colorMode": "value", "graphMode": "area", "reduceOptions": { "calcs": ["lastNotNull"] } },
+      "targets": [{ "expr": "increase(payrekha_degraded_total[1h])" }]
+    },
+    {
+      "id": 10, "type": "stat", "title": "Log + webhook errors (last hour)",
+      "description": "Decision-log write failures and dropped webhook deliveries — silence here means your audit trail is complete.",
+      "gridPos": { "h": 4, "w": 6, "x": 6, "y": 20 },
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "fieldConfig": { "defaults": { "thresholds": { "mode": "absolute", "steps": [{ "color": "green", "value": null }, { "color": "red", "value": 1 }] }, "color": { "mode": "value" } }, "overrides": [] },
+      "options": { "colorMode": "value", "graphMode": "none", "orientation": "horizontal", "reduceOptions": { "calcs": ["lastNotNull"] } },
+      "targets": [
+        { "expr": "increase(payrekha_decision_log_errors_total[1h])", "legendFormat": "log errors" },
+        { "expr": "increase(payrekha_webhooks_total{result=\"dropped\"}[1h]) or vector(0)", "legendFormat": "webhooks dropped" }
+      ]
+    },
+    {
+      "id": 11, "type": "stat", "title": "Deduped retries (last hour)",
+      "description": "Idempotent retries answered from cache — expected during client timeouts; spikes may mean the caller is timing out on Payrekha.",
+      "gridPos": { "h": 4, "w": 6, "x": 12, "y": 20 },
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "options": { "colorMode": "value", "graphMode": "area", "reduceOptions": { "calcs": ["lastNotNull"] } },
+      "targets": [{ "expr": "increase(payrekha_deduped_total[1h])" }]
+    },
+    {
+      "id": 12, "type": "stat", "title": "HTTP errors (last hour)",
+      "gridPos": { "h": 4, "w": 6, "x": 18, "y": 20 },
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "fieldConfig": { "defaults": { "thresholds": { "mode": "absolute", "steps": [{ "color": "green", "value": null }, { "color": "red", "value": 5 }] }, "color": { "mode": "value" } }, "overrides": [] },
+      "options": { "colorMode": "value", "graphMode": "area", "reduceOptions": { "calcs": ["lastNotNull"] } },
+      "targets": [{ "expr": "sum(increase(payrekha_http_requests_total{status=~\"5..\"}[1h])) or vector(0)" }]
+    }
+  ]
+}

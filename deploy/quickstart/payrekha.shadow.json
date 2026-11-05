@@ -1,0 +1,39 @@
+{
+  "firewall": {
+    "mode": "shadow",
+    "requireIntent": {}
+  },
+  "calendarFile": "/etc/payrekha/calendar.json",
+  "issuers": [],
+  "rules": {
+    "probe": { "windowMs": 86400000, "largePaise": 1000000, "largeMultiple": 25 },
+    "cooling": { "coolingMs": 1800000, "minAmountPaise": 5000000 },
+    "velocity": {
+      "windowMs": 600000,
+      "perSourceKey": { "count": 120, "sumPaise": 250000000 },
+      "global": { "count": 2000, "sumPaise": 5000000000 }
+    },
+    "origin": { "unknownOrigin": "ignore" },
+    "external": { "reviewScore": 0.7, "blockScore": 0.9 }
+  },
+  "extAuthz": {
+    "origin": "prod",
+    "originHeader": "x-payrekha-origin",
+    "mapping": {
+      "payoutId": "body.request_id",
+      "kind": "header.x-payout-kind",
+      "amountPaise": "body.amount_in_paise",
+      "intentId": "header.x-payrekha-intent",
+      "beneficiary": {
+        "account": "body.beneficiary.account_number",
+        "ifsc": "body.beneficiary.ifsc",
+        "vpa": "body.beneficiary.vpa"
+      },
+      "channel": "body.mode",
+      "sourceKeyId": "header.x-client-id",
+      "riskScore": "header.x-risk-score",
+      "externalVerdict": "header.x-risk-verdict",
+      "externalSource": "header.x-risk-source"
+    }
+  }
+}
