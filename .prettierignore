@@ -1,0 +1,9 @@
+**/dist/
+**/node_modules/
+coverage/
+clients/
+deploy/grafana/dashboards/
+docs/assets/
+playground/payrekha-web.js
+package-lock.json
+CHANGELOG.md

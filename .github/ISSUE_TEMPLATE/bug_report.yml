@@ -1,0 +1,57 @@
+name: Bug report
+description: A verdict is wrong, an endpoint misbehaves, or something crashes
+labels: [bug]
+body:
+  - type: dropdown
+    id: component
+    attributes:
+      label: Component
+      options:
+        - '@payrekha/core (engine)'
+        - '@payrekha/gateway (HTTP/ext_authz)'
+        - '@payrekha/rules (rule set)'
+        - '@payrekha/replay (CLI)'
+        - '@payrekha/store-postgres'
+        - 'deploy/ (compose, envoy, helm)'
+        - 'clients/ (go, java, python)'
+        - 'docs / quickstart kit'
+    validations:
+      required: true
+  - type: dropdown
+    id: mode
+    attributes:
+      label: Mode in force (if a verdict is wrong)
+      options:
+        - shadow
+        - advise
+        - enforce
+        - 'not applicable'
+  - type: textarea
+    id: repro
+    attributes:
+      label: Reproduction
+      description: >-
+        The smallest payout JSON / config / command that shows the problem.
+        Anonymize — never paste real account numbers, VPAs, wallet addresses,
+        customer names, or intent signatures. Use hb1_ refs or XXX.
+      placeholder: |
+        POST /v1/evaluate {"kind":"VENDOR_PAYOUT","amountPaise":100,...}
+    validations:
+      required: true
+  - type: textarea
+    id: expected
+    attributes:
+      label: Expected vs actual
+      placeholder: 'Expected verdict REVIEW with probe.micro-then-large; got ALLOW with no hits'
+    validations:
+      required: true
+  - type: input
+    id: version
+    attributes:
+      label: Version / commit
+      placeholder: 'v0.1.0-alpha.0 or commit SHA'
+  - type: textarea
+    id: logs
+    attributes:
+      label: Logs / decision records (if any)
+      description: 'Relevant log lines or decision-log records — beneficiary refs are already hashed, still check.'

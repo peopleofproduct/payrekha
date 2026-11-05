@@ -1,0 +1,7 @@
+# Payrekha is maintained by People of Product™ (https://theproduct.city)
+# If Payrekha is protecting payouts your systems send out, consider
+# supporting the maintainers — see SUPPORT.md for details
+# (UPI accepted — no PayPal/Stripe needed).
+custom:
+  - 'https://github.com/peopleofproduct/payrekha/blob/main/SUPPORT.md'
+  - 'https://theproduct.city'

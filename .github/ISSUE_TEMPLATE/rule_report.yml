@@ -1,0 +1,75 @@
+name: Rule report — false positive or missed detection
+description: A rule fired when it shouldn't have, or a real attack pattern got through
+labels: [tuning]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks — tuning reports are how the rule set earns enforcement.
+        **Never paste real payout data.** Describe the *shape* (kind, channel,
+        amount band, timing) not the customer.
+  - type: dropdown
+    id: kind
+    attributes:
+      label: Report type
+      options:
+        - False positive — legitimate payout flagged
+        - Missed detection — attack-shaped payout allowed
+        - Threshold tuning suggestion
+        - New rule suggestion
+    validations:
+      required: true
+  - type: dropdown
+    id: rule
+    attributes:
+      label: Rule (if known)
+      options:
+        - intent.missing
+        - intent.bad-signature
+        - intent.kind-mismatch
+        - intent.expired
+        - intent.amount-exceeds
+        - intent.beneficiary-mismatch
+        - intent.reused
+        - settlement.over-captured
+        - settlement.account-changed
+        - probe.micro-then-large
+        - beneficiary.cooling
+        - velocity.outflow
+        - amount.band-anomaly
+        - origin.nonprod
+        - canary.tripped
+        - calendar.window
+        - feed.reputation
+        - client.unattested
+        - time.skew
+        - unknown / multiple
+  - type: input
+    id: payout_kind
+    attributes:
+      label: Payout kind + channel
+      placeholder: 'VENDOR_PAYOUT via IMPS'
+  - type: textarea
+    id: shape
+    attributes:
+      label: Payout shape — no PII
+      description: >-
+        Amount band, timing (holiday/night?), beneficiary-new-or-known,
+        intent present/bound/missing, source key origin. Example:
+        "₹4.8L refund at 02:11 IST on Diwali, new beneficiary, no intent,
+        nonprod key"
+      placeholder: '₹4–5L band, holiday night, new beneficiary...'
+    validations:
+      required: true
+  - type: textarea
+    id: verdict
+    attributes:
+      label: What the engine did vs what it should have
+      placeholder: 'Fired velocity.outflow → HOLD. This is our month-end salary batch — should be exempt...'
+    validations:
+      required: true
+  - type: textarea
+    id: context
+    attributes:
+      label: Business context (helps us tune, not judge)
+      description: 'E.g. month-end salary runs, festive refund bursts, settlement cadence — whatever explains the shape.'

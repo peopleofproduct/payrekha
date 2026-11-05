@@ -1,0 +1,202 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Payrekha playground — no matching intent, no payout</title>
+<meta name="description" content="Run the real Payrekha engine in your browser: the CRAFTY FALCON attack chain, custom payout evaluation, and live rule evidence. Zero network calls.">
+<style>
+  :root {
+    --bg: #101014; --panel: #17171d; --line: #26262e; --ink: #ececf1;
+    --dim: #8f8f9c; --saffron: #f4933d; --green: #3ecf8e; --yellow: #f5c542;
+    --red: #f0564f; --cyan: #5cc8e0;
+  }
+  * { box-sizing: border-box; }
+  body { margin: 0; background: var(--bg); color: var(--ink); font: 15px/1.55 -apple-system, "Segoe UI", system-ui, sans-serif; }
+  code, textarea, .mono { font-family: ui-monospace, "SF Mono", Menlo, Consolas, monospace; }
+  main { max-width: 880px; margin: 0 auto; padding: 32px 20px 80px; }
+  header { text-align: center; padding: 48px 20px 32px; border-bottom: 1px solid var(--line); }
+  header h1 { font-size: 40px; margin: 0 0 6px; letter-spacing: -0.5px; }
+  header h1 span { color: var(--saffron); }
+  header p.tag { color: var(--dim); font-size: 17px; margin: 0 0 10px; }
+  header p.line { color: var(--ink); font-size: 15px; }
+  .rekha { display: inline-block; border-bottom: 3px solid var(--saffron); padding: 0 2px; }
+  .badges { margin-top: 14px; color: var(--dim); font-size: 13px; }
+  .badges a { color: var(--cyan); text-decoration: none; }
+  section { margin-top: 36px; }
+  h2 { font-size: 20px; margin: 0 0 4px; }
+  .sub { color: var(--dim); font-size: 14px; margin: 0 0 18px; }
+  .row { display: flex; gap: 12px; flex-wrap: wrap; align-items: center; }
+  button {
+    background: var(--saffron); color: #16130e; border: 0; border-radius: 8px;
+    padding: 10px 18px; font-size: 15px; font-weight: 600; cursor: pointer;
+  }
+  button.ghost { background: transparent; color: var(--ink); border: 1px solid var(--line); font-weight: 500; }
+  button:hover { filter: brightness(1.1); }
+  .mode { display: inline-flex; border: 1px solid var(--line); border-radius: 8px; overflow: hidden; }
+  .mode button { border-radius: 0; background: transparent; color: var(--dim); font-weight: 500; padding: 10px 14px; }
+  .mode button.on { background: var(--panel); color: var(--ink); }
+  .card { background: var(--panel); border: 1px solid var(--line); border-radius: 10px; padding: 14px 16px; margin: 10px 0; }
+  .step .head { display: flex; gap: 10px; align-items: baseline; justify-content: space-between; }
+  .step .title { font-weight: 600; }
+  .step .title.attack::before { content: "▲ "; color: var(--red); }
+  .step .title.ok::before { content: "● "; color: var(--green); }
+  .verdict { font-weight: 700; letter-spacing: 0.4px; }
+  .v-ALLOW { color: var(--green); } .v-REVIEW { color: var(--yellow); } .v-BLOCK { color: var(--red); }
+  .meta { color: var(--dim); font-size: 12.5px; margin-top: 4px; }
+  .hit { color: var(--dim); font-size: 13px; margin: 3px 0 0 14px; }
+  .hit code { color: var(--cyan); }
+  .alert { border: 1px solid var(--red); color: var(--red); }
+  .summary { text-align: center; font-size: 19px; font-weight: 700; margin: 22px 0 6px; }
+  .summary.green { color: var(--green); } .summary.red { color: var(--red); }
+  .summary-note { text-align: center; color: var(--dim); font-size: 14px; }
+  textarea {
+    width: 100%; min-height: 150px; background: #0d0d11; color: var(--ink);
+    border: 1px solid var(--line); border-radius: 8px; padding: 12px; font-size: 13px; resize: vertical;
+  }
+  input[type=text] {
+    background: #0d0d11; color: var(--ink); border: 1px solid var(--line);
+    border-radius: 8px; padding: 9px 12px; font-size: 14px; width: 100%;
+  }
+  label { display: block; color: var(--dim); font-size: 13px; margin: 12px 0 5px; }
+  .state { display: flex; gap: 26px; flex-wrap: wrap; color: var(--dim); font-size: 14px; }
+  .state b { color: var(--ink); font-weight: 600; }
+  .state .hi { color: var(--red); font-weight: 700; }
+  footer { border-top: 1px solid var(--line); margin-top: 56px; padding: 26px 20px; text-align: center; color: var(--dim); font-size: 13.5px; }
+  footer a { color: var(--cyan); text-decoration: none; }
+  .err { color: var(--red); font-size: 13.5px; margin-top: 8px; white-space: pre-wrap; }
+</style>
+</head>
+<body>
+<header>
+  <h1>Pay<span>rekha</span></h1>
+  <p class="tag">The Lakshman Rekha for money leaving your systems.</p>
+  <p class="line"><span class="rekha">No matching intent, no payout</span> — whoever is calling your API.</p>
+  <p class="badges">The real engine, running in your browser · zero network calls · <a href="https://github.com/peopleofproduct/payrekha">github.com/peopleofproduct/payrekha</a></p>
+</header>
+
+<main>
+  <section>
+    <h2>The CRAFTY FALCON chain</h2>
+    <p class="sub">Eight attack steps from the CERT-In advisory against a fake NBFC — stolen credentials, a ₹1 probe, a UAT key in prod, a changed settlement account, a Diwali burst, and a planted canary. Run it in <b>enforce</b> to watch the line hold, then <b>shadow</b> to see that nothing would have been blocked in observe-only mode.</p>
+    <div class="row">
+      <button id="run">▶ Run the chain</button>
+      <div class="mode" id="mode">
+        <button data-m="enforce" class="on">enforce</button>
+        <button data-m="shadow">shadow</button>
+      </div>
+    </div>
+    <div id="out"></div>
+  </section>
+
+  <section>
+    <h2>Evaluate your own payout</h2>
+    <p class="sub">Same evaluation the gateway runs. The beneficiary identifier is hashed in-page — the engine only ever sees <code>hb1_…</code>.</p>
+    <label>Payout JSON</label>
+    <textarea id="pjson" spellcheck="false">{
+  "kind": "VENDOR_PAYOUT",
+  "channel": "IMPS",
+  "amountPaise": 49999900,
+  "origin": "prod",
+  "sourceKeyId": "lms-prod"
+}</textarea>
+    <label>Beneficiary (raw VPA — hashed before evaluation)</label>
+    <input type="text" id="vpa" value="fresh.acct91@okicici" spellcheck="false">
+    <div class="row" style="margin-top:14px">
+      <button id="eval">Evaluate</button>
+      <button class="ghost" id="canary">Pay the canary instead</button>
+      <button class="ghost" id="reset">Reset firewall</button>
+    </div>
+    <div id="cout"></div>
+  </section>
+
+  <section>
+    <h2>Engine state</h2>
+    <div class="state" id="state"><span>loading…</span></div>
+  </section>
+</main>
+
+<footer>
+  Runs entirely in this page — open devtools and watch the network tab stay empty.<br>
+  <a href="https://github.com/peopleofproduct/payrekha">Payrekha</a> · Apache-2.0 · maintained by <a href="https://github.com/peopleofproduct">People of Product™</a>
+</footer>
+
+<script type="module">
+import { attackChain, evaluateCustom, getState, fresh, ref, toRupees, formatIst } from './payrekha-web.js';
+
+const $ = (id) => document.getElementById(id);
+const esc = (s) => String(s).replace(/[&<>"]/g, (c) => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+let mode = 'enforce';
+
+$('mode').addEventListener('click', (e) => {
+  const b = e.target.closest('button'); if (!b) return;
+  mode = b.dataset.m;
+  for (const x of $('mode').children) x.classList.toggle('on', x === b);
+});
+
+function renderState() {
+  const s = getState();
+  $('state').innerHTML =
+    `<span>mode <b>${esc(s.mode)}</b></span>` +
+    `<span>alert <b class="${s.alertState !== 'NORMAL' ? 'hi' : ''}">${esc(s.alertState)}</b></span>` +
+    `<span>evaluations <b>${s.evaluations}</b></span>` +
+    `<span>verdicts <b>${s.verdicts.allow} allow · ${s.verdicts.review} review · ${s.verdicts.block} block</b></span>` +
+    `<span>intents <b>${s.intents}</b></span><span>canaries <b>${s.canaries}</b></span>`;
+}
+
+function stepCard(s) {
+  const hits = s.hits.map((h) => `<div class="hit"><code>${esc(h.rule)}</code> — ${esc(h.reason)}</div>`).join('');
+  const alert = s.alertState !== 'NORMAL' ? ` <span style="color:var(--cyan)">· ${esc(s.alertState)}</span>` : '';
+  return `<div class="card step${s.alertState === 'HIGH_ALERT' ? ' alert' : ''}">
+    <div class="head">
+      <div class="title ${s.attack ? 'attack' : 'ok'}">${esc(s.title)}</div>
+      <div><span class="verdict v-${s.verdict}">${s.verdict}</span> <span class="meta">→ ${s.effectiveAction}</span></div>
+    </div>
+    <div class="meta">${esc(formatIst(s.at))} · ${s.micros} µs${alert}</div>${hits}</div>`;
+}
+
+$('run').addEventListener('click', () => {
+  const r = attackChain(mode);
+  const summary = mode === 'enforce'
+    ? `<div class="summary ${r.leaked === 0 ? 'green' : 'red'}">${r.attacks} attack steps · ${r.leaked === 0 ? '₹0 left the building.' : toRupees(r.leaked) + ' left the building.'}</div>
+       <div class="summary-note">Run the same chain in shadow: every payout allowed, ${r.wouldStopCount} of ${r.attacks} logged as would-stop (${toRupees(r.wouldStopPaise)}).</div>`
+    : `<div class="summary green">Shadow mode: nothing was stopped.</div>
+       <div class="summary-note">${r.wouldStopCount} of ${r.attacks} attack steps would have been (${toRupees(r.wouldStopPaise)}).</div>`;
+  $('out').innerHTML = r.steps.map(stepCard).join('') + summary;
+  renderState();
+});
+
+function verdictCard(v, note) {
+  const hits = (v.hits ?? []).map((h) => `<div class="hit"><code>${esc(h.rule)}</code> — ${esc(h.reason)}</div>`).join('');
+  return `<div class="card step${v.alertState === 'HIGH_ALERT' ? ' alert' : ''}">
+    ${note ? `<div class="meta" style="margin-bottom:6px">${esc(note)}</div>` : ''}
+    <div class="head"><div class="title">${esc(v.payoutId ?? 'payout')}</div>
+    <div><span class="verdict v-${v.verdict}">${v.verdict}</span> <span class="meta">→ ${v.effectiveAction}</span></div></div>
+    <div class="meta">${v.alertState} · ${Math.round(v.elapsedMicros ?? 0)} µs</div>${hits}</div>`;
+}
+
+$('eval').addEventListener('click', () => {
+  try {
+    const payout = JSON.parse($('pjson').value);
+    const v = evaluateCustom(payout, { vpa: $('vpa').value.trim() });
+    $('cout').innerHTML = verdictCard(v);
+  } catch (e) { $('cout').innerHTML = `<div class="err">${esc(e.message ?? e)}</div>`; }
+  renderState();
+});
+
+$('canary').addEventListener('click', () => {
+  try {
+    const payout = JSON.parse($('pjson').value);
+    payout.kind = payout.kind ?? 'REFUND';
+    payout.amountPaise = payout.amountPaise ?? 250000;
+    const v = evaluateCustom(payout, ref('apk-canary-7f3@okbank'));
+    $('cout').innerHTML = verdictCard(v, 'paying the planted canary — this is what "someone is inside" looks like');
+  } catch (e) { $('cout').innerHTML = `<div class="err">${esc(e.message ?? e)}</div>`; }
+  renderState();
+});
+
+$('reset').addEventListener('click', () => { fresh(mode); $('cout').innerHTML = ''; $('out').innerHTML = ''; renderState(); });
+renderState();
+</script>
+</body>
+</html>

@@ -34,6 +34,10 @@ Get either answer wrong and the money stays. Even if the attacker is inside, wit
 
 *Built against CERT-In Advisory CIAD-2026-0058 · open source · runs inside your walls · never phones home.*
 
+|       18        |     108      |       ~19 µs        |        3        |                 0                  |
+| :-------------: | :----------: | :-----------------: | :-------------: | :--------------------------------: |
+| advisory-mapped rules | tests, all green | p99 eval, in-process | client languages (Go · Java · Python) | runtime deps in `core` · network calls · phone-home |
+
 ## Why this week, of all weeks
 
 CERT-In advisory **CIAD-2026-0058** ("CRAFTY FALCON") describes attackers who get inside a lender and call its *own* payout APIs with valid credentials — and it warns they favour **holidays**, when the guardians are thinnest.
@@ -85,6 +89,10 @@ npm run demo:live                 # live, through Envoy (start the compose stack
 ```
 
 The demo walks through these steps: a legitimate penny-drop and loan disbursal, then stolen credentials with no intent, a replayed intent, a ₹1 then ₹4,99,999 probe, a UAT key, a changed settlement account, a Diwali burst, and a canary hit that enters `HIGH_ALERT`. It ends with *"8 attack steps. ₹0 left the building."*
+
+### …or run the same chain in your browser, no install
+
+**[peopleofproduct.github.io/payrekha](https://peopleofproduct.github.io/payrekha)** — the real engine bundled for the browser: run the attack chain in enforce and shadow, evaluate a custom payout, trip the canary. Zero network calls — open devtools and watch the tab stay silent. Locally: `open playground/index.html` after `npm run playground`.
 
 ## Try it on your own data, with no integration
 
@@ -184,6 +192,14 @@ One line of defence per surface, from the same People of Product workshop:
 - **Payrekha** — checks every rupee your *own systems* send out.
 
 ## Project
+
+**Payrekha** is an open-source initiative by **[People of Product™](https://theproduct.city)** — the team behind **Panini** and **Krediwall**, built to make India's open-finance infrastructure more open for everyone.
+
+- 🌐 Website — [theproduct.city](https://theproduct.city)
+- 💼 LinkedIn — [People of Product](https://www.linkedin.com/company/people-of-product) · [Kapil (founder)](https://www.linkedin.com/in/kapil0/)
+- 🐦 X — [@PeopleOfProduct](https://x.com/PeopleOfProduct) · [@product_city](https://x.com/product_city) · [@Krazzy_Bunny](https://x.com/Krazzy_Bunny)
+
+Payrekha is free forever — if it's protecting your payouts, you can [support the maintainers](SUPPORT.md).
 
 [Contributing](CONTRIBUTING.md) · [Code of conduct](CODE_OF_CONDUCT.md) · [Security policy](SECURITY.md) · [Trademarks](TRADEMARKS.md) · [NOTICE](NOTICE)
 

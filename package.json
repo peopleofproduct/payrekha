@@ -2,7 +2,7 @@
   "name": "payrekha",
   "version": "0.1.0-alpha.0",
   "private": true,
-  "description": "Payrekha \u2014 open-source, in-process payout firewall for Indian BFSI. No matching intent, no payout \u2014 whoever is calling your API.",
+  "description": "Payrekha — open-source, in-process payout firewall for Indian BFSI. No matching intent, no payout — whoever is calling your API.",
   "license": "Apache-2.0",
   "author": "Kapil <kapil@theproduct.city>",
   "type": "module",
@@ -31,11 +31,16 @@
     "loadcheck": "npm run build >/dev/null && node scripts/load-check.mjs",
     "drill:crash": "npm run build >/dev/null && node scripts/drill-crash.mjs",
     "publish:check": "tsc -b && npm publish --workspaces --dry-run --tag alpha",
-    "verify:deploy": "node scripts/verify-deploy.mjs"
+    "verify:deploy": "node scripts/verify-deploy.mjs",
+    "format": "prettier --write .",
+    "format:check": "prettier --check .",
+    "playground": "tsc -b && esbuild playground/entry.mjs --bundle --format=esm --target=es2022 --outfile=playground/payrekha-web.js --alias:node:crypto=./playground/shims/node-crypto.mjs --alias:node:fs=./playground/shims/node-fs.mjs --inject:playground/shims/buffer.mjs"
   },
   "devDependencies": {
     "@eslint/js": "^9.17.0",
     "@types/node": "^22.10.0",
+    "buffer": "^6.0.3",
+    "esbuild": "^0.28.2",
     "eslint": "^9.17.0",
     "typescript": "^5.7.2",
     "typescript-eslint": "^8.18.0"

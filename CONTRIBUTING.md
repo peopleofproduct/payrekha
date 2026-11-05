@@ -9,6 +9,12 @@ npm run demo                   # must still end with "₹0 left the building."
 npm run bench                  # p99 must stay well under 1 ms in-process
 ```
 
+Optional local gate — install once and typecheck+lint run before every commit:
+
+```bash
+cp scripts/pre-commit.sh .git/hooks/pre-commit
+```
+
 Ground rules:
 - **Safety by default.** When a change trades safety for convenience, the safe behaviour is the default and the convenience is a documented option.
 - **Never a silent ALLOW.** Malformed or missing input must produce `REVIEW` with `degraded: true`.
