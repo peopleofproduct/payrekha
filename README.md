@@ -39,6 +39,7 @@ flowchart LR
 npm ci && npm run demo            # the CRAFTY FALCON chain against a fake NBFC
 npm run demo -- --shadow          # the same run in shadow mode: nothing stopped, everything logged
 npm run demo -- --json            # one JSON line per step
+npm run demo:live                 # live, through Envoy (start the compose stack first)
 ```
 
 The demo walks through these steps: a legitimate penny-drop and loan disbursal, then stolen credentials with no intent, a replayed intent, a ₹1 then ₹4,99,999 probe, a UAT key, a changed settlement account, a Diwali burst, and a canary hit that enters `HIGH_ALERT`. It ends with *"8 attack steps. ₹0 left the building."*

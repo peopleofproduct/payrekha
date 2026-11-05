@@ -21,6 +21,7 @@
     "test": "npm run build && node --test --test-reporter=spec \"packages/*/test/*.test.ts\"",
     "test:coverage": "npm run build && node --test --experimental-test-coverage --test-coverage-include=\"packages/*/dist/**\" \"packages/*/test/*.test.ts\"",
     "demo": "tsc -b && node examples/demo.mjs",
+    "demo:live": "tsc -b && node examples/live-demo.mjs",
     "gateway": "tsc -b && node examples/reference-gateway.mjs",
     "bench": "tsc -b && node --expose-gc benchmarks/run.mjs",
     "replay": "tsc -b && node packages/replay/dist/cli.js",

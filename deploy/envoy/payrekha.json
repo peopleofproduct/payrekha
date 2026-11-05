@@ -1,7 +1,22 @@
 {
-  "firewall": { "requireIntent": { "VERIFICATION": true } },
+  "firewall": {
+    "requireIntent": {
+      "VERIFICATION": true
+    }
+  },
   "calendarFile": "config/calendars/india-2026.example.json",
-  "issuers": [],
+  "issuers": [
+    {
+      "keyId": "los-demo",
+      "issuer": "los-demo",
+      "alg": "ed25519",
+      "publicKey": "MCowBQYDK2VwAyEAmzXzScVTaj+7skKK/5FlT98fJfW7uWuiLUnmF/kTWMc=",
+      "kinds": [
+        "LOAN_DISBURSAL",
+        "VERIFICATION"
+      ]
+    }
+  ],
   "extAuthz": {
     "origin": "prod",
     "originHeader": "x-payrekha-origin",
@@ -10,7 +25,11 @@
       "kind": "header.x-payout-kind",
       "amountPaise": "body.amount_in_paise",
       "intentId": "header.x-payrekha-intent",
-      "beneficiary": { "account": "body.beneficiary.account_number", "ifsc": "body.beneficiary.ifsc", "vpa": "body.beneficiary.vpa" },
+      "beneficiary": {
+        "account": "body.beneficiary.account_number",
+        "ifsc": "body.beneficiary.ifsc",
+        "vpa": "body.beneficiary.vpa"
+      },
       "channel": "body.mode",
       "sourceKeyId": "header.x-client-id"
     }
