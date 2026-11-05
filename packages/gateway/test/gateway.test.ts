@@ -187,3 +187,39 @@ describe('webhooks and CEF', () => {
     assert.ok(line.includes('cs1=p\\=1|x'));
   });
 });
+
+describe('bootFromEnv state loading', () => {
+  it('serves 503 until the snapshot is read, never saves while unready, then recovers HIGH_ALERT', async () => {
+    const { mkdtempSync, writeFileSync } = await import('node:fs');
+    const { tmpdir } = await import('node:os');
+    const { join } = await import('node:path');
+    const { bootFromEnv } = await import('@payrekha/gateway');
+    const dir = mkdtempSync(join(tmpdir(), 'prk-'));
+    const file = join(dir, 'state.json');
+    const env = { PAYREKHA_API_KEYS: `lms:prod:${API}`, PAYREKHA_ADMIN_KEY: ADMIN, PAYREKHA_STATE_FILE: file, PAYREKHA_STATE_RETRY_MS: '60000' };
+    const quiet = () => undefined;
+
+    const a = bootFromEnv(env, quiet);
+    assert.equal(a.gateway.stats.ready, false);
+    await a.stateLoaded;
+    assert.equal(a.gateway.stats.ready, true);
+    a.firewall.raiseHighAlert('test', 'canary');
+    assert.equal(await a.gateway.saveState(), true);
+
+    const b = bootFromEnv(env, quiet);
+    await b.stateLoaded;
+    assert.equal(b.firewall.alertState, 'HIGH_ALERT');
+
+    writeFileSync(file, '{not json');
+    const c = bootFromEnv(env, quiet);
+    await c.stateLoaded;
+    assert.equal(c.gateway.stats.ready, false);
+    assert.equal(c.gateway.stats.notReadyReason, 'state unreadable');
+    assert.equal(await c.gateway.saveState(), false, 'must not overwrite an unreadable snapshot');
+  });
+
+  it('rejects both state backends at once', async () => {
+    const { bootFromEnv } = await import('@payrekha/gateway');
+    assert.throws(() => bootFromEnv({ PAYREKHA_API_KEYS: `lms:prod:${API}`, PAYREKHA_STATE_FILE: '/tmp/x', PAYREKHA_STATE_PG_URL: 'postgres://x' }, () => undefined), /not both/);
+  });
+});

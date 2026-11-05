@@ -3,7 +3,7 @@
 
 import { createHash, randomUUID, timingSafeEqual } from 'node:crypto';
 import { createServer, type IncomingMessage, type Server, type ServerResponse } from 'node:http';
-import { AuthorizationError, hashBeneficiary, looksLikeRawIdentifier, type BeneficiaryIdentifier, type FileStateStore, type IntentKind, type Mode, type Payrekha, type PayoutOutcome, type PayoutRequest, type PayoutVerdict } from '@payrekha/core';
+import { AuthorizationError, hashBeneficiary, looksLikeRawIdentifier, type BeneficiaryIdentifier, type IntentKind, type Mode, type Payrekha, type PayoutOutcome, type PayoutRequest, type PayoutVerdict, type StateStore } from '@payrekha/core';
 import { decisionRecord, type DecisionLog } from './log.js';
 import { mapPayout, type FieldMapping } from './mapping.js';
 import { renderMetrics } from './metrics.js';
@@ -38,7 +38,7 @@ export interface GatewayOptions {
   readonly decisionLog?: DecisionLog;
   readonly webhook?: WebhookSender;
   readonly extAuthz?: ExtAuthzOptions;
-  readonly stateStore?: FileStateStore;
+  readonly stateStore?: StateStore;
   readonly maxBodyBytes?: number;
   readonly now?: () => number;
   readonly version?: string;
@@ -49,7 +49,8 @@ export interface GatewayHandle {
   readonly server: Server;
   readonly stats: GatewayStats;
   setReady(ready: boolean, reason?: string): void;
-  saveState(): boolean;
+  /** Resolves false when there is no store or the save failed. A second writer marks the gateway not ready. */
+  saveState(): Promise<boolean>;
 }
 
 export interface GatewayStats {
@@ -121,6 +122,7 @@ export function createGateway(o: GatewayOptions): GatewayHandle {
   const fw = o.firewall;
   const now = o.now ?? Date.now;
   const max = o.maxBodyBytes ?? 64 * 1024;
+  let saving = false;
   const stats: GatewayStats = { requests: new Map(), stateSaveErrors: 0, logErrors: 0, ready: true, notReadyReason: '' };
   const onError = o.onError ?? (() => undefined);
 
@@ -172,8 +174,8 @@ export function createGateway(o: GatewayOptions): GatewayHandle {
       res.setHeader('content-type', 'text/plain; version=0.0.4');
       return [200, renderMetrics(fw, stats, o.webhook)];
     }
-    if (path.startsWith('/ext_authz') && o.extAuthz !== undefined) return extAuthz(req, res, rid, url);
     if (!stats.ready) throw new HttpError(503, `not ready: ${stats.notReadyReason}`);
+    if (path.startsWith('/ext_authz') && o.extAuthz !== undefined) return extAuthz(req, res, rid, url);
     if (path === '/v1/evaluate' && m === 'POST') {
       const key = authKey(req);
       const body = await readBody(req, max);
@@ -290,15 +292,24 @@ export function createGateway(o: GatewayOptions): GatewayHandle {
       stats.ready = ready;
       stats.notReadyReason = reason;
     },
-    saveState() {
-      if (o.stateStore === undefined) return false;
+    async saveState() {
+      // Never write while unready: a not-yet-read or contested snapshot must not be overwritten.
+      if (o.stateStore === undefined || saving || !stats.ready) return false;
+      saving = true;
       try {
-        o.stateStore.save(fw);
+        await o.stateStore.save(fw);
         return true;
       } catch (e) {
         stats.stateSaveErrors += 1;
         onError('state-save', e);
+        // Fail closed: someone else is writing this firewall's state.
+        if (e instanceof Error && e.name === 'StaleStateError') {
+          stats.ready = false;
+          stats.notReadyReason = 'state written by another instance';
+        }
         return false;
+      } finally {
+        saving = false;
       }
     },
   };

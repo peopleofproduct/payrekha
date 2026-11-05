@@ -1,0 +1,10 @@
+apiVersion: v2
+name: payrekha
+description: Payrekha payout firewall gateway (HTTP API + Envoy ext_authz). Shadow mode by default.
+type: application
+version: 0.1.0-alpha.0
+appVersion: 0.1.0-alpha.0
+license: Apache-2.0
+home: https://github.com/peopleofproduct/payrekha
+sources: [https://github.com/peopleofproduct/payrekha]
+keywords: [payout, firewall, ext_authz, nbfc, payments]

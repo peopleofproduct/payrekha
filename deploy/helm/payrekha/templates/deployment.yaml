@@ -1,0 +1,75 @@
+{{- if not (has .Values.state.type (list "file" "postgres")) }}{{ fail "state.type must be file or postgres" }}{{ end }}
+{{- if and (eq .Values.state.type "file") (gt (int .Values.replicaCount) 1) }}{{ fail "state.type=file needs replicaCount=1 (one ReadWriteOnce volume, one writer)" }}{{ end }}
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ include "payrekha.fullname" . }}
+  labels: {{- include "payrekha.labels" . | nindent 4 }}
+spec:
+  replicas: {{ .Values.replicaCount }}
+  strategy: { type: Recreate }   # never two writers during a rollout
+  selector:
+    matchLabels: {{- include "payrekha.selector" . | nindent 6 }}
+  template:
+    metadata:
+      labels: {{- include "payrekha.selector" . | nindent 8 }}
+      annotations:
+        checksum/config: {{ include (print $.Template.BasePath "/configmap.yaml") . | sha256sum }}
+        {{- with .Values.podAnnotations }}{{ toYaml . | nindent 8 }}{{ end }}
+    spec:
+      automountServiceAccountToken: false
+      enableServiceLinks: false
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 1000
+        runAsGroup: 1000
+        fsGroup: 1000
+        seccompProfile: { type: RuntimeDefault }
+      terminationGracePeriodSeconds: 30   # state is saved on SIGTERM
+      containers:
+        - name: payrekha
+          image: "{{ .Values.image.repository }}:{{ .Values.image.tag | default .Chart.AppVersion }}"
+          imagePullPolicy: {{ .Values.image.pullPolicy }}
+          ports: [{ name: http, containerPort: 8080 }]
+          envFrom: [{ secretRef: { name: {{ required "existingSecret is required" .Values.existingSecret }} } }]
+          env:
+            - { name: PAYREKHA_CONFIG, value: /etc/payrekha/payrekha.json }
+            - { name: PAYREKHA_STATE_INTERVAL_MS, value: {{ .Values.state.saveIntervalMs | quote }} }
+            {{- if eq .Values.state.type "file" }}
+            - { name: PAYREKHA_STATE_FILE, value: /var/lib/payrekha/state.json }
+            {{- else }}
+            - { name: PAYREKHA_STATE_PG_TABLE, value: {{ .Values.state.postgres.table | quote }} }
+            - { name: PAYREKHA_STATE_NAME, value: {{ .Values.state.postgres.name | quote }} }
+            {{- end }}
+            {{- if .Values.decisionLog.enabled }}
+            - { name: PAYREKHA_DECISION_LOG, value: /var/lib/payrekha/decisions.jsonl }
+            - { name: PAYREKHA_LOG_FORMAT, value: {{ .Values.decisionLog.format | quote }} }
+            {{- end }}
+          securityContext:
+            readOnlyRootFilesystem: true
+            allowPrivilegeEscalation: false
+            capabilities: { drop: [ALL] }
+          readinessProbe: { httpGet: { path: /readyz, port: http }, periodSeconds: 5 }
+          livenessProbe: { httpGet: { path: /healthz, port: http }, periodSeconds: 10 }
+          resources: {{- toYaml .Values.resources | nindent 12 }}
+          volumeMounts:
+            - { name: config, mountPath: /etc/payrekha, readOnly: true }
+            - { name: data, mountPath: /var/lib/payrekha }
+      volumes:
+        - name: config
+          configMap: { name: {{ include "payrekha.fullname" . }} }
+        - name: data
+          {{- if eq .Values.state.type "file" }}
+          persistentVolumeClaim: { claimName: {{ include "payrekha.fullname" . }}-state }
+          {{- else }}
+          emptyDir: { sizeLimit: 1Gi }
+          {{- end }}
+      {{- with .Values.nodeSelector }}
+      nodeSelector: {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.tolerations }}
+      tolerations: {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.affinity }}
+      affinity: {{- toYaml . | nindent 8 }}
+      {{- end }}

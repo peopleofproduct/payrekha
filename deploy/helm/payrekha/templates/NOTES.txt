@@ -1,0 +1,10 @@
+Payrekha {{ .Chart.AppVersion }} is running in {{ .Values.config.firewall.mode | default "shadow" }} mode (state: {{ .Values.state.type }}).
+
+  kubectl -n {{ .Release.Namespace }} port-forward svc/{{ include "payrekha.fullname" . }} 8080:{{ .Values.service.port }}
+  curl -s localhost:8080/readyz
+
+Shadow mode never blocks: it logs what it would have done. Switch to enforce
+only after replaying real traffic (docs/getting-started.md).
+{{- if .Values.networkPolicy.enabled }}
+Only pods labelled {{ toJson .Values.networkPolicy.clientPodSelector.matchLabels }} can reach it.
+{{- end }}

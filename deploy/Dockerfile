@@ -9,10 +9,11 @@ COPY package.json package-lock.json tsconfig.json tsconfig.base.json ./
 COPY packages/core/package.json packages/core/package.json
 COPY packages/rules/package.json packages/rules/package.json
 COPY packages/gateway/package.json packages/gateway/package.json
+COPY packages/store-postgres/package.json packages/store-postgres/package.json
 COPY packages/replay/package.json packages/replay/package.json
 RUN npm ci --ignore-scripts
 COPY packages packages
-RUN npx tsc -b packages/gateway && npm prune --omit=dev --ignore-scripts
+RUN npx tsc -b packages/gateway packages/store-postgres && npm prune --omit=dev --ignore-scripts
 
 FROM node:22-slim AS runtime
 ENV NODE_ENV=production PORT=8080

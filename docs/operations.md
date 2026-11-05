@@ -37,7 +37,14 @@ Envoy is configured with `failure_mode_allow: false`, which is the same as `hold
 
 ## State and restarts
 
-`PAYREKHA_STATE_FILE` holds ledgers, velocity windows, intents, dedupe and alert state. It is written atomically with mode `0600`, every 30 s and on SIGTERM. An unreadable state file makes `/readyz` return 503, so the gateway does not quietly start with an empty memory. Run one replica per state file. For multiple replicas, use the Postgres or Redis store when it lands ([ROADMAP](../ROADMAP.md)).
+The snapshot holds ledgers, velocity windows, intents, dedupe and alert state (hashed refs only). It is saved every `PAYREKHA_STATE_INTERVAL_MS` (default 5 s) and on SIGTERM. Pick one backend:
+
+- `PAYREKHA_STATE_FILE`: a JSON file written atomically with mode `0600`.
+- `PAYREKHA_STATE_PG_URL`: Postgres via `@payrekha/store-postgres` (bundled in the image). One row per deployment in `PAYREKHA_STATE_PG_TABLE` (default `payrekha_state`), keyed by `PAYREKHA_STATE_NAME` (default `default`). The table is created on first use.
+
+Until the snapshot has been read, `/readyz` and every API call return 503, and the gateway retries every `PAYREKHA_STATE_RETRY_MS` (default 5 s). So an unreachable database or a corrupt file never starts the gateway with an empty memory, and nothing is saved over a snapshot it could not read.
+
+Every Postgres save is a compare-and-set on a version counter. If another instance has written the same row, this instance goes unready with `state written by another instance` instead of overwriting a HIGH_ALERT. That makes Postgres good for durability and active/standby failover (the standby loads on start), not for active-active: run one active replica per `PAYREKHA_STATE_NAME`. A shared store for active-active velocity windows is on the [ROADMAP](../ROADMAP.md).
 
 ## Tuning with replay
 

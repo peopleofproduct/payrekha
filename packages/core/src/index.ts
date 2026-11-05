@@ -13,4 +13,4 @@ export * from './ist.js';
 export { LruMap } from './lru.js';
 export { TimeRing } from './ring.js';
 export * from './firewall.js';
-export { FileStateStore } from './store.js';
+export { FileStateStore, type StateStore } from './store.js';

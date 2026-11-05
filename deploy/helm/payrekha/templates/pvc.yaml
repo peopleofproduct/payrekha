@@ -1,0 +1,15 @@
+{{- if eq .Values.state.type "file" }}
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: {{ include "payrekha.fullname" . }}-state
+  labels: {{- include "payrekha.labels" . | nindent 4 }}
+  annotations:
+    helm.sh/resource-policy: keep   # never delete HIGH_ALERT state on uninstall
+spec:
+  accessModes: [ReadWriteOnce]
+  resources: { requests: { storage: {{ .Values.state.file.size }} } }
+  {{- with .Values.state.file.storageClassName }}
+  storageClassName: {{ . }}
+  {{- end }}
+{{- end }}

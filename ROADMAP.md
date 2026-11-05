@@ -2,7 +2,6 @@
 
 Alpha now; these are next, roughly in order. Nothing here is a promise of dates.
 
-- **This week:** Postgres state store, Helm chart, multi-replica guidance.
 - **Clients:** Go client; Spring Boot starter.
 - **Gateways:** Kong and Apigee plugins; an NGINX `auth_request` recipe.
 - **Stores:** Redis store for shared velocity and dedupe state across replicas.

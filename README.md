@@ -98,6 +98,7 @@ Every hit carries a rule ID, a plain-words reason with ₹ amounts, and structur
 ```
 packages/core      engine, intents (Ed25519/HMAC), keyed hashing, ledgers, modes, alert states, file store
 packages/rules     the v0.1 rule set (zero runtime deps, no network)
+packages/store-postgres  Postgres state store (compare-and-set, fails closed on a second writer)
 packages/gateway   HTTP API, Envoy ext_authz adapter, JSONL/CEF log, Prometheus metrics, signed webhooks
 packages/replay    CSV/JSON replay with terminal, HTML and JSON reports
 clients/java       Java 11+ client (java.net.http); Ed25519 intent signing on JDK 15+
@@ -118,7 +119,7 @@ docs               getting started, intents, penny-drop, threat model, operation
 
 ## What Payrekha does not do (yet)
 
-There is no UI console (an operations console is planned), no ML, and no hosted service. It makes no calls to government or third-party APIs. Postgres store, Helm chart and Go client are coming. See [ROADMAP](ROADMAP.md) and the honest [advisory mapping](docs/advisory-mapping.md#what-payrekha-does-not-cover).
+There is no UI console (an operations console is planned), no ML, and no hosted service. It makes no calls to government or third-party APIs. A Go client and a shared store for active-active replicas are coming. See [ROADMAP](ROADMAP.md) and the honest [advisory mapping](docs/advisory-mapping.md#what-payrekha-does-not-cover).
 
 ## Documentation
 

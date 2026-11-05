@@ -1,0 +1,59 @@
+image:
+  repository: ghcr.io/peopleofproduct/payrekha
+  tag: ""            # defaults to .Chart.AppVersion
+  pullPolicy: IfNotPresent
+
+# One active writer per firewall. With state.type=postgres a second replica
+# that also writes is detected and goes unready (fail closed), so keep 1.
+replicaCount: 1
+
+# Secret you create yourself (the chart never takes secret values). Keys:
+#   PAYREKHA_API_KEYS   id:prod|nonprod:token,…   (required)
+#   PAYREKHA_ADMIN_KEY  admin bearer token         (recommended)
+#   PAYREKHA_HASH_KEY   beneficiary hash key       (needed for raw fields / ext_authz)
+#   PAYREKHA_EXT_AUTHZ_KEY, PAYREKHA_WEBHOOK_SECRET, PAYREKHA_ISSUER_SECRET_<KEYID>
+#   PAYREKHA_STATE_PG_URL                          (when state.type=postgres)
+existingSecret: payrekha
+
+# Rendered to /etc/payrekha/payrekha.json. No secrets here.
+config:
+  firewall:
+    mode: shadow
+
+state:
+  type: file         # file | postgres
+  file:
+    size: 1Gi
+    storageClassName: ""
+  postgres:
+    table: payrekha_state
+    name: default    # one row per firewall deployment
+  saveIntervalMs: 5000
+
+decisionLog:
+  enabled: true
+  format: jsonl      # jsonl | cef
+
+service:
+  type: ClusterIP
+  port: 8080
+
+resources:
+  requests: { cpu: 100m, memory: 128Mi }
+  limits: { memory: 512Mi }
+
+networkPolicy:
+  enabled: true
+  # Pods allowed to call the API / ext_authz (your payout service or Envoy).
+  clientPodSelector:
+    matchLabels: { payrekha-client: "true" }
+  # Prometheus pods allowed to scrape /metrics (same port, bearer-protected).
+  prometheusNamespaceSelector:
+    matchLabels: { kubernetes.io/metadata.name: monitoring }
+  # Extra egress (SOAR webhook, Postgres). DNS is always allowed.
+  egress: []
+
+podAnnotations: {}
+nodeSelector: {}
+tolerations: []
+affinity: {}

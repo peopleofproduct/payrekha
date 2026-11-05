@@ -9,6 +9,7 @@
   "workspaces": [
     "packages/core",
     "packages/rules",
+    "packages/store-postgres",
     "packages/gateway",
     "packages/replay"
   ],

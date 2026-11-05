@@ -1,36 +1,31 @@
 # Kubernetes
 
-A Helm chart is coming. Until then, the essentials:
+The Helm chart is in [`deploy/helm/payrekha`](../../deploy/helm/payrekha). It runs the gateway as UID 1000 on a read-only root filesystem with all capabilities dropped, no service-account token, a `RuntimeDefault` seccomp profile and a NetworkPolicy. It starts in shadow mode.
 
-```yaml
-apiVersion: apps/v1
-kind: Deployment
-metadata: { name: payrekha }
-spec:
-  replicas: 1                      # one replica per state file until the shared store lands
-  strategy: { type: Recreate }
-  template:
-    spec:
-      securityContext: { runAsNonRoot: true, runAsUser: 1000, fsGroup: 1000, seccompProfile: { type: RuntimeDefault } }
-      containers:
-        - name: payrekha
-          image: ghcr.io/peopleofproduct/payrekha:v0.1.0-alpha.0
-          ports: [{ containerPort: 8080 }]
-          envFrom: [{ secretRef: { name: payrekha } }]   # PAYREKHA_API_KEYS, PAYREKHA_ADMIN_KEY, PAYREKHA_HASH_KEY, …
-          env:
-            - { name: PAYREKHA_CONFIG, value: /etc/payrekha/payrekha.json }
-            - { name: PAYREKHA_STATE_FILE, value: /var/lib/payrekha/state.json }
-            - { name: PAYREKHA_DECISION_LOG, value: /var/lib/payrekha/decisions.jsonl }
-          securityContext: { readOnlyRootFilesystem: true, allowPrivilegeEscalation: false, capabilities: { drop: [ALL] } }
-          readinessProbe: { httpGet: { path: /readyz, port: 8080 } }
-          livenessProbe: { httpGet: { path: /healthz, port: 8080 } }
-          volumeMounts:
-            - { name: config, mountPath: /etc/payrekha, readOnly: true }
-            - { name: state, mountPath: /var/lib/payrekha }
-      terminationGracePeriodSeconds: 30   # state is saved on SIGTERM
-      volumes:
-        - { name: config, configMap: { name: payrekha } }
-        - { name: state, persistentVolumeClaim: { claimName: payrekha-state } }
+```bash
+# 1. Secrets stay out of values.yaml: create them yourself.
+kubectl create secret generic payrekha \
+  --from-literal=PAYREKHA_API_KEYS='payout-svc:prod:<token ≥16 chars>' \
+  --from-literal=PAYREKHA_ADMIN_KEY='<admin token>' \
+  --from-literal=PAYREKHA_HASH_KEY='<hash key>'
+
+# 2. Install (file state on a PVC that survives uninstall).
+helm install payrekha deploy/helm/payrekha
+
+# Or keep state in Postgres (add PAYREKHA_STATE_PG_URL to the secret first).
+helm install payrekha deploy/helm/payrekha --set state.type=postgres \
+  --set 'networkPolicy.egress[0].ports[0].port=5432'
 ```
 
-Add a NetworkPolicy so that only the payout service (or Envoy) can reach :8080, and only Prometheus can scrape `/metrics`. Allow egress only to your SOAR webhook.
+| Value | Default | Notes |
+|---|---|---|
+| `existingSecret` | `payrekha` | Secret with `PAYREKHA_*` keys, loaded with `envFrom`. |
+| `config` | `{firewall: {mode: shadow}}` | Rendered to `/etc/payrekha/payrekha.json`. Changing it rolls the pod. |
+| `state.type` | `file` | `file` (PVC, `helm.sh/resource-policy: keep`) or `postgres`. |
+| `replicaCount` | `1` | Rendering fails for `file` with more than 1. Keep 1 for `postgres` too: a second writer goes unready. |
+| `decisionLog.format` | `jsonl` | `jsonl` or `cef`, written to `/var/lib/payrekha/decisions.jsonl`. Ship it with your log agent. |
+| `networkPolicy.clientPodSelector` | `payrekha-client: "true"` | Label your payout service or Envoy pods with this. |
+| `networkPolicy.prometheusNamespaceSelector` | `monitoring` namespace | Who may scrape `/metrics`. |
+| `networkPolicy.egress` | `[]` | Add Postgres and your SOAR webhook. DNS is always allowed. |
+
+The Deployment uses `strategy: Recreate` so a rollout never runs two writers, and `terminationGracePeriodSeconds: 30` so the snapshot is saved on SIGTERM. See [operations](../operations.md#state-and-restarts) for how state loading fails closed.

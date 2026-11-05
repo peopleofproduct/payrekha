@@ -14,6 +14,16 @@ jobs:
     strategy:
       matrix:
         node-version: [22, 24]
+    services:
+      postgres:
+        image: postgres:16-alpine
+        env:
+          POSTGRES_PASSWORD: ci-pg-password
+        ports: ['5432:5432']
+        options: >-
+          --health-cmd pg_isready --health-interval 5s --health-timeout 5s --health-retries 10
+    env:
+      PAYREKHA_TEST_PG_URL: postgres://postgres:ci-pg-password@localhost:5432/postgres
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
@@ -97,6 +107,18 @@ jobs:
           test "$(curl -s -o /dev/null -w '%{http_code}' -XPOST localhost:18080/v1/evaluate)" = "401"
           docker rm -f pr
 
+  helm:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: azure/setup-helm@v4
+        with:
+          version: v3.16.3
+      - run: helm lint deploy/helm/payrekha && helm lint deploy/helm/payrekha --set state.type=postgres
+      - run: helm template t deploy/helm/payrekha > /dev/null
+      - name: Rejects two writers on one volume
+        run: "! helm template t deploy/helm/payrekha --set replicaCount=2"
+
   secrets:
     runs-on: ubuntu-latest
     steps:
@@ -105,5 +127,5 @@ jobs:
           fetch-depth: 0
       - name: gitleaks (full history)
         run: |
-          curl -sSfL https://github.com/gitleaks/gitleaks/releases/download/v8.24.3/gitleaks_8.24.3_linux_x64.tar.gz | tar xz gitleaks
+          curl -sSfL --retry 5 --retry-all-errors --retry-delay 5 https://github.com/gitleaks/gitleaks/releases/download/v8.24.3/gitleaks_8.24.3_linux_x64.tar.gz | tar xz gitleaks
           ./gitleaks git . --redact --no-banner -v
