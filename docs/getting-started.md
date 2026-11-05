@@ -46,7 +46,7 @@ Ship `decisions.jsonl` to your SIEM ([siem.md](integrations/siem.md)) and watch 
 
 ## 3. Sign intents and call the SDK in advise mode
 
-Have your system of record (LOS, reconciliation engine, withdrawal approver) sign intents, as described in [intents.md](intents.md). Then call `/v1/evaluate` from your payout service with the [Java](integrations/java-spring.md), [Python](integrations/python.md) or [Node](integrations/node.md) client. In `advise` mode the caller sees the verdict and decides what to do with it.
+Have your system of record (LOS, reconciliation engine, withdrawal approver) sign intents, as described in [intents.md](intents.md). Then call `/v1/evaluate` from your payout service with the [Java](integrations/java-spring.md), [Python](integrations/python.md), [Go](integrations/go.md) or [Node](integrations/node.md) client. In `advise` mode the caller sees the verdict and decides what to do with it.
 
 ## 4. Enforce, one payout kind at a time
 

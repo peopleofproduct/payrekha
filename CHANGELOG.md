@@ -4,6 +4,10 @@ All notable changes to Payrekha are listed here. The format follows [Keep a Chan
 
 ## [Unreleased]
 
+### Added
+
+- **Go client (`clients/go`):** standard library only, with Ed25519/HMAC intent signing that matches the shared test vector, and the same fail mode as the Java and Python clients.
+
 ## [0.1.0-alpha.0] - 2026-11-06
 
 First public alpha. The default thresholds are illustrative and have not been tuned on production data, so run in shadow mode first.
