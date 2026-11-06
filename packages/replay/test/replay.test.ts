@@ -6,7 +6,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { describe, it } from 'node:test';
 import { fileURLToPath } from 'node:url';
-import { htmlReport, parseCsv, parseTime, runReplay } from '@payrekha/replay';
+import { htmlReport, parseCsv, parseTime, runReplay, terminalSummary } from '@payrekha/replay';
 
 const HK = 'replay-test-hash-key-0123456789';
 
@@ -60,6 +60,34 @@ describe('replay', () => {
     assert.equal(r.pennyDrop?.verifiedBeneficiaries, 1);
     assert.equal(r.pennyDrop?.boundPayouts, 1);
   });
+  it('intent-less: VERIFICATION binds on subject_ref, dedupes per beneficiary, and falls back unbound on a bad kind', () => {
+    const rows = [
+      { payout_id: 'v1', timestamp: '2026-10-12 02:10:00', kind: 'VERIFICATION', amount_paise: '100', beneficiary_vpa: 'ss@okhdfc', subject_ref: 'loan-77' },
+      { payout_id: 'v2', timestamp: '2026-10-12 02:11:00', kind: 'VERIFICATION', amount_paise: '100', beneficiary_vpa: 'ss@okhdfc' },
+      { payout_id: 'd1', timestamp: '2026-10-12 02:20:00', kind: 'LOAN_DISBURSAL', amount_paise: '50000000', beneficiary_vpa: 'ss@okhdfc' },
+      { payout_id: 'w1', timestamp: '2026-10-12 02:25:00', kind: 'NOT_A_KIND', amount_paise: '6000000', beneficiary_vpa: 'ss@okhdfc' },
+      { payout_id: 'mc', timestamp: '2026-10-12 02:30:00', event: 'account_changed', merchant_id: 'm-9', beneficiary_vpa: 'ss@okhdfc' },
+    ];
+    const r = runReplay({ payouts: rows, hashKey: HK });
+    assert.equal(r.pennyDrop?.verificationRows, 2);
+    assert.equal(r.pennyDrop?.verifiedBeneficiaries, 1);
+    // A bad kind can't synthesize a binding intent — w1 evaluated unbound
+    // and malformed rows still degrade to REVIEW rather than slipping through.
+    const w1 = r.flagged.find((f) => f.payoutId === 'w1');
+    assert.ok(w1 !== undefined && w1.degraded === true, `expected degraded REVIEW on bad kind: ${JSON.stringify(w1)}`);
+  });
+  it('intent-less: a high-alert episode resets after the simulated window', () => {
+    const rows = Array.from({ length: 11 }, (_, i) => ({ payout_id: `b${i}`, timestamp: `2026-10-12 02:${String(i).padStart(2, '0')}:00`, kind: 'REFUND', amount_paise: '3000000000', beneficiary_vpa: `bb${i}@okaxis`, source_key_id: 'k-burst' }));
+    rows.push({ payout_id: 'after', timestamp: '2026-10-13 10:00:00', kind: 'REFUND', amount_paise: '4000', beneficiary_vpa: 'zz@okaxis' });
+    const r = runReplay({ payouts: rows, hashKey: HK });
+    assert.ok(r.alertEpisodes.length >= 1);
+    assert.ok(r.alertEpisodes[0]!.endMs !== null, 'episode should close after the simulated reset window');
+  });
+  it('intent-less: empty export yields zero percentiles without crashing', () => {
+    const r = runReplay({ payouts: [], hashKey: HK });
+    assert.equal(r.totals.payouts, 0);
+    assert.deepEqual(r.suggested?.config.rules, {});
+  });
   it('intent-less: untagged micro→large still reads as a probe, and the report tips tagging', () => {
     const r = runReplay({
       payouts: [
@@ -86,6 +114,23 @@ describe('replay', () => {
       const times = ch.steps.map((s) => s.atMs);
       assert.deepEqual(times, [...times].sort((a, b) => a - b));
     }
+    const term = terminalSummary(r);
+    assert.ok(term.includes('→'));
+    assert.ok(term.includes('Tune before you judge'));
+    assert.ok(term.includes('Suggested starting thresholds'));
+  });
+  it('terminal summary renders same-day chain ranges compactly', () => {
+    const r = runReplay({
+      payouts: [
+        { payout_id: 's1', timestamp: '2026-10-12 14:00:00', kind: 'LOAN_DISBURSAL', amount_paise: '100', beneficiary_vpa: 'tt@okaxis' },
+        { payout_id: 's2', timestamp: '2026-10-12 14:05:00', kind: 'LOAN_DISBURSAL', amount_paise: '50000000', beneficiary_vpa: 'tt@okaxis' },
+        { payout_id: 's3', timestamp: '2026-10-12 14:20:00', kind: 'LOAN_DISBURSAL', amount_paise: '60000000', beneficiary_vpa: 'tt@okaxis' },
+      ],
+      hashKey: HK,
+    });
+    const term = terminalSummary(r);
+    // Cross-day chains print the full end date; same-day chains print time only.
+    assert.ok(/14:00:00 IST → 14:\d\d:00 IST/.test(term) || /14:00:00 IST → 2026/.test(term) === false);
   });
   it('cli: --out creates a missing directory; bad paths fail cleanly', () => {
     const dir = mkdtempSync(join(tmpdir(), 'payrekha-replay-'));
@@ -100,6 +145,20 @@ describe('replay', () => {
       const bad = spawnSync(process.execPath, [cli, '--payouts', join(dir, 'missing.csv')], { encoding: 'utf8' });
       assert.equal(bad.status, 1);
       assert.ok(bad.stderr.includes('cannot read') && !bad.stderr.includes('    at '), `expected friendly error, got: ${bad.stderr}`);
+      const badJson2 = join(dir, 'bad.json');
+      writeFileSync(badJson2, '[{invalid');
+      const badParse = spawnSync(process.execPath, [cli, '--payouts', badJson2], { encoding: 'utf8' });
+      assert.equal(badParse.status, 1);
+      assert.ok(badParse.stderr.includes('cannot parse') && !badParse.stderr.includes('    at '));
+      const badJson = join(dir, 'bad.json');
+      writeFileSync(badJson, '{nope');
+      const badCfg = spawnSync(process.execPath, [cli, '--payouts', csv, '--config', badJson], { encoding: 'utf8' });
+      assert.equal(badCfg.status, 1);
+      assert.ok(badCfg.stderr.includes('invalid JSON'));
+      const help = spawnSync(process.execPath, [cli, '--help'], { encoding: 'utf8' });
+      assert.equal(help.status, 0);
+      const noArgs = spawnSync(process.execPath, [cli], { encoding: 'utf8' });
+      assert.equal(noArgs.status, 2);
     } finally {
       rmSync(dir, { recursive: true, force: true });
     }

@@ -3351,6 +3351,8 @@ function probeRule(o = {}) {
         return null;
       if (micro.verifiedSubject !== void 0 && ctx.intent.status === "ok" && ctx.intent.subjectRef === micro.verifiedSubject)
         return null;
+      if (ctx.intent.status === "ok" && ctx.intent.subjectRef !== void 0 && ctx.beneficiary?.verifiedSubjects?.includes(ctx.intent.subjectRef) === true)
+        return null;
       const high = ctx.alertState === "HIGH_ALERT";
       return hit("probe.micro-then-large", high ? Verdict.Block : Verdict.Review, `${rupees(micro.amountPaise)} test transfer ${Math.max(1, Math.round(age / 6e4))} min ago, now ${rupees(p.amountPaise)} to the same account` + (micro.verifiedSubject === void 0 ? " (the micro was not a VERIFICATION intent)" : " (verified for a different subject)"), { microPaise: micro.amountPaise, amountPaise: p.amountPaise, minutesSinceMicro: Math.round(age / 6e4), multiple: Math.round(p.amountPaise / micro.amountPaise), alertState: ctx.alertState });
     }
