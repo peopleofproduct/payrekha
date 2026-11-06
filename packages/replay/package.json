@@ -1,6 +1,6 @@
 {
   "name": "@payrekha/replay",
-  "version": "0.1.0-alpha.1",
+  "version": "0.1.0-alpha.2",
   "description": "Run historical payouts through the PayRekha rules and get a terminal, HTML and JSON report. The zero-integration evaluation tool.",
   "license": "Apache-2.0",
   "author": "Kapil <kapil@theproduct.city>",

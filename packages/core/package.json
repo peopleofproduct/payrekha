@@ -1,6 +1,6 @@
 {
   "name": "@payrekha/core",
-  "version": "0.1.0-alpha.1",
+  "version": "0.1.0-alpha.2",
   "description": "Generic, zero-dependency verdict engine, intent signing/verification, modes and alert states for the PayRekha payout firewall.",
   "license": "Apache-2.0",
   "author": "Kapil <kapil@theproduct.city>",

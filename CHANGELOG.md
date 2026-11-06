@@ -4,6 +4,14 @@ All notable changes to PayRekha are listed here. The format follows [Keep a Chan
 
 ## [Unreleased]
 
+## [0.1.0-alpha.2] - 2026-11-08
+
+Brand consistency release — no behaviour, wire-format or API changes.
+
+- **`PayRekha` casing everywhere a human reads it** — docs, READMEs, code comments, package descriptions, Grafana dashboard, Helm notes, openapi title, ASCII diagrams. Class names (`Payrekha`, `PayrekhaClient`), Prometheus alert names, the CEF wire format, Sentinel table names, URLs and package identifiers are deliberately unchanged.
+- **`People of Product™`** carries the trademark symbol in prose, notices and copyright headers; the CEF vendor field is deliberately unchanged.
+- **PyPI workflow + `pypi` environment** for trusted-publishing the Python client; Java namespace ADR 0002 (keep `city.theproduct.payrekha`); npm `latest` now auto-moves only on stable tags.
+
 ## [0.1.0-alpha.1] - 2026-11-06
 
 Replay hardening for first-time evaluators, launch-day repo polish, and one rule-semantics refinement. Upgrade from alpha.0 with `npm i @payrekha/replay@alpha` — nothing else changes on the wire.
