@@ -4,7 +4,7 @@ All notable changes to PayRekha are listed here. The format follows [Keep a Chan
 
 ## [Unreleased]
 
-## [0.1.0-alpha.2] - 2026-11-08
+## [0.1.0-alpha.2] - 2026-11-06
 
 Brand consistency release — no behaviour, wire-format or API changes.
 

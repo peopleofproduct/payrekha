@@ -9,6 +9,12 @@ dependencies = []
 [project.optional-dependencies]
 ed25519 = ["cryptography>=42"]
 
+[project.urls]
+Homepage = "https://peopleofproduct.github.io/payrekha/"
+Repository = "https://github.com/peopleofproduct/payrekha"
+Issues = "https://github.com/peopleofproduct/payrekha/issues"
+Changelog = "https://github.com/peopleofproduct/payrekha/blob/main/CHANGELOG.md"
+
 [build-system]
 requires = ["setuptools>=68"]
 build-backend = "setuptools.build_meta"

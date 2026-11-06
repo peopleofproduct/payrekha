@@ -36,6 +36,16 @@ jobs:
         run: npm publish --workspaces --provenance --access public --tag ${{ contains(github.ref_name, '-') && 'alpha' || 'latest' }}
         env:
           NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
+      - name: Point latest at the newest pre-1.0 release
+        # Until a stable (non-prerelease) tag ships, `npm i @payrekha/*` should get
+        # the newest alpha — not a stale earlier one. Remove this step at 1.0.
+        if: ${{ (github.event_name == 'push' || inputs.dry-run == false) && contains(github.ref_name, '-') }}
+        run: |
+          for p in core rules gateway replay store-postgres; do
+            npm dist-tag add "@payrekha/$p@${GITHUB_REF_NAME#v}" latest
+          done
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
       - name: Dry run
         if: ${{ github.event_name == 'workflow_dispatch' && inputs.dry-run }}
         run: npm publish --workspaces --provenance --access public --tag ${{ contains(github.ref_name, '-') && 'alpha' || 'latest' }} --dry-run

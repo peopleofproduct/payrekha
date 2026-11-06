@@ -1,0 +1,49 @@
+name: npm-admin
+
+# Manual npm registry maintenance (dist-tags, deprecations). Dispatch only.
+on:
+  workflow_dispatch:
+    inputs:
+      task:
+        description: Registry task to run
+        type: choice
+        required: true
+        options:
+          - latest-to-alpha
+          - deprecate-stage
+      version:
+        description: Version for latest-to-alpha (e.g. 0.1.0-alpha.2)
+        required: false
+        default: ''
+
+permissions:
+  contents: read
+
+jobs:
+  admin:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1  # v7.1.0
+        with:
+          node-version: 24
+          registry-url: https://registry.npmjs.org
+      - name: Point latest at the newest alpha
+        if: ${{ inputs.task == 'latest-to-alpha' }}
+        run: |
+          test -n "${{ inputs.version }}" || { echo "version input required"; exit 1; }
+          for p in core rules gateway replay store-postgres; do
+            npm dist-tag add "@payrekha/$p@${{ inputs.version }}" latest
+          done
+          for p in core rules gateway replay store-postgres; do
+            echo "@payrekha/$p: $(npm dist-tag ls @payrekha/$p | tr '\n' ' ')"
+          done
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
+      - name: Deprecate 0.0.0-stage staging artifacts
+        if: ${{ inputs.task == 'deprecate-stage' }}
+        run: |
+          for p in core rules gateway replay store-postgres; do
+            npm deprecate "@payrekha/$p@0.0.0-stage" "Staging artifact published during pre-release testing — use @payrekha/$p@latest"
+          done
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
