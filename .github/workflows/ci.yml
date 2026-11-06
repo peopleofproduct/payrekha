@@ -9,6 +9,27 @@ permissions:
   contents: read
 
 jobs:
+  # Dependabot PRs may only touch dependency manifests. A bot-authored PR
+  # that modifies source, config, or tooling files means the update sandbox
+  # ran something hostile — fail loud before a human can merge it.
+  dep-pr-scope:
+    if: github.event_name == 'pull_request' && startsWith(github.head_ref, 'dependabot/')
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262  # v4
+        with:
+          fetch-depth: 0
+      - name: Dependabot diff must only touch manifests
+        run: |
+          files=$(git diff --name-only origin/${{ github.base_ref }}...HEAD)
+          bad=$(echo "$files" | grep -vE '^(package\.json|package-lock\.json|packages/[^/]+/package\.json|clients/[^/]+/(go\.mod|go\.sum|requirements\.txt|pom\.xml|build\.gradle[^/]*)|deploy/[^/]*Dockerfile[^/]*|\.github/workflows/[^/]*\.ya?ml|\.github/dependabot\.yml)$' || true)
+          if [ -n "$bad" ]; then
+            echo "::error::Dependabot PR touches non-manifest files — possible sandbox poisoning:"
+            echo "$bad"
+            exit 1
+          fi
+          echo "Dependabot diff is manifest-only."
+
   build-test:
     runs-on: ubuntu-latest
     strategy:
