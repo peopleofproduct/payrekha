@@ -1,4 +1,4 @@
-Payrekha {{ .Chart.AppVersion }} is running in {{ .Values.config.firewall.mode | default "shadow" }} mode (state: {{ .Values.state.type }}).
+PayRekha {{ .Chart.AppVersion }} is running in {{ .Values.config.firewall.mode | default "shadow" }} mode (state: {{ .Values.state.type }}).
 
   kubectl -n {{ .Release.Namespace }} port-forward svc/{{ include "payrekha.fullname" . }} 8080:{{ .Values.service.port }}
   curl -s localhost:8080/readyz

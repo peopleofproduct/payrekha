@@ -5,5 +5,5 @@ Maintained by People of Product™ — https://theproduct.city
 Sibling of Krediwall (https://github.com/peopleofproduct/krediwall) and
 Panini (https://github.com/peopleofproduct/Panini).
 
-Payrekha's engine semantics are copied from @krediwall/core
+PayRekha's engine semantics are copied from @krediwall/core
 (Apache-2.0, Copyright 2026 Kapil). See docs/adr/0001-engine.md.

@@ -3,7 +3,7 @@
 
 import { LruMap } from './lru.js';
 
-/** What Payrekha remembers about a beneficiary (keyed by its hashed ref only). */
+/** What PayRekha remembers about a beneficiary (keyed by its hashed ref only). */
 export interface BeneficiaryEntry {
   readonly firstSeenMs: number;
   /** Most recent micro-value payout to this beneficiary. */

@@ -1,4 +1,4 @@
-// Browser entry for the Payrekha playground — bundles the real engine +
+// Browser entry for the PayRekha playground — bundles the real engine +
 // rule set. Demo issuer uses the engine's hmac-sha256 support because
 // browsers have no synchronous Ed25519 in node:crypto shape; production
 // deployments sign intents with Ed25519 (see docs/intents.md).

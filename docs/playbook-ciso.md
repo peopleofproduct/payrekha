@@ -33,7 +33,7 @@ from your system of record.
 
 ```
 attacker with stolen prod key → calls payout API ✔ authn passes
-                              → shows no matching intent ✘ Payrekha holds
+                              → shows no matching intent ✘ PayRekha holds
 ```
 
 Because it runs in shadow by default, deploying it **cannot make things
@@ -65,7 +65,7 @@ which you must route honestly.
 ```
 LOS / recon / approver ──signs──▶ intent (Ed25519, expires, amount ceiling)
         │                            │
-payout caller ──▶ Envoy ext_authz ──▶ Payrekha gateway ──▶ ALLOW/REVIEW/BLOCK
+payout caller ──▶ Envoy ext_authz ──▶ PayRekha gateway ──▶ ALLOW/REVIEW/BLOCK
                         │                    │
                   fail-open on error    decision log (JSONL/CEF) ──▶ SIEM
                                              └─▶ /metrics ──▶ Prometheus

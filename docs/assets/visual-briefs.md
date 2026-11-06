@@ -27,7 +27,7 @@ Horizontal flow, ~1200×420 viewBox:
 ```
 [LOS / recon / approver] ──signs──▶ [signed intent] ──┐
                                                     ▼
-[payout caller] ──▶ [Envoy ext_authz] ──▶ [Payrekha] ──verdict──▶ ALLOW → [Bank / NPCI rails]
+[payout caller] ──▶ [Envoy ext_authz] ──▶ [PayRekha] ──verdict──▶ ALLOW → [Bank / NPCI rails]
                                           │                      BLOCK/REVIEW → hold
                                           └──▶ [decision log] ──▶ [SIEM] / [Prometheus]
 ```
@@ -54,7 +54,7 @@ Two panels, ~1200×400:
 
 - **Before:** attacker with `valid API key` → `payout API` → `money leaves`.
   Caption: *"one question: is this a valid key?"*
-- **After:** attacker with `valid API key` → `Payrekha` → held, because no
+- **After:** attacker with `valid API key` → `PayRekha` → held, because no
   intent. Caption: *"two questions: valid key? and was this decided?"*
 
 ## 4. `payrekha-ladder-{light,dark}.svg` — adoption staircase
@@ -81,8 +81,8 @@ decided"*.
 
 ## 6. `payrekha-weekend-kit-{light,dark}.svg` — quickstart topology
 
-Cluster boxes, ~1200×380: `payout API` → `Envoy` ⇄ `Payrekha`; `Payrekha` →
-`decision log` → `vector` → `SIEM`; `Prometheus` scrapes `Payrekha`; `Grafana`
+Cluster boxes, ~1200×380: `payout API` → `Envoy` ⇄ `PayRekha`; `PayRekha` →
+`decision log` → `vector` → `SIEM`; `Prometheus` scrapes `PayRekha`; `Grafana`
 reads `Prometheus`. Small tag on PayRekha: `mode: shadow`. Compose-file
 aesthetic (rounded boxes, dashed "docker-compose" boundary).
 

@@ -7,7 +7,7 @@ http_filters:
   - name: envoy.filters.http.ext_authz
     typed_config:
       "@type": type.googleapis.com/envoy.extensions.filters.http.ext_authz.v3.ExtAuthz
-      failure_mode_allow: false          # Payrekha down = payout held
+      failure_mode_allow: false          # PayRekha down = payout held
       with_request_body: { max_request_bytes: 65536, allow_partial_message: false }
       http_service:
         server_uri: { uri: payrekha:8080, cluster: payrekha, timeout: 0.25s }

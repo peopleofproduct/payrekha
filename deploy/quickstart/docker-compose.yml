@@ -1,6 +1,6 @@
-# Weekend protection kit — Payrekha in SHADOW mode in front of a payout API.
-# Zero-liability posture: Payrekha cannot decline a payout (shadow) and Envoy
-# fails OPEN if Payrekha is unreachable (failure_mode_allow: true in envoy.yaml).
+# Weekend protection kit — PayRekha in SHADOW mode in front of a payout API.
+# Zero-liability posture: PayRekha cannot decline a payout (shadow) and Envoy
+# fails OPEN if PayRekha is unreachable (failure_mode_allow: true in envoy.yaml).
 #
 #   cp .env.example .env      # fill in secrets first
 #   docker compose -f deploy/quickstart/docker-compose.yml up --build -d

@@ -74,7 +74,7 @@ PayRekha adds a second key. The system that *decides* money should move (your LO
 flowchart LR
   LOS[LOS / settlement engine<br/>system of record] -- signed intent --> PR
   App[LMS, ops tools, scripts,<br/>or an attacker with a stolen key] -- payout call --> GW[Envoy / your payout service]
-  GW -- ext_authz or SDK --> PR[Payrekha<br/>intents + rules]
+  GW -- ext_authz or SDK --> PR[PayRekha<br/>intents + rules]
   PR -- ALLOW / REVIEW / BLOCK --> GW
   GW -- only if ALLOW --> Bank[(Bank / NPCI rails)]
   PR -- JSONL / CEF --> SIEM[SIEM]
@@ -109,7 +109,7 @@ This writes a terminal summary, a self-contained `report.html` and `report.json`
 
 ```bash
 docker compose -f deploy/docker-compose.yml up --build
-# Envoy :10000 guards a fake /payouts API · Payrekha :8080 · Prometheus :9090
+# Envoy :10000 guards a fake /payouts API · PayRekha :8080 · Prometheus :9090
 curl -i -XPOST localhost:10000/payouts -H 'x-payout-kind: LOAN_DISBURSAL' \
   -d '{"request_id":"r1","amount_in_paise":24000000,"beneficiary":{"account_number":"000123456789","ifsc":"HDFC0001234"}}'
 # shadow (default): 200, and the BLOCK is logged · after PUT /v1/state {"mode":"enforce"}: 403 + x-payrekha-rules: intent.missing

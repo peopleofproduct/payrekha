@@ -1,5 +1,5 @@
 // Dry-run the ext_authz field mapping against a REAL payout sample — before
-// traffic flows. Shows what Payrekha will extract from your payout JSON,
+// traffic flows. Shows what PayRekha will extract from your payout JSON,
 // what it can't find, and which mapping path to change.
 //
 //   node scripts/check-mapping.mjs --file sample-payout.json

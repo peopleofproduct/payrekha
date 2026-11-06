@@ -5,7 +5,7 @@ groups:
         expr: up{job="payrekha"} == 0
         for: 1m
         labels: { severity: critical }
-        annotations: { summary: "Payrekha gateway unreachable — payouts follow your fail mode" }
+        annotations: { summary: "PayRekha gateway unreachable — payouts follow your fail mode" }
       - alert: PayrekhaNotReady
         expr: payrekha_ready == 0
         for: 1m
@@ -35,4 +35,4 @@ groups:
       - alert: PayrekhaBlocks
         expr: increase(payrekha_verdicts_total{verdict="BLOCK"}[5m]) > 0
         labels: { severity: warning }
-        annotations: { summary: "Payrekha calculated BLOCK verdicts in the last 5 minutes" }
+        annotations: { summary: "PayRekha calculated BLOCK verdicts in the last 5 minutes" }

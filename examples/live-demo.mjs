@@ -1,4 +1,4 @@
-// npm run demo:live — drive the docker compose stack (Envoy → Payrekha → fake payout API)
+// npm run demo:live — drive the docker compose stack (Envoy → PayRekha → fake payout API)
 // the way a presenter would. Start the stack first:
 //   docker compose -f deploy/docker-compose.yml up --build -d
 //   npm run demo:live              pause before each step (press Enter)
@@ -51,7 +51,7 @@ async function payout({ amountPaise, beneficiary, intentId, attack, shadow, kind
   const v = verdict ?? upstream?.payrekha ?? '?';
   const vc = v === 'ALLOW' ? green : v === 'BLOCK' ? red : yellow;
   console.log(`   POST /payouts → ${r.status === 200 ? green('200') : red(String(r.status))}  ${sent ? (attack || shadow ? red(shadow ? 'money SENT (shadow lets it through, verdict logged)' : 'money SENT') : green('money SENT')) : green('money held')}`);
-  console.log(`   Payrekha verdict ${vc(bold(v))}${rules && rules !== '-' ? `  rules: ${rules}` : ''}`);
+  console.log(`   PayRekha verdict ${vc(bold(v))}${rules && rules !== '-' ? `  rules: ${rules}` : ''}`);
 }
 
 async function admin(body) {
@@ -80,7 +80,7 @@ await waitReady();
 const st = await (await fetch(`${PR}/v1/state`, { headers: { authorization: `Bearer ${API}` } })).json();
 if (st.alertState === 'HIGH_ALERT') await admin({ highAlert: 'reset', reason: 'demo reset' });
 await admin({ mode: 'shadow', reason: 'demo start' });
-console.log(bold('\nPayrekha live — Envoy guarding a payout API, no code change in the API'));
+console.log(bold('\nPayRekha live — Envoy guarding a payout API, no code change in the API'));
 console.log(dim(`   envoy ${ENVOY} · payrekha ${PR} · run ${run}`));
 
 await step('Shadow mode: attacker with the stolen LMS credential, no intent', 'Day 1 posture. Nothing is stopped; every would-be verdict is logged.');

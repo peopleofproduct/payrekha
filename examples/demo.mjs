@@ -82,7 +82,7 @@ function print(mode) {
     for (const s of steps) console.log(JSON.stringify({ mode, step: s.title, attack: s.attack, at: formatIst(s.at), verdict: s.v.verdict, effectiveAction: s.v.effectiveAction, rules: s.v.hits.map((h) => h.rule), alertState: s.v.alertState, elapsedMicros: Math.round(s.v.elapsedMicros) }));
     return { fw, steps };
   }
-  console.log(bold(`\nPayrekha — CRAFTY FALCON replay against a fake NBFC  ${dim(`(mode: ${mode})`)}\n`));
+  console.log(bold(`\nPayRekha — CRAFTY FALCON replay against a fake NBFC  ${dim(`(mode: ${mode})`)}\n`));
   for (const s of steps) {
     const v = s.v;
     console.log(`${dim(formatIst(s.at))}  ${s.attack ? red('▲') : green('●')} ${s.title}`);

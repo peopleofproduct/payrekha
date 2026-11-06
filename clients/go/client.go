@@ -44,7 +44,7 @@ func (v Verdict) Rules() []string {
 	return r
 }
 
-// Client calls the Payrekha gateway.
+// Client calls the PayRekha gateway.
 type Client struct {
 	BaseURL string
 	APIKey  string
@@ -154,7 +154,7 @@ func (c *Client) RegisterIntent(ctx context.Context, intent map[string]any) (map
 	return out, c.call(ctx, http.MethodPost, "/v1/intents", intent, &out)
 }
 
-// ReportOutcome tells Payrekha what the bank did with a payout: settled, failed or reversed.
+// ReportOutcome tells PayRekha what the bank did with a payout: settled, failed or reversed.
 func (c *Client) ReportOutcome(ctx context.Context, payoutID, outcome string) error {
 	out := map[string]any{}
 	return c.call(ctx, http.MethodPost, "/v1/outcomes", map[string]any{"payoutId": payoutID, "outcome": outcome}, &out)

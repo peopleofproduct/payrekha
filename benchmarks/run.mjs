@@ -2,7 +2,7 @@
 // Copyright 2026 Kapil — People of Product™
 //
 // npm run bench   (builds first)
-// In-process: per-call latency of Payrekha.evaluate() with the full v0.1 rule
+// In-process: per-call latency of PayRekha.evaluate() with the full v0.1 rule
 // chain over many beneficiaries and intents. Gateway: sequential HTTP calls to
 // POST /v1/evaluate on loopback. Single-threaded latency, not throughput.
 //

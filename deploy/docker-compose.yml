@@ -1,4 +1,4 @@
-# Try-it-now stack: Envoy guarding a fake payout API with Payrekha ext_authz,
+# Try-it-now stack: Envoy guarding a fake payout API with PayRekha ext_authz,
 # plus Prometheus.  docker compose -f deploy/docker-compose.yml up --build
 #
 #   payouts via Envoy  http://localhost:10000/payouts

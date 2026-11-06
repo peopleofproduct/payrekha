@@ -136,7 +136,7 @@ export interface Evaluation {
   readonly elapsedMicros: number;
 }
 
-/** Final Payrekha decision for one payout. */
+/** Final PayRekha decision for one payout. */
 export interface PayoutVerdict extends Evaluation {
   readonly decisionId: string;
   readonly payoutId: string;

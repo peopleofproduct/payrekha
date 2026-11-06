@@ -1,7 +1,7 @@
 {
   "name": "@payrekha/rules",
   "version": "0.1.0-alpha.1",
-  "description": "The Payrekha v0.1 payout rule set: intent binding, probe, cooling, velocity, band, settlement, non-prod origin, canary, calendar, feed and attestation rules. Zero runtime dependencies.",
+  "description": "The PayRekha v0.1 payout rule set: intent binding, probe, cooling, velocity, band, settlement, non-prod origin, canary, calendar, feed and attestation rules. Zero runtime dependencies.",
   "license": "Apache-2.0",
   "author": "Kapil <kapil@theproduct.city>",
   "type": "module",

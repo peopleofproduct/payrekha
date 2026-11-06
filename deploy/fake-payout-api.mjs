@@ -1,5 +1,5 @@
 // A stand-in for your existing payout API: accepts every POST /payouts.
-// Envoy puts Payrekha in front of it via ext_authz — no code change here.
+// Envoy puts PayRekha in front of it via ext_authz — no code change here.
 import { createServer } from 'node:http';
 createServer((req, res) => {
   let b = '';

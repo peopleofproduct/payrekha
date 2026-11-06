@@ -1,6 +1,6 @@
 {
   "uid": "payrekha-overview",
-  "title": "Payrekha — Payout Protection",
+  "title": "PayRekha — Payout Protection",
   "tags": ["payrekha", "security", "payouts"],
   "timezone": "browser",
   "schemaVersion": 39,
@@ -54,7 +54,7 @@
     },
     {
       "id": 5, "type": "timeseries", "title": "Verdicts (what the engine decided)",
-      "description": "Calculated verdicts. In shadow mode these are what Payrekha WOULD have done — compare with the panel to the right.",
+      "description": "Calculated verdicts. In shadow mode these are what PayRekha WOULD have done — compare with the panel to the right.",
       "gridPos": { "h": 8, "w": 12, "x": 0, "y": 4 },
       "datasource": { "type": "prometheus", "uid": "prometheus" },
       "fieldConfig": { "defaults": { "custom": { "drawStyle": "line", "fillOpacity": 15, "stacking": { "mode": "normal" } }, "color": { "mode": "palette-classic" }, "unit": "short" }, "overrides": [
@@ -116,7 +116,7 @@
     },
     {
       "id": 11, "type": "stat", "title": "Deduped retries (last hour)",
-      "description": "Idempotent retries answered from cache — expected during client timeouts; spikes may mean the caller is timing out on Payrekha.",
+      "description": "Idempotent retries answered from cache — expected during client timeouts; spikes may mean the caller is timing out on PayRekha.",
       "gridPos": { "h": 4, "w": 6, "x": 12, "y": 20 },
       "datasource": { "type": "prometheus", "uid": "prometheus" },
       "options": { "colorMode": "value", "graphMode": "area", "reduceOptions": { "calcs": ["lastNotNull"] } },

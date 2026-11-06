@@ -1,5 +1,5 @@
 # syntax=docker/dockerfile:1
-# Payrekha reference gateway. Non-root, read-only root filesystem friendly
+# PayRekha reference gateway. Non-root, read-only root filesystem friendly
 # (state and logs go to /var/lib/payrekha), HEALTHCHECK on /healthz.
 #
 #   docker build -f deploy/Dockerfile -t payrekha .

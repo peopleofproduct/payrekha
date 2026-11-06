@@ -16,7 +16,7 @@ import javax.crypto.Mac;
 import javax.crypto.spec.SecretKeySpec;
 
 /**
- * Signs Payrekha payout intents inside a system of record (LOS/LMS,
+ * Signs PayRekha payout intents inside a system of record (LOS/LMS,
  * settlement engine). JDK only (Ed25519 needs JDK 15+). Byte-for-byte
  * compatible with {@code signIntent()} in @payrekha/core.
  */

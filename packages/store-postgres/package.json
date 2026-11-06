@@ -1,7 +1,7 @@
 {
   "name": "@payrekha/store-postgres",
   "version": "0.1.0-alpha.1",
-  "description": "Postgres state store for Payrekha: durable firewall snapshots with optimistic versioning, so a second writer is detected instead of silently overwriting HIGH_ALERT.",
+  "description": "Postgres state store for PayRekha: durable firewall snapshots with optimistic versioning, so a second writer is detected instead of silently overwriting HIGH_ALERT.",
   "license": "Apache-2.0",
   "author": "Kapil <kapil@theproduct.city>",
   "type": "module",

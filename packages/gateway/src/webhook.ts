@@ -4,7 +4,7 @@
 import { createHmac } from 'node:crypto';
 
 export interface WebhookOptions {
-  /** Your SOAR / incident endpoint. Payrekha calls nothing else. */
+  /** Your SOAR / incident endpoint. PayRekha calls nothing else. */
   readonly url: string;
   /** HMAC-SHA256 key; receivers verify `x-payrekha-signature`. */
   readonly secret: string;

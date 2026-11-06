@@ -1,4 +1,4 @@
-// Reference Payrekha gateway. All settings come from environment variables:
+// Reference PayRekha gateway. All settings come from environment variables:
 //   PAYREKHA_API_KEYS      id:prod|nonprod:token,…   (required)
 //   PAYREKHA_ADMIN_KEY     admin bearer (mode changes, HIGH_ALERT reset, canaries)
 //   PAYREKHA_HASH_KEY      keyed-hash secret for raw beneficiary fields

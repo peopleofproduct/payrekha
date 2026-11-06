@@ -1,4 +1,4 @@
-# Ship the Payrekha decision log + audit events to your SIEM.
+# Ship the PayRekha decision log + audit events to your SIEM.
 # The gateway writes one JSON object per line to PAYREKHA_DECISION_LOG
 # (default /var/lib/payrekha/decisions.jsonl). This config tails that file,
 # parses each event, and forwards it — pick ONE sink below and uncomment.

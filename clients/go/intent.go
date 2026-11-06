@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 // Copyright 2026 Kapil — People of Product™
 
-// Package payrekha signs Payrekha intents and calls the Payrekha gateway.
+// Package payrekha signs PayRekha intents and calls the PayRekha gateway.
 // Standard library only. Signatures are byte-for-byte compatible with @payrekha/core.
 package payrekha
 
@@ -23,7 +23,7 @@ import (
 // IntentDomain prefixes every signed payload.
 const IntentDomain = "payrekha-intent-v1\n"
 
-// IntentKinds lists the intent kinds Payrekha understands.
+// IntentKinds lists the intent kinds PayRekha understands.
 var IntentKinds = []string{"LOAN_DISBURSAL", "PA_SETTLEMENT", "REFUND", "VDA_WITHDRAWAL", "VENDOR_PAYOUT", "VERIFICATION"}
 
 const maxSafe = 1<<53 - 1

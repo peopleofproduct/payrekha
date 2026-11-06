@@ -37,7 +37,7 @@ export function ed25519PrivateKeyFromSeed(seed: Buffer): KeyObject {
 }
 
 export interface IssuerKeyPair {
-  /** SPKI DER, base64. Give this to Payrekha. */
+  /** SPKI DER, base64. Give this to PayRekha. */
   readonly publicKey: string;
   /** PKCS#8 DER, base64. Keep this inside the system of record (HSM/KMS ideally). */
   readonly privateKey: string;
@@ -71,7 +71,7 @@ export type SignerKey =
   | { readonly alg: 'ed25519'; readonly privateKey: string | KeyObject }
   | { readonly alg: 'hmac-sha256'; readonly secret: string };
 
-/** Sign an intent. Runs in the system of record (LOS/LMS, settlement engine), not in Payrekha. */
+/** Sign an intent. Runs in the system of record (LOS/LMS, settlement engine), not in PayRekha. */
 export function signIntent(intent: UnsignedIntent, key: SignerKey): Intent {
   const payload = intentSigningPayload(intent);
   const signature =
@@ -90,7 +90,7 @@ export interface IssuerKey {
   readonly publicKey?: string;
   /**
    * HMAC: the shared secret. Anyone holding it can mint intents — including
-   * a compromised Payrekha host. Prefer Ed25519; see docs/intents.md.
+   * a compromised PayRekha host. Prefer Ed25519; see docs/intents.md.
    */
   readonly secret?: string;
   /** Intent kinds this issuer may authorise. Omitted = none (fail closed). */
@@ -104,8 +104,8 @@ export type VerifyFailure = 'unknown-key' | 'issuer-mismatch' | 'kind-not-allowe
 export type VerifyResult = { readonly ok: true } | { readonly ok: false; readonly reason: VerifyFailure };
 
 /**
- * Public keys of the systems allowed to authorise payouts. Payrekha holds
- * only public keys (Ed25519), so a compromised Payrekha host or payout
+ * Public keys of the systems allowed to authorise payouts. PayRekha holds
+ * only public keys (Ed25519), so a compromised PayRekha host or payout
  * service cannot mint intents.
  */
 export class Keyring {

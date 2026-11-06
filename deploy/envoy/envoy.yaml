@@ -1,6 +1,6 @@
 # Envoy in front of an existing payout API. Every POST /payouts is sent to
-# Payrekha's ext_authz adapter (with the body) before it reaches upstream.
-# Shadow mode: Payrekha always answers 200 and only logs. Enforce: 403 stops it.
+# PayRekha's ext_authz adapter (with the body) before it reaches upstream.
+# Shadow mode: PayRekha always answers 200 and only logs. Enforce: 403 stops it.
 static_resources:
   listeners:
     - name: payouts
@@ -29,14 +29,14 @@ static_resources:
                     typed_config:
                       "@type": type.googleapis.com/envoy.extensions.filters.http.ext_authz.v3.ExtAuthz
                       transport_api_version: V3
-                      # Payrekha unreachable → deny. Pair with a client-side hold-above fail mode if you prefer.
+                      # PayRekha unreachable → deny. Pair with a client-side hold-above fail mode if you prefer.
                       failure_mode_allow: false
                       with_request_body: { max_request_bytes: 65536, allow_partial_message: false }
                       http_service:
                         server_uri: { uri: payrekha:8080, cluster: payrekha, timeout: 0.25s }
                         path_prefix: /ext_authz
                         authorization_request:
-                          # Only fields Payrekha maps. Note what is NOT here:
+                          # Only fields PayRekha maps. Note what is NOT here:
                           # x-client-id — the caller must never name its own
                           # source key. Envoy asserts the identity below; in
                           # production inject it per-route or from mTLS/JWT

@@ -8,7 +8,7 @@
 #      and x-client-id should name the trusted caller identity Envoy asserts
 #      (your payout service id — never forward a client-supplied value).
 #
-# failure_mode_allow: true — if Payrekha is unreachable or crashes, payouts
+# failure_mode_allow: true — if PayRekha is unreachable or crashes, payouts
 # pass through untouched. Non-negotiable for a shadow pilot: the kit can
 # observe but can never be the reason a payout fails.
 static_resources:

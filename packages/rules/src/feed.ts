@@ -14,8 +14,8 @@ export interface FeedEntry {
 
 /**
  * An operator-produced snapshot of a fraud-risk feed (e.g. the DoT FRI
- * list your bank already receives). Payrekha never calls the feed itself.
- * Entries carry `mobileRef` (already hashed with your Payrekha key) or a
+ * list your bank already receives). PayRekha never calls the feed itself.
+ * Entries carry `mobileRef` (already hashed with your PayRekha key) or a
  * raw `mobile` that is hashed on load and then discarded.
  */
 export class FraudFeed {

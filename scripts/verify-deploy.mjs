@@ -1,4 +1,4 @@
-// Post-install smoke check for a running Payrekha gateway. Proves the
+// Post-install smoke check for a running PayRekha gateway. Proves the
 // deployment is live, in the expected mode, evaluating, non-blocking,
 // and that a canary trip actually raises HIGH_ALERT end-to-end.
 //
@@ -46,7 +46,7 @@ const payout = (over = {}) => ({
   ...over,
 });
 
-console.log(`Payrekha deploy check → ${BASE}  (expecting mode=${EXPECT_MODE})\n`);
+console.log(`PayRekha deploy check → ${BASE}  (expecting mode=${EXPECT_MODE})\n`);
 
 const health = await call('/healthz', { key: '' });
 check('healthz', health.status === 200 && health.json?.ok === true, `status ${health.status}`);
@@ -95,5 +95,5 @@ if (reg.status === 201) {
   check('alert reset (audited)', reset.status === 200 && reset.json?.alertState === 'NORMAL', `status ${reset.status}`);
 }
 
-console.log(failures === 0 ? '\nAll checks passed — Payrekha is live and watching.' : `\n${failures} check(s) failed.`);
+console.log(failures === 0 ? '\nAll checks passed — PayRekha is live and watching.' : `\n${failures} check(s) failed.`);
 process.exit(failures === 0 ? 0 : 1);
