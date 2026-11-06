@@ -1,57 +1,45 @@
-# Support Payrekha
+# Support PayRekha
 
-**Payrekha is free forever.** Apache-2.0–licensed, no paid tiers, no paywalled
-features, no telemetry, no "open core" bait. That will not change.
+**The PayRekha open-source core is free forever.** Apache-2.0, every
+protective rule included, no telemetry. Protection is never paywalled:
+any rule that stops money leaving stays in the open core. Over time,
+People of Product plans optional paid help for teams that want it, such
+as operations tooling, audit evidence and support, but nothing that
+makes the open-source version less safe.
 
 Everything below is optional support — it funds maintenance, the advisory
 rule corpus, and the client/benchmark roadmap. Not the code.
 
 ## Support via GitHub Sponsors (card, Stripe-backed)
 
-The simplest way for most people — GitHub processes the payment (Stripe
-rails underneath), works with international cards, and handles receipts:
+The simplest way — GitHub processes the payment (Stripe rails
+underneath), works with international cards, and handles receipts:
 
 **[github.com/sponsors/peopleofproduct](https://github.com/sponsors/peopleofproduct)**
 
 One-time or recurring, individual or org tier — pick whatever fits.
 
-## Support via UPI (India)
-
-The simplest way to contribute — any amount, works in every UPI app (GPay,
-PhonePe, Paytm, BHIM, bank apps):
-
-```
-pawar1992@yescred
-```
-
-Or tap this link on mobile:
-
-[upi://pay?pa=pawar1992@yescred&pn=Payrekha](upi://pay?pa=pawar1992@yescred&pn=Payrekha)
-
-No payment gateway, no fees, no foreign rails — it goes directly to the
-maintainer.
-
 ## Why support?
 
 Enterprise fraud platforms price payout protection as a six-figure annual
-contract — scored per call, hosted on someone else's cloud, tuned behind an
-NDA. Payrekha gives the industry the **authorization layer** those vendors
-don't sell at any price — "no matching intent, no payout" — free, open and
-auditable, mapped to CERT-In Advisory CIAD-2026-0058.
+contract — scored per call, hosted on someone else's cloud, tuned behind
+an NDA. PayRekha gives the industry the **authorization layer** those
+vendors don't sell at any price — "no matching intent, no payout" — free,
+open and auditable, mapped to CERT-In Advisory CIAD-2026-0058.
 
-If Payrekha is watching your payouts — or replaced even a fraction of a
-vendor evaluation you were about to run — consider routing a small share of
-that value back. It keeps the rules current with the advisories.
+If PayRekha is watching your payouts — or replaced even a fraction of a
+vendor evaluation you were about to run — consider routing a small share
+of that value back. It keeps the rules current with the advisories.
 
 ## For individuals
 
-Any amount via the UPI ID above. ₹100 or ₹10,000 — it all funds real work:
-new rule coverage, client SDKs, benchmarks, the corpus of real-world payout
-shapes `check-mapping` understands.
+Any amount through GitHub Sponsors above. ₹100 or ₹10,000 — it all funds
+real work: new rule coverage, client SDKs, benchmarks, the corpus of
+real-world payout shapes `check-mapping` understands.
 
 ## For fintechs, NBFCs, lenders and exchanges
 
-If your org runs Payrekha in shadow or enforcement — or wants a closer
+If your org runs PayRekha in shadow or enforcement — or wants a closer
 relationship:
 
 - **Org sponsorship** — a recurring annual contribution sized to what it
@@ -65,12 +53,13 @@ relationship:
 ## What sponsorship is **not**
 
 - It does **not** buy roadmap control, SLAs, or proprietary features.
-- It does **not** buy exceptions to the guarantee — the engine stays
-  fail-open-by-default and honest about its limits for everyone.
-- Sponsors get visibility and priority triage; they do not get a different
-  product.
+- It does **not** buy exceptions to the guarantee — shadow mode never
+  blocks payouts, and the reference clients hold payouts above ₹50,000
+  if the gateway is unreachable (configurable), for everyone.
+- Sponsors get visibility and priority triage; they do not get a
+  different product.
 
 ## Receipts
 
-UPI transfers generate a bank receipt instantly. For org sponsorships that
+GitHub Sponsors issues receipts automatically. For org sponsorships that
 need an invoice, mention it in your Discussion post — paperwork is fine.

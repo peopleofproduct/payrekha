@@ -8,6 +8,8 @@ Payrekha asks operators to protect their payout path; the repository holds itsel
 - **Actions:** default `GITHUB_TOKEN` permissions read-only; release workflow requests `id-token: write` only for keyless signing and attestations. All third-party actions are pinned to a commit SHA (the `uses:` comment records the version tag); Dependabot updates the pins.
 - **Releases:** tags `v*` only from `main`; npm publish uses `--provenance`; images are signed with cosign and carry SLSA provenance and a CycloneDX SBOM.
 - **Dependabot:** enabled for npm, GitHub Actions, Docker, the Go client and the Python client (`.github/dependabot.yml`).
+- **Social preview:** `docs/assets/payrekha-social-preview-1280x640.png` is the README hero, but GitHub does not pick it up automatically — it must also be uploaded under **Settings → General → Social preview**, or links to the repo render GitHub's generic card.
+- **Topics:** `fraud-prevention`, `payments`, `upi`, `fintech`, `india`, `cybersecurity`, `cert-in`, `nbfc`, `payment-aggregator`, `zero-trust`, `payout-security`.
 
 Verify a release image:
 

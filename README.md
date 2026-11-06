@@ -7,6 +7,8 @@
 **The Lakshman Rekha for money leaving your systems.**
 No matching intent, no payout — whoever is calling.
 
+A **Panini Tech** project by **[People of Product™](https://theproduct.city)**.
+
 [![CI](https://github.com/peopleofproduct/payrekha/actions/workflows/ci.yml/badge.svg)](https://github.com/peopleofproduct/payrekha/actions/workflows/ci.yml)
 [![License: Apache-2.0](https://img.shields.io/badge/license-Apache--2.0-blue)](LICENSE)
 [![Node ≥ 22](https://img.shields.io/badge/node-%E2%89%A522-339933)](package.json)
@@ -193,13 +195,13 @@ One line of defence per surface, from the same People of Product workshop:
 
 ## Project
 
-**Payrekha** is an open-source initiative by **[People of Product™](https://theproduct.city)** — the team behind **Panini** and **Krediwall**, built to make India's open-finance infrastructure more open for everyone.
+**PayRekha** is a **Panini Tech** project by **[People of Product™](https://theproduct.city)** — the team behind **Panini** and **Krediwall**, built to make India's open-finance infrastructure more open for everyone.
 
-- 🌐 Website — [theproduct.city](https://theproduct.city)
-- 💼 LinkedIn — [People of Product](https://www.linkedin.com/company/people-of-product) · [Kapil (founder)](https://www.linkedin.com/in/kapil0/)
-- 🐦 X — [@PeopleOfProduct](https://x.com/PeopleOfProduct) · [@product_city](https://x.com/product_city) · [@Krazzy_Bunny](https://x.com/Krazzy_Bunny)
+- 🌐 Website — [peopleofproduct.github.io/payrekha](https://peopleofproduct.github.io/payrekha)
+- 💼 LinkedIn — PayRekha *(coming soon)* · [People of Product](https://www.linkedin.com/company/people-of-product)
+- 🐦 X — PayRekha *(coming soon)* · [@PeopleOfProduct](https://x.com/PeopleOfProduct)
 
-Payrekha is free forever — if it's protecting your payouts, you can [support the maintainers](SUPPORT.md).
+The open-source core is free forever — if it's protecting your payouts, you can [support the maintainers](SUPPORT.md).
 
 [Contributing](CONTRIBUTING.md) · [Code of conduct](CODE_OF_CONDUCT.md) · [Security policy](SECURITY.md) · [Trademarks](TRADEMARKS.md) · [NOTICE](NOTICE)
 
