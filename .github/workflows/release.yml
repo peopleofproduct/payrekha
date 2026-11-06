@@ -33,12 +33,12 @@ jobs:
       - run: npm test
       - name: Publish @payrekha/* with provenance
         if: ${{ github.event_name == 'push' || inputs.dry-run == false }}
-        run: npm publish --workspaces --provenance --access public --tag alpha
+        run: npm publish --workspaces --provenance --access public --tag ${{ contains(github.ref_name, '-') && 'alpha' || 'latest' }}
         env:
           NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
       - name: Dry run
         if: ${{ github.event_name == 'workflow_dispatch' && inputs.dry-run }}
-        run: npm publish --workspaces --provenance --access public --tag alpha --dry-run
+        run: npm publish --workspaces --provenance --access public --tag ${{ contains(github.ref_name, '-') && 'alpha' || 'latest' }} --dry-run
 
   image:
     runs-on: ubuntu-latest

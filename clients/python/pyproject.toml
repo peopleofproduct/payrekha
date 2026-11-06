@@ -1,6 +1,6 @@
 [project]
 name = "payrekha"
-version = "0.1.0a0"
+version = "0.1.0a1"
 description = "Sign Payrekha payout intents from your LOS/LMS or settlement engine."
 license = { text = "Apache-2.0" }
 requires-python = ">=3.9"
