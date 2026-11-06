@@ -53,5 +53,8 @@
     "url": "git+https://github.com/peopleofproduct/payrekha.git"
   },
   "homepage": "https://github.com/peopleofproduct/payrekha#readme",
-  "bugs": "https://github.com/peopleofproduct/payrekha/issues"
+  "bugs": "https://github.com/peopleofproduct/payrekha/issues",
+  "overrides": {
+    "minimatch": "^11.0.1"
+  }
 }
