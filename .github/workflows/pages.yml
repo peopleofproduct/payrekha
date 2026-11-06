@@ -10,6 +10,7 @@ on:
   workflow_dispatch:
 
 permissions:
+  contents: read
   pages: write
   id-token: write
 
@@ -19,6 +20,9 @@ concurrency:
 
 jobs:
   build-and-deploy:
+    # GitHub Pages is unavailable on private repos; starts deploying automatically
+    # once the repository is flipped public.
+    if: github.event.repository.private == false
     runs-on: ubuntu-latest
     environment:
       name: github-pages
