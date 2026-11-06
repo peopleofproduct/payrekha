@@ -78,7 +78,7 @@ describe('replay', () => {
   });
   it('intent-less: a high-alert episode resets after the simulated window', () => {
     const rows = Array.from({ length: 11 }, (_, i) => ({ payout_id: `b${i}`, timestamp: `2026-10-12 02:${String(i).padStart(2, '0')}:00`, kind: 'REFUND', amount_paise: '3000000000', beneficiary_vpa: `bb${i}@okaxis`, source_key_id: 'k-burst' }));
-    rows.push({ payout_id: 'after', timestamp: '2026-10-13 10:00:00', kind: 'REFUND', amount_paise: '4000', beneficiary_vpa: 'zz@okaxis' });
+    rows.push({ payout_id: 'after', timestamp: '2026-10-13 10:00:00', kind: 'REFUND', amount_paise: '4000', beneficiary_vpa: 'zz@okaxis', source_key_id: 'k-burst' });
     const r = runReplay({ payouts: rows, hashKey: HK });
     assert.ok(r.alertEpisodes.length >= 1);
     assert.ok(r.alertEpisodes[0]!.endMs !== null, 'episode should close after the simulated reset window');
