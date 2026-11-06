@@ -90,6 +90,43 @@ export interface ReplayReport {
   readonly flagged: readonly FlaggedPayout[];
   readonly alertEpisodes: readonly { readonly startMs: number; readonly endMs: number | null; readonly trigger: string }[];
   readonly p99Micros: number;
+  /**
+   * Intent-less mode only: penny-drop accounting. Rows tagged VERIFICATION
+   * mark their beneficiary as verified (the lender already proved the
+   * account), which exempts later payouts to it from probe/cooling —
+   * exactly as a signed VERIFICATION intent would.
+   */
+  readonly pennyDrop?: {
+    readonly verificationRows: number;
+    readonly verifiedBeneficiaries: number;
+    readonly boundPayouts: number;
+    readonly untaggedMicro: number;
+    readonly tip?: string;
+  };
+  /**
+   * Intent-less mode only: starting thresholds derived from this export's
+   * own distribution — percentiles are illustrative, not a verdict on
+   * your traffic. `config` is shaped like payrekha.json.
+   */
+  readonly suggested?: {
+    readonly config: {
+      readonly firewall: { readonly microPaise?: number };
+      readonly rules: {
+        readonly probe?: { readonly largePaise: number };
+        readonly cooling?: { readonly minAmountPaise: number };
+        readonly velocity?: { readonly perSourceKey: { readonly count: number; readonly sumPaise: number } };
+      };
+    };
+    readonly percentiles: {
+      readonly windowCountP95: number;
+      readonly windowCountP99: number;
+      readonly windowSumP95Paise: number;
+      readonly windowSumP99Paise: number;
+      readonly amountP75Paise: number;
+      readonly nonMicroP25Paise?: number;
+      readonly microP95Paise?: number;
+    };
+  };
 }
 
 const KINDS = new Set(['LOAN_DISBURSAL', 'PA_SETTLEMENT', 'REFUND', 'VDA_WITHDRAWAL', 'VENDOR_PAYOUT', 'VERIFICATION']);
@@ -185,6 +222,18 @@ export function runReplay(o: ReplayOptions): ReplayReport {
   const lat: number[] = [];
   const episodes: { startMs: number; endMs: number | null; trigger: string }[] = [];
   const resetMs = (o.alertResetHours ?? 24) * 3_600_000;
+  // Intent-less penny-drop state + threshold-suggestion samples.
+  const microPaise = cfg.microPaise ?? 1_000;
+  const verified = new Map<string, string>();
+  const boundVerified = new Set<string>();
+  const amounts: number[] = [];
+  const microAmounts: number[] = [];
+  const nonMicroAmounts: number[] = [];
+  const keyWindows = new Map<string, { count: number; sumPaise: number }>();
+  let verificationRows = 0;
+  let boundPayouts = 0;
+  let untaggedMicro = 0;
+  const signKey = { alg: 'ed25519' as const, privateKey: issuer.privateKey };
   for (const { at, i, row } of events) {
     clock = at;
     const open = episodes.at(-1);
@@ -214,6 +263,34 @@ export function runReplay(o: ReplayOptions): ReplayReport {
       const v = row[c[k]!];
       if (v !== undefined && v !== '') p[k] = String(v);
     }
+    const kind = String(p['kind']);
+    if (intentLess && b !== undefined) {
+      if (kind === 'VERIFICATION') {
+        // A tagged penny-drop is the lender vouching for this account. Give
+        // it a throwaway VERIFICATION intent so the engine's own
+        // verified-beneficiary bookkeeping fires — subsequent payouts to it
+        // are then exempt from probe/cooling, exactly as under a real intent.
+        const subj = row[c['subjectRef']!] !== undefined && row[c['subjectRef']!] !== '' ? String(row[c['subjectRef']!]) : `verified:${b}`;
+        try {
+          fw.registerIntent(signIntent({ intentId: `replay-verification-${i}`, kind: 'VERIFICATION', maxAmountPaise: Math.max(amount ?? 1, 1), beneficiaryRef: b, maxUses: 1, notBeforeMs: Math.max(1, at - 3_600_000), expiresAtMs: Number.MAX_SAFE_INTEGER, issuer: 'replay', keyId: 'replay', subjectRef: subj }, signKey), at);
+          p['intentId'] = `replay-verification-${i}`;
+          if (!verified.has(b)) verified.set(b, subj);
+          verificationRows += 1;
+        } catch { /* malformed row → falls through and is evaluated unbound */ }
+      } else if (verified.has(b)) {
+        const subj = verified.get(b)!;
+        const iid = `replay-verified-${b}-${kind}`;
+        try {
+          if (!boundVerified.has(iid)) {
+            boundVerified.add(iid);
+            fw.registerIntent(signIntent({ intentId: iid, kind: kind as IntentKind, maxAmountPaise: Number.MAX_SAFE_INTEGER, beneficiaryRef: b, maxUses: 1_000_000_000, notBeforeMs: 1, expiresAtMs: Number.MAX_SAFE_INTEGER, issuer: 'replay', keyId: 'replay', subjectRef: subj }, signKey), at);
+          }
+          p['intentId'] = iid;
+          boundPayouts += 1;
+        } catch { /* unhandled kind or bad intent → evaluated unbound */ }
+      }
+    }
+    if (intentLess && kind !== 'VERIFICATION' && amount !== undefined && amount <= microPaise) untaggedMicro += 1;
     const v: PayoutVerdict = fw.evaluate(p as unknown as PayoutRequest);
     fw.reportOutcome(v.payoutId, 'settled');
     if (fw.alertState === 'HIGH_ALERT' && (episodes.length === 0 || episodes.at(-1)!.endMs !== null))
@@ -235,8 +312,55 @@ export function runReplay(o: ReplayOptions): ReplayReport {
     }
     if (v.verdict !== 'ALLOW')
       flagged.push({ payoutId: v.payoutId, atMs: at, kind: String(p['kind']), amountPaise: amt, beneficiaryRef: b ?? '(missing)', sourceKeyId: String(p['sourceKeyId']), verdict: v.verdict, degraded: v.degraded, hits: v.hits.filter((h) => h.verdict !== 'ALLOW') });
+    if (amount !== undefined) {
+      amounts.push(amount);
+      (amount <= microPaise ? microAmounts : nonMicroAmounts).push(amount);
+      const wk = `${String(p['sourceKeyId'])}|${Math.floor(at / 600_000)}`;
+      const w = keyWindows.get(wk) ?? { count: 0, sumPaise: 0 };
+      w.count += 1;
+      w.sumPaise += amount;
+      keyWindows.set(wk, w);
+    }
   }
   lat.sort((a, b) => a - b);
+  const pct = (sorted: readonly number[], q: number): number | undefined => (sorted.length === 0 ? undefined : sorted[Math.min(sorted.length - 1, Math.floor(sorted.length * q))]);
+  amounts.sort((a, b) => a - b);
+  microAmounts.sort((a, b) => a - b);
+  nonMicroAmounts.sort((a, b) => a - b);
+  const winCounts = [...keyWindows.values()].map((w) => w.count).sort((a, b) => a - b);
+  const winSums = [...keyWindows.values()].map((w) => w.sumPaise).sort((a, b) => a - b);
+  const pennyDrop: ReplayReport['pennyDrop'] | undefined = intentLess
+    ? {
+        verificationRows,
+        verifiedBeneficiaries: verified.size,
+        boundPayouts,
+        untaggedMicro,
+        ...(untaggedMicro > 0 && verificationRows === 0
+          ? { tip: `${untaggedMicro} payouts at or below ${microPaise} paise look like penny drops, but none are tagged kind=VERIFICATION — tag them so they are read as account verifications, not probes.` }
+          : {}),
+      }
+    : undefined;
+  const suggested: ReplayReport['suggested'] | undefined = intentLess
+    ? {
+        config: {
+          firewall: { ...(microAmounts.length >= 5 ? { microPaise: pct(microAmounts, 0.95)! } : {}) },
+          rules: {
+            ...(nonMicroAmounts.length >= 10 ? { probe: { largePaise: pct(nonMicroAmounts, 0.25)! } } : {}),
+            ...(amounts.length >= 10 ? { cooling: { minAmountPaise: pct(amounts, 0.75)! } } : {}),
+            ...(winCounts.length >= 2 ? { velocity: { perSourceKey: { count: pct(winCounts, 0.99)!, sumPaise: pct(winSums, 0.99)! } } } : {}),
+          },
+        },
+        percentiles: {
+          windowCountP95: pct(winCounts, 0.95) ?? 0,
+          windowCountP99: pct(winCounts, 0.99) ?? 0,
+          windowSumP95Paise: pct(winSums, 0.95) ?? 0,
+          windowSumP99Paise: pct(winSums, 0.99) ?? 0,
+          amountP75Paise: pct(amounts, 0.75) ?? 0,
+          ...(nonMicroAmounts.length > 0 ? { nonMicroP25Paise: pct(nonMicroAmounts, 0.25)! } : {}),
+          ...(microAmounts.length > 0 ? { microP95Paise: pct(microAmounts, 0.95)! } : {}),
+        },
+      }
+    : undefined;
   return {
     generatedAt: new Date().toISOString(),
     intentLess,
@@ -249,6 +373,8 @@ export function runReplay(o: ReplayOptions): ReplayReport {
     flagged,
     alertEpisodes: episodes,
     p99Micros: lat.length === 0 ? 0 : lat[Math.min(lat.length - 1, Math.floor(lat.length * 0.99))]!,
+    ...(pennyDrop !== undefined ? { pennyDrop } : {}),
+    ...(suggested !== undefined ? { suggested } : {}),
   };
 }
 
@@ -278,14 +404,17 @@ function chains(flagged: readonly FlaggedPayout[]): Chain[] {
   }
   return groups
     .filter((g) => g.length >= 2 || g.some((f) => f.verdict === 'BLOCK'))
-    .map((g) => ({
-      key: g[0]!.sourceKeyId,
-      startMs: g[0]!.atMs,
-      endMs: g[g.length - 1]!.atMs,
-      amountPaise: g.reduce((a, f) => a + f.amountPaise, 0),
-      worst: g.some((f) => f.verdict === 'BLOCK') ? ('BLOCK' as const) : ('REVIEW' as const),
-      rules: [...new Set(g.flatMap((f) => f.hits.map((h) => h.rule)))],
-      steps: g,
-    }))
+    .map((g) => {
+      const steps = [...g].sort((a, b) => a.atMs - b.atMs);
+      return {
+        key: steps[0]!.sourceKeyId,
+        startMs: steps[0]!.atMs,
+        endMs: steps[steps.length - 1]!.atMs,
+        amountPaise: steps.reduce((a, f) => a + f.amountPaise, 0),
+        worst: steps.some((f) => f.verdict === 'BLOCK') ? ('BLOCK' as const) : ('REVIEW' as const),
+        rules: [...new Set(steps.flatMap((f) => f.hits.map((h) => h.rule)))],
+        steps,
+      };
+    })
     .sort((a, b) => b.amountPaise - a.amountPaise);
 }

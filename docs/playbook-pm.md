@@ -1,4 +1,4 @@
-# Payrekha for product teams — the PM playbook
+# PayRekha for product teams — the PM playbook
 
 *For product managers at NBFCs, lenders, payment aggregators and banks who
 need to answer "why does this thing exist, what does it touch, and what do I
@@ -10,7 +10,7 @@ have to do about it?" — in plain language.*
 
 > "Our payout APIs are reachable by anyone holding a valid credential —
 > employees, vendors, scripts, and sometimes attackers. CERT-In's advisory
-> describes attackers doing exactly that. Payrekha adds a second key: money
+> describes attackers doing exactly that. PayRekha adds a second key: money
 > only moves when the system of record says it was supposed to. It runs in
 > our own infra, can't block payouts in observe mode, and costs us almost no
 > engineering time to try."
@@ -31,7 +31,7 @@ fancy exploits — **attackers inside, using your own APIs correctly**. Your
 API gateway, WAF and IAM all see a valid call. Nobody asks *"was this
 disbursal ever sanctioned?"*
 
-Payrekha asks that question. Two keys instead of one:
+PayRekha asks that question. Two keys instead of one:
 
 1. **The intent key** — your LOS / recon engine / withdrawal approver signs
    a small cryptographic promise: *this loan, this ceiling, this
@@ -76,13 +76,13 @@ short enough for your risk appetite.
 
 **"What does it do with beneficiary PII / DPDP?"**
 Raw account numbers, VPAs, wallet addresses are hashed at the edge with a
-key you hold. Payrekha never stores, logs or emits the raw value — the
+key you hold. PayRekha never stores, logs or emits the raw value — the
 decision log carries `hb1_…` refs only. It runs inside your VPC; nothing
 phones home.
 
 **"Is this a fraud platform?"**
 No — and that's deliberate positioning, not a gap. Feedzai/SEON/Sardine
-*score* transactions; Payrekha *authorizes* them. It accepts upstream risk
+*score* transactions; PayRekha *authorizes* them. It accepts upstream risk
 scores as advisory inputs (`riskScore`/`externalVerdict`), so it layers
 *under* whatever you already own instead of competing with it.
 

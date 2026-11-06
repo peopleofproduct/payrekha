@@ -1,10 +1,32 @@
 # Changelog
 
-All notable changes to Payrekha are listed here. The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and the project uses [Semantic Versioning](https://semver.org/). Until 1.0, minor versions may change behaviour, and every release is an alpha or beta.
+All notable changes to PayRekha are listed here. The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and the project uses [Semantic Versioning](https://semver.org/). Until 1.0, minor versions may change behaviour, and every release is an alpha or beta.
 
 ## [Unreleased]
 
+## [0.1.0-alpha.1] - 2026-11-06
+
+Replay hardening for first-time evaluators, launch-day repo polish, and one rule-semantics refinement. Upgrade from alpha.0 with `npm i @payrekha/replay@alpha` — nothing else changes on the wire.
+
 ### Added
+
+- **Replay: penny drops read as verifications, not probes.** Rows tagged `kind=VERIFICATION` now mark their beneficiary as verified in intent-less mode (through the engine's own verified-beneficiary bookkeeping), so later payouts to it are exempt from `probe.micro-then-large` and `beneficiary.cooling` — exactly as they would be under signed intents. The report shows verification counts, and prints a tagging tip when micro payouts exist but none are tagged. On the bundled example export, probe hits drop from 120 to 3.
+- **Replay: "Tune before you judge" + suggested thresholds.** Intent-less reports now carry a banner making clear the defaults are illustrative, plus a *suggested starting thresholds* section — p95/p99 of per-source 10-minute counts and sums, amount percentiles, and a `payrekha.json`-shaped config block teams can paste and tighten.
+- **`probe.micro-then-large` also exempts payouts bound to a subject the beneficiary was already verified for** — the same exemption `beneficiary.cooling` already had, covering the case where the tagged VERIFICATION row was not the micro still in the ledger window.
+- **Repo surface:** 11 GitHub topics for discoverability, Panini Tech attribution in the README, social-preview + topics notes in `docs/repository-settings.md`.
+
+### Fixed
+
+- **Replay `--out` creates missing directories** instead of crashing with a stack trace; unreadable files and malformed CSV/JSON now fail with one-line errors.
+- **Flagged-chain ranges could display inverted** (e.g. `18:36 → 18:24` across midnight): steps are explicitly time-sorted and the terminal shows the full end date when it differs from the start date.
+- **`SUPPORT.md` reworded to the open-core position** — the core is free forever and protection is never paywalled, but it no longer rules out optional paid operations tooling. Removed the personal UPI ID and corrected the "fail-open" description (shadow mode never blocks; the reference clients hold payouts above ₹50,000 when the gateway is unreachable, configurable).
+
+### Changed
+
+- **Brand spelling is now "PayRekha"** in prose, headings and alt text; package names, the npm scope, CLI names and code identifiers are unchanged.
+- **Accent colour aligned to `#FFB23E` marigold** (visual briefs and the playground theme).
+
+### Added (carried since the original alpha.0 tag)
 
 - **Browser playground (`playground/`):** the real engine + rule set bundled for the browser via esbuild (`npm run playground`) — run the full CRAFTY FALCON attack chain in enforce and shadow, evaluate a custom payout, trip the canary, all with zero network calls. Ships a pure-JS `node:crypto` shim (SHA-256/HMAC verified byte-equal against Node) and uses the engine's `hmac-sha256` issuer support — Ed25519 intent signing stays Node/KMS-side by design. Auto-deploys to GitHub Pages via `pages.yml`.
 - **Community plumbing:** `.github/FUNDING.yml` + `SUPPORT.md` (UPI-backed, "free forever" pledge, org-sponsorship tiers), structured issue forms (`bug_report`, `rule_report` — the false-positive/missed-detection feedback loop), a PR template mirroring the CI gates, and `scripts/pre-commit.sh` (typecheck+lint before commits land).
@@ -12,8 +34,8 @@ All notable changes to Payrekha are listed here. The format follows [Keep a Chan
 - **Adopter playbooks:** `docs/try-this-weekend.md` — a Friday-to-Sunday hands-on runbook for lender/NBFC teams covering the full replay→shadow→canaries→evidence loop with plug-and-play steps — and three audience playbooks: `docs/playbook-pm.md` (why it matters, effort tiers, objections, what a PM owns), `docs/playbook-ciso.md` (advisory→deployed-control mapping, trust boundaries, compliance evidence, incident playbook, honest limits) and `docs/playbook-cxo.md` (one-paragraph situation, cost/safety table, option comparison, decision asks).
 - **`scripts/check-mapping.mjs`:** dry-run the ext_authz field mapping against a real payout sample — shows resolved fields, which required fields are missing, the exact rejection reason when beneficiary formats fail validation, and every leaf path the sample offers so remapping is a 2-minute edit.
 - **Crypto beneficiary mapping:** `extAuthz.mapping.beneficiary` gains `address` + `network` sources producing `vda:` refs — an exchange's `{"withdrawal_id","address","network"}` shape now maps through Envoy the same way bank `account+ifsc` does.
-- **CI `quickstart` job:** both compose files are config-validated, then the weekend kit is actually brought up (Payrekha + Envoy + Prometheus + Grafana) and `verify-deploy` runs its 12 checks against it — the 30-minute-install promise is now proven on every push.
-- **Weekend protection kit (`deploy/quickstart/` + `docs/weekend-kit.md`):** a one-compose shadow-mode stack (Payrekha + Envoy + Prometheus + Grafana) for lenders responding to the CERT-In advisory on a holiday weekend — `failure_mode_allow: true` and shadow pinned so the kit can never block a payout. Ships a pre-armed holiday `calendar.json`, an `env.example` secret checklist, and `npm run verify:deploy` (`scripts/verify-deploy.mjs`): a 12-check post-install proof that ends with a live canary trip → HIGH_ALERT → audited reset.
+- **CI `quickstart` job:** both compose files are config-validated, then the weekend kit is actually brought up (PayRekha + Envoy + Prometheus + Grafana) and `verify-deploy` runs its 12 checks against it — the 30-minute-install promise is now proven on every push.
+- **Weekend protection kit (`deploy/quickstart/` + `docs/weekend-kit.md`):** a one-compose shadow-mode stack (PayRekha + Envoy + Prometheus + Grafana) for lenders responding to the CERT-In advisory on a holiday weekend — `failure_mode_allow: true` and shadow pinned so the kit can never block a payout. Ships a pre-armed holiday `calendar.json`, an `env.example` secret checklist, and `npm run verify:deploy` (`scripts/verify-deploy.mjs`): a 12-check post-install proof that ends with a live canary trip → HIGH_ALERT → audited reset.
 - **Grafana dashboard (`deploy/grafana/`):** auto-provisioned Prometheus datasource + dashboard — alert-state banner, verdicts vs effective actions (shadow would-stop rate), rule-hit ranking, eval p99, and error panels keyed to `payrekha_*` metrics.
 - **SIEM shipper (`deploy/siem/vector.toml`):** decision-log tailer with parse transform and ready sinks for Splunk HEC, Elasticsearch data streams, and Sentinel (DCR) — plus the `PAYREKHA_LOG_FORMAT=cef` alternative.
 
@@ -73,5 +95,6 @@ First public alpha. The default thresholds are illustrative and have not been tu
 - **Demos:** `npm run demo` (the CRAFTY FALCON chain) and `npm run demo:live` (live through Envoy), plus the [demo runbook](docs/demo.md).
 - **Supply chain:** npm provenance, a keyless Cosign image signature, a CycloneDX SBOM, SLSA build provenance once the repository is public, and gitleaks scanning across the full history.
 
-[Unreleased]: https://github.com/peopleofproduct/payrekha/compare/v0.1.0-alpha.0...HEAD
+[Unreleased]: https://github.com/peopleofproduct/payrekha/compare/v0.1.0-alpha.1...HEAD
+[0.1.0-alpha.1]: https://github.com/peopleofproduct/payrekha/compare/v0.1.0-alpha.0...v0.1.0-alpha.1
 [0.1.0-alpha.0]: https://github.com/peopleofproduct/payrekha/releases/tag/v0.1.0-alpha.0

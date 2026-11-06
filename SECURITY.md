@@ -13,9 +13,9 @@ Email **security@<domain>** with steps to reproduce. Do not open a public issue.
 
 ## No telemetry
 
-Payrekha does not phone home. Core and rules make no network calls; CI enforces this. The gateway only calls the endpoints you configure (a SOAR webhook). There is no usage reporting of any kind.
+PayRekha does not phone home. Core and rules make no network calls; CI enforces this. The gateway only calls the endpoints you configure (a SOAR webhook). There is no usage reporting of any kind.
 
-## How Payrekha hardens itself
+## How PayRekha hardens itself
 
 - Container runs as a non-root user with a read-only root filesystem and all capabilities dropped.
 - API and admin bearer tokens are stored as SHA-256 hashes and compared in constant time.

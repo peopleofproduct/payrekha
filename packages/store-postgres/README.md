@@ -1,6 +1,6 @@
 # @payrekha/store-postgres
 
-Postgres state store for [Payrekha](https://github.com/peopleofproduct/payrekha). It keeps the full firewall snapshot (hashed refs only) in one JSONB row per deployment. Every save is a compare-and-set on a version counter, so a second writer gets `StaleStateError` instead of silently overwriting a HIGH_ALERT.
+Postgres state store for [PayRekha](https://github.com/peopleofproduct/payrekha). It keeps the full firewall snapshot (hashed refs only) in one JSONB row per deployment. Every save is a compare-and-set on a version counter, so a second writer gets `StaleStateError` instead of silently overwriting a HIGH_ALERT.
 
 ```ts
 import { Payrekha } from '@payrekha/core';

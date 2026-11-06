@@ -1,6 +1,6 @@
 {
   "name": "payrekha",
-  "version": "0.1.0-alpha.0",
+  "version": "0.1.0-alpha.1",
   "private": true,
   "description": "Payrekha — open-source, in-process payout firewall for Indian BFSI. No matching intent, no payout — whoever is calling your API.",
   "license": "Apache-2.0",

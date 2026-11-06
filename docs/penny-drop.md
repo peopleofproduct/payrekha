@@ -10,7 +10,7 @@ CRAFTY FALCON sends ₹1 to an account before sending ₹4,99,999 to it. The obv
 
 The difference is not in the amounts. It is in who decided the payout should happen.
 
-## How Payrekha tells them apart
+## How PayRekha tells them apart
 
 1. The LOS signs a `VERIFICATION` intent for the ₹1 and a `LOAN_DISBURSAL` intent for the loan, both bound to the same hashed beneficiary.
 2. `probe.micro-then-large` remembers micro-payouts per beneficiary and marks the ones made under a valid `VERIFICATION` intent as verified.
@@ -19,4 +19,4 @@ The difference is not in the amounts. It is in who decided the payout should hap
 
 `beneficiary.cooling` (a large payout to a beneficiary first seen minutes ago) also skips payouts that carry a valid intent for that exact beneficiary. A first disbursal is always to a new account, so without this exemption every good loan would be held. Set `exemptBoundIntents: false` to remove the exemption.
 
-In intent-less replay, which you run on Day 1 before any intents exist, these same good loans *will* show up in the false-positive list. That is the honest picture of what a ₹1 rule costs you without intents.
+In intent-less replay, which you run on Day 1 before any intents exist, tag your penny-drop rows with `kind=VERIFICATION` in the CSV. Replay treats each one as the lender vouching for that beneficiary — verified beneficiaries are exempt from `probe.micro-then-large` and `beneficiary.cooling`, exactly as they would be under signed intents. If your export has `subject_ref` (the loan/application id), the replay binds on it; if not, it binds per beneficiary. Untagged ₹1 rows still read as probes — the report prints a tip when it sees micro payouts and no VERIFICATION rows, and the summary shows how many payouts were exempted as verified.

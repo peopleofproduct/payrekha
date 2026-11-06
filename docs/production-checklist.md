@@ -1,6 +1,6 @@
 # Production checklist
 
-What must be true before Payrekha sits on a real payout path. Work top to bottom; a box unchecked means the launch posture changes, not that the item is optional.
+What must be true before PayRekha sits on a real payout path. Work top to bottom; a box unchecked means the launch posture changes, not that the item is optional.
 
 ## Deployment
 
@@ -14,7 +14,7 @@ What must be true before Payrekha sits on a real payout path. Work top to bottom
 
 ## Path
 
-- [ ] Envoy `failure_mode_allow` decided deliberately: `false` (Payrekha down = payouts held — preferred for enforce) or `true` (payrolls continue while Payrekha is down — a documented gap, acceptable only for early shadow trials).
+- [ ] Envoy `failure_mode_allow` decided deliberately: `false` (PayRekha down = payouts held — preferred for enforce) or `true` (payrolls continue while PayRekha is down — a documented gap, acceptable only for early shadow trials).
 - [ ] `sourceKeyId` is asserted by Envoy (`headers_to_add` / auth-derived), never forwarded from the client.
 - [ ] Every payout kind is reachable only through a checked path — no route around the filter.
 - [ ] `highAlertOnBlocks` and mode are set per kind via `modeByKind` where needed; `enforce` is never the global default on day one.

@@ -31,6 +31,10 @@ export function probeRule(o: ProbeOptions = {}): PayoutRule {
       if (age < 0 || age > windowMs) return null;
       if (p.amountPaise < largePaise && p.amountPaise < micro.amountPaise * largeMultiple) return null;
       if (micro.verifiedSubject !== undefined && ctx.intent.status === 'ok' && ctx.intent.subjectRef === micro.verifiedSubject) return null;
+      // Same exemption as cooling: the beneficiary was verified for this
+      // subject by an earlier VERIFICATION intent, even if the tagged
+      // micro itself wasn't the one still in the ledger window.
+      if (ctx.intent.status === 'ok' && ctx.intent.subjectRef !== undefined && ctx.beneficiary?.verifiedSubjects?.includes(ctx.intent.subjectRef) === true) return null;
       const high = ctx.alertState === 'HIGH_ALERT';
       return hit(
         'probe.micro-then-large',

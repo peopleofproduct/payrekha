@@ -1,6 +1,6 @@
 # Repository settings
 
-Payrekha asks operators to protect their payout path; the repository holds itself to the same bar (CIAD-2026-0058 also asks for signed commits and protected branches).
+PayRekha asks operators to protect their payout path; the repository holds itself to the same bar (CIAD-2026-0058 also asks for signed commits and protected branches).
 
 - **Branch protection on `main`:** require pull requests, 1 approving review (2 for `packages/core` and `packages/rules` via CODEOWNERS), dismiss stale approvals, require status checks `build-test (22)`, `build-test (24)`, `java-client`, `python-client`, `docker`, `secrets`; no force-push, no deletion; include administrators.
 - **Signed commits:** require signed commits on `main`.

@@ -12,7 +12,7 @@ ships as a pair**: `-dark` for dark-mode viewers, `-light` for light.
   - ink/text — dark variant `#ececf1`, light variant `#1b1b1f`
   - muted — dark `#8f8f9c`, light `#6b6b78`
   - panel fill — dark `#17171d` (stroke `#26262e`), light `#f4f4f7` (stroke `#dddde4`)
-  - accent (the rekha / brand) — `#f4933d` saffron, same in both variants
+  - accent (the rekha / brand) — `#FFB23E` marigold, same in both variants
   - verdicts — ALLOW `#3ecf8e`, REVIEW `#f5c542`, BLOCK `#f0564f`
   - links/info — `#5cc8e0`
 - **Type:** `font-family="system-ui, sans-serif"`, labels 13–15px, headers 17–20px
@@ -32,9 +32,9 @@ Horizontal flow, ~1200×420 viewBox:
                                           └──▶ [decision log] ──▶ [SIEM] / [Prometheus]
 ```
 
-The signed-intent edge and the Payrekha box get the saffron accent. Label
-under Payrekha: *"no matching intent, no payout"*. A subtle rekha (accent
-rule) between Payrekha and the rails.
+The signed-intent edge and the PayRekha box get the saffron accent. Label
+under PayRekha: *"no matching intent, no payout"*. A subtle rekha (accent
+rule) between PayRekha and the rails.
 
 ## 2. `payrekha-boundary-{light,dark}.svg` — the line that holds
 
@@ -83,7 +83,7 @@ decided"*.
 
 Cluster boxes, ~1200×380: `payout API` → `Envoy` ⇄ `Payrekha`; `Payrekha` →
 `decision log` → `vector` → `SIEM`; `Prometheus` scrapes `Payrekha`; `Grafana`
-reads `Prometheus`. Small tag on Payrekha: `mode: shadow`. Compose-file
+reads `Prometheus`. Small tag on PayRekha: `mode: shadow`. Compose-file
 aesthetic (rounded boxes, dashed "docker-compose" boundary).
 
 ## Placement (once generated)

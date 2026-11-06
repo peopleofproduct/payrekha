@@ -1,7 +1,7 @@
 <!-- SPDX-License-Identifier: Apache-2.0 -->
 # Adoption ladder — from one API call to HSM-signed intents
 
-Payrekha's guarantee ("no matching intent, no payout") is strongest when the
+PayRekha's guarantee ("no matching intent, no payout") is strongest when the
 system of record signs intents with a key it alone holds. That is also the most
 work to adopt, so the product offers a ladder: every tier exercises the same
 verdicts, dedupe and audit trail; what changes between tiers is **who vouches
@@ -11,7 +11,7 @@ on your traffic — never sideways.
 | Tier | Integration effort | Who can mint intents | Use for |
 |---|---|---|---|
 | **0 · Observe** | One `POST /v1/evaluate` call or the Envoy `ext_authz` filter. No intents. | — (intent rules off or shadow) | Day one: behavioural rules on real traffic |
-| **1 · Managed** | One extra call: `POST /v1/intents/mint` before each payout. | The Payrekha gateway (holds a mint key) | First enforce-able tier; pilots; low-risk kinds |
+| **1 · Managed** | One extra call: `POST /v1/intents/mint` before each payout. | The PayRekha gateway (holds a mint key) | First enforce-able tier; pilots; low-risk kinds |
 | **2 · SDK-signed** | ~10 lines in Java/Python/Go: hold an Ed25519 key, sign, register. | Your system of record | Most production deployments |
 | **3 · KMS/HSM-signed** | Tier 2 + key never leaves the KMS/HSM. | Your HSM/KMS | Regulated lenders, banking rails |
 | **0-code · Connector** | None on the LOS: it already emits "approved" events. A bridge turns them into mint/register calls. | Connector's key or the gateway mint key | Event-driven stacks (Kafka/SQS/webhooks) |
@@ -40,7 +40,7 @@ POST /v1/evaluate              Authorization: Bearer <evaluate-role key>
   or pass your own (`intentId: "loan-007"` — recommended, use your loan/payout
   id) so retries and replays collapse to one registration.
 - **`subjectRef`** carries your reference (loan id, batch id) into the decision
-  log — the only echo of your domain inside Payrekha.
+  log — the only echo of your domain inside PayRekha.
 - **Config**: issuer entry as usual in `issuers[]`, plus
   `PAYREKHA_MINT_KEY_ID` (the issuer's keyId) and `PAYREKHA_MINT_KEY`
   (PKCS#8 base64 or PEM). `gateway.mint.defaultTtlMs`/`maxTtlMs` bound intent
@@ -50,7 +50,7 @@ POST /v1/evaluate              Authorization: Bearer <evaluate-role key>
   cannot register foreign-signed intents; an `intents` key cannot mint. A
   stolen mint key is still bounded by the issuer's `kinds`, the TTL cap and
   the intent store caps — revoke it like any issuer key.
-- **Honest trust note**: in this tier Payrekha holds signing power, so a
+- **Honest trust note**: in this tier PayRekha holds signing power, so a
   compromised gateway could mint. That is the same exposure class as an HMAC
   issuer — acceptable for pilots and shadow→enforce ramps, but external
   signing is the end state for money movement at scale.
@@ -69,7 +69,7 @@ POST /v1/intents (intents role)  →  201
 POST /v1/evaluate … "intentId": unsigned.intentId
 ```
 
-Give Payrekha only `{keyId, issuer, alg, publicKey, kinds}` — the private key
+Give PayRekha only `{keyId, issuer, alg, publicKey, kinds}` — the private key
 never leaves your system.
 
 ## Tier 3 — KMS / HSM

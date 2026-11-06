@@ -1,10 +1,10 @@
 # Threat model
 
-## What Payrekha assumes
+## What PayRekha assumes
 
 - The attacker is **inside**. They hold valid API credentials for the payout service, can call it from inside the network, and may own a UAT box, a CI runner or a developer laptop (CIAD-2026-0058's CRAFTY FALCON).
 - The intent-signing key lives in a **different** trust zone from the payout service: the LOS or settlement engine, ideally in an HSM or KMS.
-- Payrekha sits on the only path to the bank: an Envoy ext_authz filter with `failure_mode_allow: false`, or an SDK call the payout code cannot skip.
+- PayRekha sits on the only path to the bank: an Envoy ext_authz filter with `failure_mode_allow: false`, or an SDK call the payout code cannot skip.
 - Operators protect the admin token and the beneficiary hash key.
 
 ## What an attacker can and cannot do
@@ -25,12 +25,12 @@
 | A burst on a holiday night | Tighter budgets | `calendar.window` multipliers, `velocity.outflow` |
 | Touched a canary | No, and the system goes into HIGH_ALERT | `canary.tripped` |
 | **The intent-signing key itself** | **Yes, within the issuer's kinds** | Velocity, cooling, probes, canaries still apply; revoke the key |
-| **The Payrekha admin token** | They can switch to shadow mode | The mode change is logged and metrics show it; keep the token in a vault and alert on `PUT /v1/state` |
-| The ability to bypass Payrekha on the network path | Yes | Out of scope: enforce the path with network policy |
+| **The PayRekha admin token** | They can switch to shadow mode | The mode change is logged and metrics show it; keep the token in a vault and alert on `PUT /v1/state` |
+| The ability to bypass PayRekha on the network path | Yes | Out of scope: enforce the path with network policy |
 | An `evaluate` key minting/impersonating `merchantId` | Partially | Per-key and per-merchant velocity state live in separate maps (churn cannot evict either), and `gateway.merchantScope` can pin a key to specific merchantIds — `merchantId` is a caller field, treat it as untrusted and scope keys that should only settle for known merchants |
 | A repackaged client claiming `clientAttested: true` | No change | `clientAttested` is a declaration, not proof — the payout API must assert it after its own attestation check (Play Integrity/App Attest), never forward the client's value |
 
-## Payrekha's own hardening
+## PayRekha's own hardening
 
 - Container runs as non-root with a read-only root filesystem, `cap_drop: ALL` and `no-new-privileges`.
 - Bearer tokens are held as SHA-256 hashes and compared in constant time. Admin operations use a separate token and require a reason. Caller-supplied identity fields (`origin`, `sourceKeyId`, `timestampMs`) never come from the request body — `timestampMs` is stamped at the gateway unless the caller is explicitly trusted.

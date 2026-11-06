@@ -1,6 +1,6 @@
 # @payrekha/rules
 
-The default payout rule chain for [Payrekha](https://github.com/peopleofproduct/payrekha) — zero runtime dependencies, ordered cheapest-and-most-decisive first:
+The default payout rule chain for [PayRekha](https://github.com/peopleofproduct/payrekha) — zero runtime dependencies, ordered cheapest-and-most-decisive first:
 
 `canary.tripped` → `origin.nonprod` → `intent.*` (missing/bad-signature/kind-mismatch/expired/beneficiary-mismatch/reused/amount-exceeds) → `external.verdict`/`external.score` → `settlement.*` → `probe.micro-then-large` → `beneficiary.cooling` → `velocity.outflow` → `amount.band-anomaly` → `feed.reputation` → `client.unattested` → `calendar.window`
 

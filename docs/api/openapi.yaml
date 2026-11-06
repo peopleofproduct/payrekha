@@ -1,6 +1,6 @@
 openapi: 3.1.0
 info:
-  title: Payrekha gateway
+  title: PayRekha gateway
   version: 0.1.0-alpha.0
   description: Payout firewall. Amounts are integer paise; times are epoch ms. Beneficiaries are hb1_ keyed hashes.
   license: { name: Apache-2.0 }
@@ -87,7 +87,7 @@ paths:
         '403': { description: Key lacks the intents role }
   /v1/intents/mint:
     post:
-      summary: "Mint a managed intent (requires the mint role). Payrekha builds, signs and registers the intent with a gateway-held key — the lowest-effort adoption tier. Send raw beneficiary fields (account/ifsc/vpa) or a pre-hashed beneficiaryRef. Retries are idempotent: pass intentId or the same fields derive the same id. Weaker trust than externally-signed intents — see docs/adoption.md."
+      summary: "Mint a managed intent (requires the mint role). PayRekha builds, signs and registers the intent with a gateway-held key — the lowest-effort adoption tier. Send raw beneficiary fields (account/ifsc/vpa) or a pre-hashed beneficiaryRef. Retries are idempotent: pass intentId or the same fields derive the same id. Weaker trust than externally-signed intents — see docs/adoption.md."
       requestBody: { required: true, content: { application/json: { schema: { type: object, required: [kind], properties: { kind: { $ref: '#/components/schemas/Kind' }, maxAmountPaise: { type: integer, description: 'amountPaise also accepted' }, amountPaise: { type: integer }, beneficiaryRef: { type: string, description: 'hashBeneficiary output; or send beneficiary' }, beneficiary: { $ref: '#/components/schemas/Beneficiary' }, intentId: { type: string, maxLength: 128 }, subjectRef: { type: string }, maxUses: { type: integer, minimum: 1, default: 1 }, ttlMs: { type: integer }, notBeforeMs: { type: integer } } } } } }
       responses:
         '201': { description: "Minted and registered: {accepted, intentId}", content: { application/json: { schema: { type: object, properties: { accepted: { type: boolean }, intentId: { type: string }, reason: { type: string } } } } } }

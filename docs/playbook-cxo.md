@@ -1,4 +1,4 @@
-# Payrekha for leadership — the CXO playbook
+# PayRekha for leadership — the CXO playbook
 
 *For CEOs, CFOs, COOs and boards of NBFCs, lenders and banks. Plain words.
 What happened, what we can do about it this week, and what it costs.*
@@ -17,7 +17,7 @@ before anyone notices.
 Your systems currently ask *one* question before moving money: **"is this a
 valid key?"** The advisory says that's no longer enough.
 
-## What Payrekha is
+## What PayRekha is
 
 One additional question before money leaves: **"was this payout actually
 decided?"**
@@ -48,7 +48,7 @@ that already closed.
 
 | Option | Time to value | Cost | Coverage of this threat |
 |---|---|---|---|
-| **Payrekha** | This weekend | ₹0, open source | Built *for* the credential-intrusion pattern in the advisory |
+| **PayRekha** | This weekend | ₹0, open source | Built *for* the credential-intrusion pattern in the advisory |
 | Fraud-scoring vendors | Months (integration + tuning) | Enterprise licence | Scores transactions; doesn't *authorize* them — and still trusts your keys |
 | Build in-house | Quarters | Eng roadmap | You'd build this exact primitive — intent binding — which is the hard part |
 | Do nothing this week | 0 | ₹0 | Blind during the highest-risk window of the year |
@@ -92,7 +92,7 @@ you run it — that's the point of shipping the source.
 > *Ravana never broke the Lakshman Rekha — he came disguised and got Sita to
 > step outside. These attackers won't break our payment rails either —
 > they'll show up dressed as our own systems and ask our money to step out.
-> Payrekha is the line that holds anyway.*
+> PayRekha is the line that holds anyway.*
 
 It's Diwali week. The guardian is thin. Put the line down.
 

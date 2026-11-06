@@ -9,5 +9,5 @@ Diagrams (dark/light SVG pairs for the README, per
 hand-editing so the two themes never drift.
 
 License note: assets are © People of Product / Kapil, shared under the
-repo's Apache-2.0 licence for Payrekha-related use; the Payrekha name and
+repo's Apache-2.0 licence for PayRekha-related use; the PayRekha name and
 logo are covered by [TRADEMARKS.md](../../TRADEMARKS.md).

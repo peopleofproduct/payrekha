@@ -1,8 +1,8 @@
 <p align="center">
-  <img src="docs/assets/payrekha-social-preview-1280x640.png" alt="Payrekha — the Lakshman Rekha for money leaving your systems" width="640">
+  <img src="docs/assets/payrekha-social-preview-1280x640.png" alt="PayRekha — the Lakshman Rekha for money leaving your systems" width="640">
 </p>
 
-# Payrekha
+# PayRekha
 
 **The Lakshman Rekha for money leaving your systems.**
 No matching intent, no payout — whoever is calling.
@@ -21,13 +21,13 @@ In the Ramayana, when Lakshman has to leave Sita alone, he draws a line in the e
 
 Attackers work the same way. They don't break your payment rails — they show up dressed as your own systems: your API, your credentials, your app. Then they ask your money to step outside.
 
-**Payrekha — *pay* + *rekha* — is the line that holds anyway.**
+**PayRekha — *pay* + *rekha* — is the line that holds anyway.**
 
 When your systems are present and honest, money moves freely: a sanctioned loan, a settled merchant, a whitelisted withdrawal. But when something is wrong — a stolen credential, a repackaged app, a payout call at 3 AM on a holiday — the line holds. Whoever is calling, whatever key they hold: **no matching intent, no payout.**
 
 ## What it does, in one breath
 
-Payrekha is an open-source **payout firewall** for Indian NBFCs, digital lenders, payment aggregators and crypto exchanges. It sits between your payout API and the money rails and asks two questions of every rupee leaving:
+PayRekha is an open-source **payout firewall** for Indian NBFCs, digital lenders, payment aggregators and crypto exchanges. It sits between your payout API and the money rails and asks two questions of every rupee leaving:
 
 1. **Was this payout actually decided?** Your system of record (LOS, reconciliation, withdrawal approver) signs an *intent* — this loan, this ceiling, this beneficiary, valid until this time. A payout must show a matching intent to pass.
 2. **Does it look like the attacks we've seen?** ₹1-then-large probes, brand-new beneficiaries, holiday bursts, UAT keys in prod — the patterns in the CERT-In advisory.
@@ -44,7 +44,7 @@ Get either answer wrong and the money stays. Even if the attacker is inside, wit
 
 CERT-In advisory **CIAD-2026-0058** ("CRAFTY FALCON") describes attackers who get inside a lender and call its *own* payout APIs with valid credentials — and it warns they favour **holidays**, when the guardians are thinnest.
 
-This is Diwali week — the festival that celebrates the very epic the Lakshman Rekha comes from, and one of the longest low-staffing windows of the year. We open-sourced Payrekha the week the guardian steps away, because that's exactly when the line matters. The [weekend kit](docs/weekend-kit.md) stands it up in ~30 minutes in shadow mode — it watches, learns and alerts, and by construction **it cannot block a single payout.**
+This is Diwali week — the festival that celebrates the very epic the Lakshman Rekha comes from, and one of the longest low-staffing windows of the year. We open-sourced PayRekha the week the guardian steps away, because that's exactly when the line matters. The [weekend kit](docs/weekend-kit.md) stands it up in ~30 minutes in shadow mode — it watches, learns and alerts, and by construction **it cannot block a single payout.**
 
 ## How you adopt it — four steps, each reversible
 
@@ -66,7 +66,7 @@ This is Diwali week — the festival that celebrates the very epic the Lakshman 
 
 CERT-In advisory CIAD-2026-0058 describes "CRAFTY FALCON": attackers get inside a lender or payment company and then **call the victim's own payout APIs**. They do ₹1 test transfers before large ones. They abuse merchant settlement APIs. They move from an exposed UAT box into production, call APIs directly from repackaged mobile apps, and strike on holidays. Every one of those calls uses a valid credential. Perimeter controls do not see a problem.
 
-Payrekha adds a second key. The system that *decides* money should move (your LOS, your reconciliation engine, your withdrawal approver) signs an **intent**: this loan, this amount ceiling, this beneficiary, valid until this time. The system that *moves* money must show a matching intent. If an attacker steals the payout credential, they still do not have the intent-signing key. **Even if they're inside, the money doesn't leave.**
+PayRekha adds a second key. The system that *decides* money should move (your LOS, your reconciliation engine, your withdrawal approver) signs an **intent**: this loan, this amount ceiling, this beneficiary, valid until this time. The system that *moves* money must show a matching intent. If an attacker steals the payout credential, they still do not have the intent-signing key. **Even if they're inside, the money doesn't leave.**
 
 ## Where it sits
 
@@ -171,7 +171,7 @@ docs               getting started, intents, penny-drop, threat model, operation
 - State is bounded (LRU maps, ring buffers). Snapshots are written atomically with mode `0600`. Restoring a snapshot never changes the configured mode.
 - `npm run bench` on Node 24 (laptop): in-process p50 10 µs, p99 19 µs; gateway p99 0.73 ms over loopback. CI fails on a large regression.
 
-## What Payrekha does not do (yet)
+## What PayRekha does not do (yet)
 
 There is no UI console (an operations console is planned), no ML, and no hosted service. It makes no calls to government or third-party APIs. A Go client and a shared store for active-active replicas are coming. See [ROADMAP](ROADMAP.md) and the honest [advisory mapping](docs/advisory-mapping.md#what-payrekha-does-not-cover).
 
@@ -190,8 +190,8 @@ There is no UI console (an operations console is planned), no ML, and no hosted 
 One line of defence per surface, from the same People of Product workshop:
 
 - **[Panini](https://github.com/peopleofproduct/Panini)** — checks the financial story you're *shown* (India's digital public infrastructure).
-- **[Krediwall](https://github.com/peopleofproduct/krediwall)** — checks every rupee your *customers* spend on credit. Payrekha's engine semantics come from it.
-- **Payrekha** — checks every rupee your *own systems* send out.
+- **[Krediwall](https://github.com/peopleofproduct/krediwall)** — checks every rupee your *customers* spend on credit. PayRekha's engine semantics come from it.
+- **PayRekha** — checks every rupee your *own systems* send out.
 
 ## Project
 

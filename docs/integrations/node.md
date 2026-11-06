@@ -1,6 +1,6 @@
 # Node (in-process)
 
-Run Payrekha inside your payout service. There is no network hop: p99 is about 19 µs.
+Run PayRekha inside your payout service. There is no network hop: p99 is about 19 µs.
 
 ```ts
 import { Payrekha, hashBeneficiary, FileStateStore } from '@payrekha/core';

@@ -1,6 +1,6 @@
 {
   "name": "@payrekha/core",
-  "version": "0.1.0-alpha.0",
+  "version": "0.1.0-alpha.1",
   "description": "Generic, zero-dependency verdict engine, intent signing/verification, modes and alert states for the Payrekha payout firewall.",
   "license": "Apache-2.0",
   "author": "Kapil <kapil@theproduct.city>",
@@ -8,11 +8,22 @@
   "main": "dist/index.js",
   "types": "dist/index.d.ts",
   "exports": {
-    ".": { "types": "./dist/index.d.ts", "default": "./dist/index.js" }
+    ".": {
+      "types": "./dist/index.d.ts",
+      "default": "./dist/index.js"
+    }
   },
-  "files": ["dist", "NOTICE", "LICENSE", "README.md"],
+  "files": [
+    "dist",
+    "NOTICE",
+    "LICENSE",
+    "README.md"
+  ],
   "sideEffects": false,
-  "publishConfig": { "access": "public", "provenance": true },
+  "publishConfig": {
+    "access": "public",
+    "provenance": true
+  },
   "dependencies": {},
   "repository": {
     "type": "git",
@@ -20,7 +31,23 @@
     "directory": "packages/core"
   },
   "homepage": "https://github.com/peopleofproduct/payrekha#readme",
-  "bugs": { "url": "https://github.com/peopleofproduct/payrekha/issues" },
-  "engines": { "node": ">=22" },
-  "keywords": ["payrekha", "payout", "fraud", "firewall", "upi", "imps", "neft", "nbfc", "payment-aggregator", "cert-in", "india"]
+  "bugs": {
+    "url": "https://github.com/peopleofproduct/payrekha/issues"
+  },
+  "engines": {
+    "node": ">=22"
+  },
+  "keywords": [
+    "payrekha",
+    "payout",
+    "fraud",
+    "firewall",
+    "upi",
+    "imps",
+    "neft",
+    "nbfc",
+    "payment-aggregator",
+    "cert-in",
+    "india"
+  ]
 }

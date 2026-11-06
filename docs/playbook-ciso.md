@@ -1,6 +1,6 @@
-# Payrekha for CISOs — the security playbook
+# PayRekha for CISOs — the security playbook
 
-*From advisory to deployed control: what Payrekha covers, what it doesn't,
+*From advisory to deployed control: what PayRekha covers, what it doesn't,
 and exactly how it slots into your stack and your compliance story.*
 
 ---
@@ -24,7 +24,7 @@ authenticates the **caller**. None of them asks whether the **payout was
 decided by a legitimate system of record**. That gap is the attack surface,
 and it's exactly what this product closes.
 
-## 2. What Payrekha is in your control stack
+## 2. What PayRekha is in your control stack
 
 A **compensating control at the payout layer** — in-process, in your
 network, fail-open by design. It adds a second authorization factor *the
@@ -43,7 +43,7 @@ deploy *during* the risk window instead of after it.
 
 ### What it maps to
 
-| Advisory behaviour | Payrekha control |
+| Advisory behaviour | PayRekha control |
 |---|---|
 | ₹1-probe → large-value burst | `probe-then-burst` velocity pattern |
 | Holiday/weekend/night execution | `calendarFile`-armed `holiday-burst` rules |
@@ -97,7 +97,7 @@ your team can run it; it's written for them.
 
 ## 5. Compliance & audit evidence
 
-Deploying Payrekha generates the artefacts an auditor asks for *after* an
+Deploying PayRekha generates the artefacts an auditor asks for *after* an
 advisory response:
 
 - **Decision log** — every evaluation recorded (JSONL or **CEF** for
@@ -144,5 +144,5 @@ thresholds tune; the intent primitive doesn't age.
 > audit evidence we'll be asked for. It's alpha-grade — we're tuning before
 > enforcing — but the alternative this week was watching blind."
 
-That last line is the real answer: the choice wasn't Payrekha vs a mature
+That last line is the real answer: the choice wasn't PayRekha vs a mature
 vendor — it was visibility vs none, during the window.

@@ -1,10 +1,10 @@
-# Try Payrekha this weekend — a lender team's runbook
+# Try PayRekha this weekend — a lender team's runbook
 
 *For the security, payments or platform team at an NBFC, lender, bank or
 payment aggregator who read the CERT-In advisory and wants payout-layer
 coverage **before Monday**.*
 
-**The promise in one line:** by Sunday night you'll have Payrekha watching
+**The promise in one line:** by Sunday night you'll have PayRekha watching
 every payout in shadow mode — logging what it *would* have stopped, with
 canaries planted — and **zero possibility of it touching a customer payout.**
 
@@ -12,7 +12,7 @@ canaries planted — and **zero possibility of it touching a customer payout.**
 
 ## What "success" looks like Sunday night
 
-- Payrekha running inside your network in **shadow mode** — it observes, it
+- PayRekha running inside your network in **shadow mode** — it observes, it
   never blocks. If it crashes, traffic flows anyway (fail-open).
 - A Grafana board showing verdicts, rule hits and the would-stop rate.
 - 2–3 **canary beneficiaries** planted — accounts only you know are traps.
@@ -54,9 +54,18 @@ npm run replay -- --payouts your-ledger-export.csv
 ```
 
 You get a terminal summary plus `report.html`: which advisory-shaped
-patterns exist in *your* data, what Payrekha would have flagged, and —
+patterns exist in *your* data, what PayRekha would have flagged, and —
 just as important — **the false-positive list you'd need to tune**. This
 is the 30-minute answer to "is there anything here for us?"
+
+> **Tag your penny drops.** If your export's `kind` column marks
+> account-verification payouts as `VERIFICATION`, replay treats them as
+> the lender vouching for that beneficiary — they won't read as probes or
+> fresh-beneficiary flags. Untagged ₹1 rows still look like the attack
+> pattern; the report will tip you if it sees micro payouts and no
+> VERIFICATION rows. The report also prints **suggested starting
+> thresholds** computed from your export's own distribution — paste them
+> into `payrekha.json` before judging the verdicts.
 
 > Stop here if you want. You already have evidence for Monday. Everything
 > below makes it *live*.

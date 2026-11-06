@@ -1,13 +1,13 @@
 # Weekend protection kit — live in ~30 minutes, zero payout risk
 
 For a lender/NBFC/bank responding to the CERT-In advisory **this weekend**.
-Everything here runs **shadow mode**: Payrekha watches every payout and logs
+Everything here runs **shadow mode**: PayRekha watches every payout and logs
 what it *would* have stopped. It cannot decline traffic, and Envoy fails open
-if Payrekha dies. There is no path by which this kit blocks a customer payout.
+if PayRekha dies. There is no path by which this kit blocks a customer payout.
 
 ## What you get
 
-- `deploy/quickstart/` — one compose file: Payrekha + Envoy + Prometheus + Grafana
+- `deploy/quickstart/` — one compose file: PayRekha + Envoy + Prometheus + Grafana
 - Grafana dashboard auto-provisioned (alert banner, verdicts, rule hits, latency, errors)
 - `calendar.json` pre-armed for the Diwali/holiday window (edit to your SOC calendar)
 - `verify-deploy` — 12-check post-install proof, including a live canary trip
@@ -76,7 +76,7 @@ docker compose -f deploy/quickstart/docker-compose.yml up --build -d
 ```
 
 Grafana at `http://localhost:3000` (admin / your `.env` password) — the
-"Payrekha — Payout Protection" dashboard is already loaded. The **ALERT
+"PayRekha — Payout Protection" dashboard is already loaded. The **ALERT
 STATE** panel going red is the thing to watch.
 
 ## Step 4 — prove it (5 min)

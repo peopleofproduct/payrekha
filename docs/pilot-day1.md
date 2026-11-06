@@ -5,7 +5,7 @@ For NBFCs, lenders and banks responding to CERT-In CIAD-2026-0058 (CRAFTY
 FALCON): attackers are **inside** and calling your own payout APIs with valid
 credentials — ₹1 probes, settlement-API abuse, UAT→prod pivots, repackaged-app
 direct calls, holiday timing. This document is the fastest safe way to stand
-Payrekha up on *your* infrastructure. Two properties make it liability-free:
+PayRekha up on *your* infrastructure. Two properties make it liability-free:
 
 1. **It cannot decline anything.** `shadow` mode always lets the payout
    through — every verdict is logged as "what it would have done."
@@ -14,7 +14,7 @@ Payrekha up on *your* infrastructure. Two properties make it liability-free:
    mobile is ever stored or logged. No vendor dependency, no data leaves
    your perimeter — DPDP-clean by construction.
 
-If Payrekha itself crashes, payouts are unaffected (Envoy
+If PayRekha itself crashes, payouts are unaffected (Envoy
 `failure_mode_allow: true`). Removing it is deleting one filter — you are
 exactly where you started.
 
@@ -86,7 +86,7 @@ PAYREKHA_API_KEYS='payout-svc:prod:evaluate+outcomes:<token>,grafana:prod:read:<
 ### Two deployment shapes — pick by effort
 
 **No code change — Envoy `ext_authz`.** The filter in `deploy/envoy/` calls
-Payrekha before your payout API. `failure_mode_allow: true` means a Payrekha
+PayRekha before your payout API. `failure_mode_allow: true` means a PayRekha
 outage can never hold a payout; `x-client-id` is asserted *by Envoy*, never
 forwarded from the client. `docker compose -f deploy/docker-compose.yml up`
 shows the whole shape.
@@ -127,7 +127,7 @@ your rules do.
 
 Not covered — because nothing at this layer can be: patching, EDR, cloud
 audit logs, identity/MFA, IoC blocking, CERT-In incident reporting. See
-`docs/advisory-mapping.md` for the full boundary — Payrekha is the
+`docs/advisory-mapping.md` for the full boundary — PayRekha is the
 payout-layer control inside a wider response.
 
 ## What you watch in week one

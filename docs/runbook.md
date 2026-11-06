@@ -1,13 +1,13 @@
 # Runbook
 
-Procedures for the alerts in `deploy/prometheus/alerts.yml`. Each ends with "if unsure": the safe default is always to leave Payrekha up-but-unready (fail closed) rather than restart into a guessed state.
+Procedures for the alerts in `deploy/prometheus/alerts.yml`. Each ends with "if unsure": the safe default is always to leave PayRekha up-but-unready (fail closed) rather than restart into a guessed state.
 
 ## PayrekhaDown / PayrekhaNotReady (critical)
 
 `up == 0`, or `payrekha_ready == 0` — serving 503 on every API call. With Envoy `failure_mode_allow: false` this also 403s payouts at the edge.
 
 1. `kubectl logs deploy/payrekha --tail=100`. The unready reason is logged (`state unreadable`, `state written by another instance`).
-2. `state unreadable` — the snapshot cannot be read. Check the PVC/PG connectivity. **Do not delete the state file** — it may be the only copy of HIGH_ALERT and spent intents. Payrekha retries every `PAYREKHA_STATE_RETRY_MS` and readies itself when the store returns.
+2. `state unreadable` — the snapshot cannot be read. Check the PVC/PG connectivity. **Do not delete the state file** — it may be the only copy of HIGH_ALERT and spent intents. PayRekha retries every `PAYREKHA_STATE_RETRY_MS` and readies itself when the store returns.
 3. `state written by another instance` — a second writer fenced this one. Find the other replica (`kubectl get pods -l app=payrekha`). Keep exactly one; the fenced instance stays unready until the store's writer row is its own again after the competing pod is gone and the store is repaired per `docs/operations.md`.
 4. If the process is crash-looping on bad config, the last log line names the env var — fix the Secret/configmap, do not downgrade the image first.
 5. **If unsure:** leave it unready and page the owner. A fail-closed 503 is louder than a silent wrong-verdict and far cheaper than a lost HIGH_ALERT.

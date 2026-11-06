@@ -35,7 +35,7 @@ Close on the last line: **"8 attack steps. ₹0 left the building."** The dimmed
 
 ## Act 2: live, in front of a real proxy (4 min, `npm run demo:live`)
 
-> "This needs no SDK and no code change. Envoy sits in front of an existing payout API and asks Payrekha about every call."
+> "This needs no SDK and no code change. Envoy sits in front of an existing payout API and asks PayRekha about every call."
 
 Run `npm run demo:live`. Press Enter to move to each step.
 
@@ -61,7 +61,7 @@ Show `out/report.html`. It covers 3,280 synthetic NBFC payouts with three plante
 
 ## Likely questions
 
-- **"What if Payrekha is down?"** The client fail mode is `hold-above:5000000`: payouts above ₹50,000 are held, and smaller ones go through.
+- **"What if PayRekha is down?"** The client fail mode is `hold-above:5000000`: payouts above ₹50,000 are held, and smaller ones go through.
 - **"How fast is it?"** Measured p99 is about 19 µs in-process and 0.7 ms through the gateway (`npm run bench`).
 - **"Does it see our customers' account numbers?"** No. Beneficiaries are converted to keyed HMAC hashes (`hb1_…`) as soon as they arrive, and raw identifiers are rejected.
 - **"What if the attacker owns the LOS too?"** Then they hold the signing key, and the behaviour, canary and calendar rules are the remaining layers. See [threat-model.md](threat-model.md).

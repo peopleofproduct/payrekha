@@ -1,6 +1,6 @@
 {
   "name": "@payrekha/gateway",
-  "version": "0.1.0-alpha.0",
+  "version": "0.1.0-alpha.1",
   "description": "Payrekha HTTP gateway: evaluate, intents, outcomes, state, canaries, Envoy ext_authz adapter, JSONL/CEF decision log, Prometheus metrics, signed webhooks.",
   "license": "Apache-2.0",
   "author": "Kapil <kapil@theproduct.city>",

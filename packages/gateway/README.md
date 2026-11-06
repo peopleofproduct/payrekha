@@ -1,6 +1,6 @@
 # @payrekha/gateway
 
-The reference HTTP control plane for [Payrekha](https://github.com/peopleofproduct/payrekha): bearer-key auth with role-scoped keys (`evaluate`/`outcomes`/`intents`/`mint`/`read`), Envoy `ext_authz` adapter, decision log (JSONL/CEF), Prometheus metrics, signed webhooks, state lifecycle and admin surface.
+The reference HTTP control plane for [PayRekha](https://github.com/peopleofproduct/payrekha): bearer-key auth with role-scoped keys (`evaluate`/`outcomes`/`intents`/`mint`/`read`), Envoy `ext_authz` adapter, decision log (JSONL/CEF), Prometheus metrics, signed webhooks, state lifecycle and admin surface.
 
 ```bash
 payrekha-gateway            # boots from env — see docs/operations.md

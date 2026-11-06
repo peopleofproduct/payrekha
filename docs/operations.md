@@ -55,10 +55,10 @@ Alert on `payrekha_high_alert == 1` (see `deploy/prometheus/alerts.yml`).
 
 ## Client fail modes
 
-If Payrekha is unreachable, the client decides using `onUnavailable`:
+If PayRekha is unreachable, the client decides using `onUnavailable`:
 
 - `hold-above:5000000` (**default**): hold anything above ₹50,000 and let smaller payouts through.
-- `hold`: hold everything. This is the safest option, but an outage of Payrekha becomes an outage of your payouts.
+- `hold`: hold everything. This is the safest option, but an outage of PayRekha becomes an outage of your payouts.
 - `allow`: let everything through. Use it only in shadow-mode trials.
 
 Envoy is configured with `failure_mode_allow: false`, which is the same as `hold`. Each client-side fallback verdict is marked `degraded: true` and `unavailable: true`. Log those decisions too.

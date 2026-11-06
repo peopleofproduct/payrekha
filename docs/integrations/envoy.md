@@ -1,6 +1,6 @@
 # Envoy ext_authz
 
-Adds Payrekha in front of an existing payout API with no code change. The full working stack is `deploy/docker-compose.yml` (Envoy :10000 → fake `/payouts` :9000, Payrekha :8080).
+Adds PayRekha in front of an existing payout API with no code change. The full working stack is `deploy/docker-compose.yml` (Envoy :10000 → fake `/payouts` :9000, PayRekha :8080).
 
 ```yaml
 http_filters:

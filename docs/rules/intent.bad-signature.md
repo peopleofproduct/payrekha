@@ -8,6 +8,6 @@
 
 **Configuration:** Issuer keys in config (`issuers[]`), rotation by `keyId`.
 
-**Known false positives:** Key rotated in the LOS before the new public key was added to Payrekha. Add the new key first, then switch the LOS.
+**Known false positives:** Key rotated in the LOS before the new public key was added to PayRekha. Add the new key first, then switch the LOS.
 
 Every hit carries the rule ID, a plain-words reason with ₹ amounts, and structured `evidence`. Tests: `packages/rules/test/rules.test.ts`.

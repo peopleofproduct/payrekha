@@ -2,9 +2,9 @@
 
 *Mapped to the public advisory text. Not affiliated with or endorsed by CERT-In.*
 
-This table covers only the recommended actions that concern **payouts**: money leaving the entity through its own APIs. Payrekha is one control among many, and the second table lists what it does not cover.
+This table covers only the recommended actions that concern **payouts**: money leaving the entity through its own APIs. PayRekha is one control among many, and the second table lists what it does not cover.
 
-| Advisory concern / recommended action | Payrekha feature | Rule / setting |
+| Advisory concern / recommended action | PayRekha feature | Rule / setting |
 |---|---|---|
 | Attackers call the victim's own payment and disbursement APIs with valid credentials | Every payout must match a signed business intent from a separate system of record | `intent.missing`, `intent.bad-signature`, `intent.kind-mismatch` |
 | Re-use or tampering of legitimate transactions | Intents bound to amount ceiling, beneficiary, validity window and use count | `intent.amount-exceeds`, `intent.beneficiary-mismatch`, `intent.expired`, `intent.reused` |
@@ -22,17 +22,17 @@ This table covers only the recommended actions that concern **payouts**: money l
 | Least privilege and hardening of security tooling | Non-root, read-only container; hashed tokens; separate admin token | [threat-model.md](threat-model.md) |
 | Supply-chain integrity: signed code and releases | Signed commits, cosign-signed images, CycloneDX SBOM, SLSA provenance | [repository-settings.md](repository-settings.md) |
 
-## What Payrekha does not cover
+## What PayRekha does not cover
 
-Payrekha does not do any of the following. You still need them.
+PayRekha does not do any of the following. You still need them.
 
 - **Cloud audit logging** (CloudTrail, Azure Activity Log, GCP Audit Logs) and log retention.
 - **Patching** and vulnerability management of internet-facing systems.
-- **Secret scanning** of your own code and configuration. Payrekha's CI scans only Payrekha.
+- **Secret scanning** of your own code and configuration. PayRekha's CI scans only PayRekha.
 - **TLS inspection** and network egress control.
 - **EDR**, endpoint hardening and malware detection.
 - Identity: MFA, privileged access management, session control.
-- Removing or isolating exposed UAT/staging environments. Payrekha only refuses to let them move money.
-- Restricted indicators of compromise. Payrekha keys on behaviour and does not use CERT-In's restricted indicators.
+- Removing or isolating exposed UAT/staging environments. PayRekha only refuses to let them move money.
+- Restricted indicators of compromise. PayRekha keys on behaviour and does not use CERT-In's restricted indicators.
 - Incident reporting to CERT-In within the mandated timelines.
-- Payouts that bypass Payrekha on the network path. Network policy must make it the only route.
+- Payouts that bypass PayRekha on the network path. Network policy must make it the only route.
