@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: Apache-2.0
-// Copyright 2026 Kapil — People of Product
+// Copyright 2026 Kapil — People of Product™
 
 import { createHash, randomBytes } from 'node:crypto';
 import { generateIssuerKeyPair, hashBeneficiary, looksLikeRawIdentifier, Payrekha, signIntent, type FirewallConfig, type IntentKind, type PayoutRequest, type PayoutVerdict, type RuleHit } from '@payrekha/core';

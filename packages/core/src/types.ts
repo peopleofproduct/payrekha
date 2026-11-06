@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: Apache-2.0
-// Copyright 2026 Kapil — People of Product
+// Copyright 2026 Kapil — People of Product™
 
 /** Severity-ordered verdicts. Same vocabulary as Krediwall. */
 export const Verdict = {

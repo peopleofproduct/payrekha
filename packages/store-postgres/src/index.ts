@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: Apache-2.0
-// Copyright 2026 Kapil — People of Product
+// Copyright 2026 Kapil — People of Product™
 
 import pg from 'pg';
 import { signSnapshot, verifyAndUnwrap, type FirewallSnapshot, type Payrekha, type StateStore } from '@payrekha/core';

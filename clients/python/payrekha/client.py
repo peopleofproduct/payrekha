@@ -1,5 +1,5 @@
 # SPDX-License-Identifier: Apache-2.0
-# Copyright 2026 Kapil — People of Product
+# Copyright 2026 Kapil — People of Product™
 """Stdlib-only client for the Payrekha gateway, with an explicit fail mode."""
 
 from __future__ import annotations

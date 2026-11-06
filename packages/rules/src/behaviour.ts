@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: Apache-2.0
-// Copyright 2026 Kapil — People of Product
+// Copyright 2026 Kapil — People of Product™
 
 import { LruMap, TimeRing, Verdict, type IntentKind, type PayoutRule } from '@payrekha/core';
 import { hit, rupees } from './util.js';

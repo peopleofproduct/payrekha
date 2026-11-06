@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: Apache-2.0
-// Copyright 2026 Kapil — People of Product
+// Copyright 2026 Kapil — People of Product™
 
 import { hashBeneficiary, Verdict, type PayoutRule } from '@payrekha/core';
 import { hit } from './util.js';

@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 // SPDX-License-Identifier: Apache-2.0
-// Copyright 2026 — People of Product
+// Copyright 2026 — People of Product™
 //
 // Synthetic load check — answers the two questions only volume settles:
 //   1. What is evaluate() p50/p99/max at realistic state sizes?

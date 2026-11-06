@@ -187,7 +187,7 @@ There is no UI console (an operations console is planned), no ML, and no hosted 
 
 ## Family
 
-One line of defence per surface, from the same People of Product workshop:
+One line of defence per surface, from the same People of Product™ workshop:
 
 - **[Panini](https://github.com/peopleofproduct/Panini)** — checks the financial story you're *shown* (India's digital public infrastructure).
 - **[Krediwall](https://github.com/peopleofproduct/krediwall)** — checks every rupee your *customers* spend on credit. PayRekha's engine semantics come from it.
@@ -198,7 +198,7 @@ One line of defence per surface, from the same People of Product workshop:
 **PayRekha** is a **Panini Tech** project by **[People of Product™](https://theproduct.city)** — the team behind **Panini** and **Krediwall**, built to make India's open-finance infrastructure more open for everyone.
 
 - 🌐 Website — [peopleofproduct.github.io/payrekha](https://peopleofproduct.github.io/payrekha)
-- 💼 LinkedIn — PayRekha *(coming soon)* · [People of Product](https://www.linkedin.com/company/people-of-product)
+- 💼 LinkedIn — PayRekha *(coming soon)* · [People of Product™](https://www.linkedin.com/company/people-of-product)
 - 🐦 X — PayRekha *(coming soon)* · [@PeopleOfProduct](https://x.com/PeopleOfProduct)
 
 The open-source core is free forever — if it's protecting your payouts, you can [support the maintainers](SUPPORT.md).
@@ -207,4 +207,4 @@ The open-source core is free forever — if it's protecting your payouts, you ca
 
 ## License
 
-Apache-2.0. See [LICENSE](LICENSE). Copyright 2026 Kapil. Maintained by [People of Product](https://github.com/peopleofproduct)™. The Apache licence grants no trademark rights; see [TRADEMARKS.md](TRADEMARKS.md).
+Apache-2.0. See [LICENSE](LICENSE). Copyright 2026 Kapil. Maintained by [People of Product™](https://github.com/peopleofproduct)™. The Apache licence grants no trademark rights; see [TRADEMARKS.md](TRADEMARKS.md).

@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: Apache-2.0
-// Copyright 2026 Kapil — People of Product
+// Copyright 2026 Kapil — People of Product™
 
 import { intentShapeProblem, type Keyring, type VerifyFailure } from './intent.js';
 import { LruMap } from './lru.js';

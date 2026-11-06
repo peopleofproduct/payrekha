@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: Apache-2.0
-// Copyright 2026 Kapil — People of Product
+// Copyright 2026 Kapil — People of Product™
 
 import { createHmac, timingSafeEqual } from 'node:crypto';
 import { canonicalJson } from './canonical.js';

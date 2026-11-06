@@ -7,7 +7,7 @@
 
 The Java client (`clients/java`) sits under `city.theproduct.payrekha`, a package namespace derived from `theproduct.city`, a domain the org already controls. Maven Central (and most enterprise artifact proxies) require the `groupId` to be a domain the publisher can prove control over — verified via a DNS TXT record or repo-hosting link at publish time.
 
-PayRekha is positioned as "a Panini Tech project by People of Product". If PayRekha later gets its own domain or legal entity, a vendor-namespace artifact reads slightly off — and **renaming a package after a stable release is a breaking change**: every `import city.theproduct.payrekha.*` in consumer code must change.
+PayRekha is positioned as "a Panini Tech project by People of Product™". If PayRekha later gets its own domain or legal entity, a vendor-namespace artifact reads slightly off — and **renaming a package after a stable release is a breaking change**: every `import city.theproduct.payrekha.*` in consumer code must change.
 
 The window where a rename is free is *now* — the client is alpha and published nowhere yet (no Maven Central release exists; consumers at most compile from source).
 
@@ -24,7 +24,7 @@ The window where a rename is free is *now* — the client is alpha and published
 Keep `city.theproduct.payrekha`.
 
 - It is verifiable today — the first Maven Central upload could happen without buying anything.
-- The vendor namespace is honest: People of Product is the publisher regardless of future product branding (compare `com.fasterxml` for `jackson` — nobody reads it as a domain problem).
+- The vendor namespace is honest: People of Product™ is the publisher regardless of future product branding (compare `com.fasterxml` for `jackson` — nobody reads it as a domain problem).
 - The remaining risk is only aesthetic, and only materialises if a `payrekha` domain/entity actually arrives.
 
 **Reopening trigger:** if a `payrekha` domain is registered before the first **stable** (non-alpha/beta) release, rename then — that is the last cheap window. The rename touches `clients/java/**` package declarations, the directory layout, the README/docs snippets, and the build script. Once `1.x` exists with the old namespace, it stays forever.

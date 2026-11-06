@@ -3,7 +3,7 @@
 **The PayRekha open-source core is free forever.** Apache-2.0, every
 protective rule included, no telemetry. Protection is never paywalled:
 any rule that stops money leaving stays in the open core. Over time,
-People of Product plans optional paid help for teams that want it, such
+People of Product™ plans optional paid help for teams that want it, such
 as operations tooling, audit evidence and support, but nothing that
 makes the open-source version less safe.
 

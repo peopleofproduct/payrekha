@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: Apache-2.0
-// Copyright 2026 Kapil — People of Product
+// Copyright 2026 Kapil — People of Product™
 //
 // npm run bench   (builds first)
 // In-process: per-call latency of Payrekha.evaluate() with the full v0.1 rule

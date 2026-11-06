@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: Apache-2.0
-// Copyright 2026 Kapil — People of Product
+// Copyright 2026 Kapil — People of Product™
 
 /** India has one zone and no DST, so a fixed +05:30 offset is exact. */
 export const IST_OFFSET_MS = 5.5 * 3_600_000;

@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 // SPDX-License-Identifier: Apache-2.0
-// Copyright 2026 Kapil — People of Product
+// Copyright 2026 Kapil — People of Product™
 //
 // Zero-code intent bridge: turn your system's existing "approved" webhook
 // into a managed intent — no changes on the sender side. Point your LOS /

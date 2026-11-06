@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: Apache-2.0
-// Copyright 2026 Kapil — People of Product
+// Copyright 2026 Kapil — People of Product™
 
 // Package payrekha signs Payrekha intents and calls the Payrekha gateway.
 // Standard library only. Signatures are byte-for-byte compatible with @payrekha/core.

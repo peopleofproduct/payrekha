@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 // SPDX-License-Identifier: Apache-2.0
-// Copyright 2026 — People of Product
+// Copyright 2026 — People of Product™
 //
 // Drill D1 — crash/restart evidence for the file store, end to end.
 // Boots the real gateway bin, writes state worth keeping (HIGH_ALERT +

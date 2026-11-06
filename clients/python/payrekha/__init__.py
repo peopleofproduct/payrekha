@@ -1,5 +1,5 @@
 # SPDX-License-Identifier: Apache-2.0
-# Copyright 2026 Kapil — People of Product
+# Copyright 2026 Kapil — People of Product™
 """Payrekha intent signing for systems of record (LOS/LMS, settlement engines).
 
 Standard library only for HMAC; Ed25519 signing uses the optional

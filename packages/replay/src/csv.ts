@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: Apache-2.0
-// Copyright 2026 Kapil — People of Product
+// Copyright 2026 Kapil — People of Product™
 
 /** RFC 4180 CSV → array of header-keyed rows. Quotes, escaped quotes, CRLF. */
 export function parseCsv(text: string): Record<string, string>[] {

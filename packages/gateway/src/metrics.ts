@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: Apache-2.0
-// Copyright 2026 Kapil — People of Product
+// Copyright 2026 Kapil — People of Product™
 
 import type { Payrekha } from '@payrekha/core';
 import type { GatewayStats } from './server.js';
