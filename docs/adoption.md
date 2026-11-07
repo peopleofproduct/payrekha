@@ -70,8 +70,13 @@ host must hold" instead of "two keys must collude". Price that honestly:
 | Environments where the gateway is better isolated than the LOS (rare — verify) | Anywhere a mint-role key could sit next to an evaluate caller |
 
 If you do run mint, contain it: `mint` on a dedicated role key (never bundled
-with `evaluate`), ed25519 only (boot enforces), tight `defaultTtlMs`/`maxTtlMs`,
-issuer `kinds` scoped to exactly the kinds mint should authorise, and the
+with `evaluate` — boot warns on colocated roles), ed25519 only (boot
+enforces), tight `defaultTtlMs`/`maxTtlMs`, and the guardrails that bound a
+stolen mint key: `gateway.mint.maxAmountPaise` caps every minted intent's
+amount, `mintsPerMinute` bounds the signing rate (default 60/min per key),
+and `modes: ["shadow","advise"]` makes minting impossible while a kind is
+enforced — the strongest containment short of external signing. Issuer
+`kinds` scoped to exactly the kinds mint should authorise, and the
 `DELETE /v1/issuers/<keyId>` revocation path rehearsed — a mint key is an
 issuer key, and revoking it kills every intent it signed instantly. The plan
 to move off it (Tier 2 SDK signing) should be a roadmap item with an owner,

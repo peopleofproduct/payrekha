@@ -3,10 +3,10 @@
 
 import { createHash } from 'node:crypto';
 import { readFileSync } from 'node:fs';
-import { FileStateStore, Payrekha, signIntent, type FirewallConfig, type IssuerKey, type SignerKey, type StateStore } from '@payrekha/core';
+import { FileStateStore, Payrekha, signIntent, type FirewallConfig, type IssuerKey, type Mode, type StateStore } from '@payrekha/core';
 import { payrekhaRules, type RulesConfig } from '@payrekha/rules';
 import { auditRecord, fileDecisionLog } from './log.js';
-import { API_ROLES, createGateway, type ApiKey, type ApiRole, type ExtAuthzOptions, type GatewayHandle } from './server.js';
+import { API_ROLES, createGateway, type ApiKey, type ApiRole, type ExtAuthzOptions, type GatewayHandle, type GatewayOptions } from './server.js';
 import { WebhookSender } from './webhook.js';
 
 /** `payrekha.json`: everything except secrets, which come from the environment. */
@@ -26,8 +26,16 @@ export interface PayrekhaFileConfig {
     /**
      * Managed intents (POST /v1/intents/mint): keyId must be an ed25519 issuer
      * in `issuers`; the private key comes from PAYREKHA_MINT_KEY.
+     * `maxAmountPaise`/`mintsPerMinute`/`modes` bound a stolen mint key.
      */
-    readonly mint?: { readonly keyId?: string; readonly defaultTtlMs?: number; readonly maxTtlMs?: number };
+    readonly mint?: {
+      readonly keyId?: string;
+      readonly defaultTtlMs?: number;
+      readonly maxTtlMs?: number;
+      readonly maxAmountPaise?: number;
+      readonly mintsPerMinute?: number;
+      readonly modes?: readonly Mode[];
+    };
   };
 }
 
@@ -173,18 +181,25 @@ export function bootFromEnv(env: NodeJS.ProcessEnv = process.env, log: (m: strin
   // the keyring entry must fail startup, not the first real mint.
   const mintKeyId = env['PAYREKHA_MINT_KEY_ID'] ?? cfg.gateway?.mint?.keyId;
   const mintSecret = env['PAYREKHA_MINT_KEY'];
-  let mint: { keyId: string; key: SignerKey; defaultTtlMs: number; maxTtlMs: number } | undefined;
+  let mint: GatewayOptions['mint'];
   if (mintKeyId !== undefined || mintSecret !== undefined) {
     if (mintKeyId === undefined || mintSecret === undefined || mintSecret === '')
       throw new Error('managed intents need both PAYREKHA_MINT_KEY_ID and PAYREKHA_MINT_KEY (pkcs8 base64 or PEM)');
     const meta = firewall.keyring.list().find((k) => k.keyId === mintKeyId);
     if (meta === undefined) throw new Error(`PAYREKHA_MINT_KEY_ID '${mintKeyId}' is not a configured issuer key`);
     if (meta.alg !== 'ed25519') throw new Error(`mint key '${mintKeyId}' must be ed25519 — managed intents are only as strong as their key`);
+    const mintModes = cfg.gateway?.mint?.modes;
+    if (mintModes !== undefined && !mintModes.every((m) => m === 'shadow' || m === 'advise' || m === 'enforce')) throw new Error('gateway.mint.modes must be a subset of shadow|advise|enforce');
+    if (cfg.gateway?.mint?.maxAmountPaise !== undefined && (!Number.isSafeInteger(cfg.gateway.mint.maxAmountPaise) || cfg.gateway.mint.maxAmountPaise <= 0)) throw new Error('gateway.mint.maxAmountPaise must be a positive integer');
+    if (cfg.gateway?.mint?.mintsPerMinute !== undefined && (!Number.isSafeInteger(cfg.gateway.mint.mintsPerMinute) || cfg.gateway.mint.mintsPerMinute <= 0)) throw new Error('gateway.mint.mintsPerMinute must be a positive integer');
     mint = {
       keyId: mintKeyId,
       key: { alg: 'ed25519', privateKey: mintSecret },
       defaultTtlMs: cfg.gateway?.mint?.defaultTtlMs ?? 300_000,
       maxTtlMs: cfg.gateway?.mint?.maxTtlMs ?? 86_400_000,
+      ...(cfg.gateway?.mint?.maxAmountPaise !== undefined ? { maxAmountPaise: cfg.gateway.mint.maxAmountPaise } : {}),
+      ...(cfg.gateway?.mint?.mintsPerMinute !== undefined ? { mintsPerMinute: cfg.gateway.mint.mintsPerMinute } : {}),
+      ...(mintModes !== undefined ? { modes: mintModes } : {}),
     };
     const probe = signIntent(
       {
@@ -202,6 +217,11 @@ export function bootFromEnv(env: NodeJS.ProcessEnv = process.env, log: (m: strin
     );
     if (!firewall.keyring.verify(probe, Date.now()).ok) throw new Error(`PAYREKHA_MINT_KEY does not verify against issuer key '${mintKeyId}'`);
     log(`warning: managed intents enabled (keyId '${mintKeyId}') — this host can mint intents. Prefer externally-signed intents in enforce mode; see docs/adoption.md`);
+    if (mint.maxAmountPaise === undefined) log('warning: gateway.mint.maxAmountPaise unset — a stolen mint key can authorise any amount its issuer kinds allow');
+    for (const k of scopedKeys) {
+      const roles = k.roles ?? API_ROLES;
+      if (roles.includes('mint') && (roles.includes('evaluate') || roles.includes('intents'))) log(`warning: API key '${k.id}' holds mint alongside evaluate/intents — split the roles so one stolen token cannot both authorise and execute`);
+    }
   }
   const gateway = createGateway({
     firewall,

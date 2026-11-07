@@ -89,9 +89,23 @@ export interface GatewayOptions {
    * intent with a gateway-held key — the lowest-effort adoption tier for a
    * system of record. Anyone who can call mint can authorise payouts up to
    * the signing key's kinds, so keep it on a separate `mint`-role API key and
-   * prefer externally-signed intents in enforce mode.
+   * prefer externally-signed intents in enforce mode. Guardrails bound what a
+   * stolen mint key can do: `maxAmountPaise` caps each intent's amount,
+   * `mintsPerMinute` bounds the signing rate (default 60), and `modes`
+   * restricts minting to named effective modes (e.g. shadow/advise only).
    */
-  readonly mint?: { readonly keyId: string; readonly key: SignerKey; readonly defaultTtlMs: number; readonly maxTtlMs: number };
+  readonly mint?: {
+    readonly keyId: string;
+    readonly key: SignerKey;
+    readonly defaultTtlMs: number;
+    readonly maxTtlMs: number;
+    /** Ceiling on a minted intent's maxAmountPaise. Unset = no cap beyond kind scope. */
+    readonly maxAmountPaise?: number;
+    /** Mints per minute per API key. Default 60. */
+    readonly mintsPerMinute?: number;
+    /** Effective modes in which minting is allowed, e.g. `['shadow','advise']`. Unset = all modes. */
+    readonly modes?: readonly Mode[];
+  };
   readonly maxBodyBytes?: number;
   readonly now?: () => number;
   readonly version?: string;
@@ -184,6 +198,7 @@ export function createGateway(o: GatewayOptions): GatewayHandle {
   const onError = o.onError ?? (() => undefined);
 
   const intentCost = new Map<string, { reset: number; used: number }>();
+  const mintCost = new Map<string, { reset: number; used: number }>();
   const recentDecisions: ReturnType<typeof decisionRecord>[] = [];
   const authKey = (req: IncomingMessage, role: ApiRole): ApiKey => {
     const t = bearer(req);
@@ -280,6 +295,17 @@ export function createGateway(o: GatewayOptions): GatewayHandle {
     if (path === '/v1/intents/mint' && m === 'POST') {
       const key = authKey(req, 'mint');
       if (o.mint === undefined) throw new HttpError(503, 'managed intents are not configured on this gateway');
+      // Minting signs intents — bound how fast one key may spend that power,
+      // charged before the body is read so rate-limited spam stays cheap.
+      const mintBudget = o.mint.mintsPerMinute ?? 60;
+      const t = now();
+      let mb = mintCost.get(key.id);
+      if (mb === undefined || t >= mb.reset) {
+        mb = { reset: t + 60_000, used: 0 };
+        mintCost.set(key.id, mb);
+      }
+      if (mb.used + 1 > mintBudget) throw new HttpError(429, `mint budget exceeded (${mintBudget}/min)`);
+      mb.used += 1;
       const body = await readBody(req, max);
       if (typeof body !== 'object' || body === null) throw new HttpError(400, 'a JSON object is required');
       const b = body as Record<string, unknown>;
@@ -301,6 +327,12 @@ export function createGateway(o: GatewayOptions): GatewayHandle {
       if (maxUses !== undefined && (!Number.isSafeInteger(maxUses) || (maxUses as number) < 1 || (maxUses as number) > 1_000_000)) throw new HttpError(400, 'maxUses must be an integer 1..1e6');
       if (ttlMs !== undefined && (!Number.isSafeInteger(ttlMs) || (ttlMs as number) < 1 || (ttlMs as number) > o.mint.maxTtlMs)) throw new HttpError(400, `ttlMs must be within 1..${o.mint.maxTtlMs}`);
       if (notBeforeMs !== undefined && !Number.isSafeInteger(notBeforeMs)) throw new HttpError(400, 'notBeforeMs must be epoch ms');
+      if (o.mint.maxAmountPaise !== undefined && (amount as number) > o.mint.maxAmountPaise) throw new HttpError(400, `maxAmountPaise above the mint ceiling (${o.mint.maxAmountPaise})`);
+      if (o.mint.modes !== undefined) {
+        const cm = fw.currentMode;
+        const eff = cm.modeByKind[kind as IntentKind] ?? cm.mode;
+        if (!o.mint.modes.includes(eff)) throw new HttpError(403, `minting disabled while ${String(kind)} is in ${eff} mode (gateway.mint.modes)`);
+      }
       const spec: MintSpec = {
         keyId: o.mint.keyId,
         key: o.mint.key,

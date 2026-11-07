@@ -22,7 +22,7 @@ const T0 = Date.UTC(2026, 10, 4, 5, 30);
 const LOS = generateIssuerKeyPair();
 const LOS2 = generateIssuerKeyPair();
 
-function boot(mode: 'shadow' | 'enforce', extra: { intentVerificationsPerMinute?: number; mint?: boolean } = {}) {
+function boot(mode: 'shadow' | 'enforce', extra: { intentVerificationsPerMinute?: number; mint?: boolean | { maxAmountPaise?: number; mintsPerMinute?: number; modes?: readonly ('shadow' | 'advise' | 'enforce')[] } } = {}) {
   const log = memoryDecisionLog();
   const fw = new Payrekha(payrekhaRules({ band: false }).rules, {
     config: { mode, adminTokenSha256: sha(ADMIN) },
@@ -46,9 +46,9 @@ function boot(mode: 'shadow' | 'enforce', extra: { intentVerificationsPerMinute?
     hashKey: HK,
     decisionLog: log,
     now: () => T0,
-    ...(extra.mint === true
+    ...(extra.mint !== undefined && extra.mint !== false
       // gitleaks:allow — LOS2 is a per-run generated keypair, not a committed secret
-      ? { mint: { keyId: 'los-2', key: { alg: 'ed25519' as const, privateKey: LOS2.privateKey }, defaultTtlMs: 60_000, maxTtlMs: 3_600_000 } }
+      ? { mint: { keyId: 'los-2', key: { alg: 'ed25519' as const, privateKey: LOS2.privateKey }, defaultTtlMs: 60_000, maxTtlMs: 3_600_000, ...(typeof extra.mint === 'object' ? extra.mint : {}) } }
       : {}),
     ...(extra.intentVerificationsPerMinute !== undefined ? { intentVerificationsPerMinute: extra.intentVerificationsPerMinute } : {}),
     extAuthz: {
@@ -346,6 +346,38 @@ describe('gateway (enforce): managed intents', () => {
     assert.equal((await mint(body, EVALTOK)).status, 403, 'evaluate role cannot mint');
     assert.equal((await fetch(url + '/v1/intents', { method: 'POST', headers: { authorization: `Bearer ${MINTTOK}`, 'content-type': 'application/json' }, body: JSON.stringify(loanIntent('m-x')) })).status, 403, 'mint role cannot register foreign-signed intents');
     assert.equal(fw.intents.get(m1.intentId)?.intent.issuer, 'los-prod');
+  });
+});
+describe('gateway (enforce): mint guardrails', () => {
+  const mintBody = { kind: 'LOAN_DISBURSAL', amountPaise: 2_40_000_00, beneficiaryRef: benRef };
+  const call = (base: string, body: unknown = mintBody) => fetch(`${base}/v1/intents/mint`, { method: 'POST', headers: { authorization: `Bearer ${MINTTOK}`, 'content-type': 'application/json' }, body: JSON.stringify(body) });
+  it('amount ceiling refuses, per-key rate limits, mode allowlist blocks enforce mints', async () => {
+    const { gw } = boot('enforce', { mint: { maxAmountPaise: 3_00_000_00, mintsPerMinute: 3 } });
+    const u1 = await listen(gw);
+    try {
+      assert.equal((await call(u1, { ...mintBody, amountPaise: 3_00_000_01 })).status, 400, 'above the mint ceiling refused');
+      assert.equal((await call(u1)).status, 201);
+      assert.equal((await call(u1)).status, 201);
+      assert.equal((await call(u1)).status, 429, 'fourth mint inside the minute is rate-limited');
+    } finally {
+      gw.server.close();
+    }
+    const { gw: gw2 } = boot('enforce', { mint: { modes: ['shadow', 'advise'] } });
+    const u2 = await listen(gw2);
+    try {
+      const r = await call(u2);
+      assert.equal(r.status, 403, 'minting refused while the kind is in enforce');
+      assert.match(((await r.json()) as { error?: string }).error ?? '', /enforce mode/);
+    } finally {
+      gw2.server.close();
+    }
+    const { gw: gw3 } = boot('shadow', { mint: { modes: ['shadow', 'advise'] } });
+    const u3 = await listen(gw3);
+    try {
+      assert.equal((await call(u3)).status, 201, 'same allowlist mints in shadow');
+    } finally {
+      gw3.server.close();
+    }
   });
 });
 describe('gateway (enforce): intent verification budget', () => {
