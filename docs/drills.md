@@ -16,6 +16,7 @@ the date + result in your ops log.
 | D6 | HIGH_ALERT reset | `curl` | Verdicts resume; audit shows actor+reason |
 | D7 | SIEM delivery | Manual | One decision + one audit line parse in SIEM |
 | D8 | Active-active invariants | `scripts/drill-shared-state.mjs` | Exactly-one spend, stored verdicts, fail-closed outage, revocation reach |
+| D9 | Active-active cutover | `scripts/state-to-shared.mjs` (manual) | Imported counters continue, old payoutIds replay REVIEW, no `uses` conflicts |
 
 ## D1 — kill -9 during save (automated)
 
@@ -115,3 +116,19 @@ generation check; (S5) a `failed` outcome on B frees the use A committed.
 machinery regressed — release blocker for any active-active deploy. Run it
 against the real Postgres (`PAYREKHA_SHARED_PG_URL`) before go-live; the
 in-memory run covers the flow, not the SQL.
+
+## D9 — active-active cutover rehearsal (manual)
+
+Before flipping a live single-node/snapshot deployment to active-active:
+
+1. Export the live snapshot (`/v1/state` backup or the state file itself).
+2. `PAYREKHA_STATE_KEY=… node scripts/state-to-shared.mjs --file <snap> --dry-run` — signature verifies, counts look right.
+3. `PAYREKHA_SHARED_PG_URL=… node scripts/state-to-shared.mjs --file <snap>` — import completes; re-run it once to prove idempotency (counters merge upward, bindings keep first-write).
+4. Boot a second replica with `sharedState` on; `payrekha_shared_commits_total` rises on both, `/readyz` 200.
+5. Verify one in-flight intent from before the cutover: a payout citing it commits with `uses` continuing from the imported value, not restarting at zero.
+
+**Pass:** imported intent spends from its pre-cutover counter, a pre-cutover
+payoutId retry replays REVIEW (not a double spend), and no
+`payrekha_shared_conflicts_total{conflict="uses"}` spike appears on cutover
+day. A botched import that shows `intent '…' conflicts with the registered
+copy` means the snapshot and the live store disagree — do not proceed.

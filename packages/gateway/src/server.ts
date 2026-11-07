@@ -137,6 +137,8 @@ export interface GatewayStats {
   logErrors: number;
   ready: boolean;
   notReadyReason: string;
+  /** Live reference into the SharedStateDriver counters — only set when sharedState is configured. */
+  shared?: SharedStateDriver['metrics'];
 }
 
 class HttpError extends Error {
@@ -224,6 +226,7 @@ export function createGateway(o: GatewayOptions): GatewayHandle {
     }
   };
   const shared = o.sharedState === undefined ? undefined : new SharedStateDriver(fw, o.sharedState, onError, setSharedReady, now);
+  if (shared !== undefined) stats.shared = shared.metrics;
   shared?.start();
   const authKey = (req: IncomingMessage, role: ApiRole): ApiKey => {
     const t = bearer(req);

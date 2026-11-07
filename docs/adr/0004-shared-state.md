@@ -214,7 +214,15 @@ the default.
 | Granularity | `gateway.sharedState.commitPolicy`: `'all'` (default) or `IntentKind[]`; `controlPollMs` (default 2 s) warms the read path. Config-only mode without `PAYREKHA_SHARED_PG_URL` uses the memory backend (single replica, warned at boot). |
 | Fail closed | Commit/refresh failure → `fw.unbind` (local consumption rolled back) → enforce: `BLOCK`+`DECLINE` with `store.commit-failed` evidence; otherwise `REVIEW`+degraded. `/readyz` drops while unreachable and recovers via the poll. Registration/mint/outcome writes are synchronous — 503 + safe retry, never queued. |
 
-Still open from §7: reservation tombstone retention sweeps, `state export →
-shared import` migration tooling, commit-latency metrics, and the
-process-level chaos matrix beyond `scripts/drill-shared-state.mjs`
-(in-memory + real-PG modes).
+### Phase 1.5 (shipped)
+
+| ADR piece | Shipped as |
+|---|---|
+| Tombstone retention | `gateway.sharedState.reservationRetentionDays` — the driver calls `backend.purgeReservations` at most hourly on a control-poll tick. Postgres deletes `WHERE settled = true AND created_at < now() - …` — the **database clock**, never node time. Only settled rows go; pending reservations hold live intents. `payrekha_shared_purged_reservations_total` counts them. |
+| Migration tooling | `scripts/state-to-shared.mjs` — imports a signed file snapshot into the shared backend before cutover: intents `GREATEST`-merge counters (a live replica is never walked backwards), reservations `INSERT … ON CONFLICT DO NOTHING` (first binding wins), control state merges through `writeControl` (revocations/alert/per-kind modes are unioned, never reset; `mode` stays config-authoritative). Imported tombstones carry a synthesized `REVIEW` verdict — a retry holds for review rather than replaying a fabricated ALLOW. Idempotent: safe to re-run after a partial failure or under live single-node traffic. `--dry-run` verifies without writing. |
+| Commit metrics | `payrekha_shared_{commits,committed,conflicts,failclosed,miss_fetches,stale_syncs,purged_reservations}_total` + `payrekha_shared_commit_ms_{sum,count,max}` on `/metrics`, labeled only by conflict kind — no unbounded cardinality. |
+
+Still open from §7: the process-level chaos matrix beyond
+`scripts/drill-shared-state.mjs` (kill-mid-commit, PG failover, partition —
+Postgres HA drills live outside this repo), canary control propagation, and
+`PAYREKHA_SHARED_PG_URL`-backed CI coverage (tests skip without a database).

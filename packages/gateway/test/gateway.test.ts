@@ -654,4 +654,48 @@ describe('shared state (ADR 0004 active-active)', () => {
       await fast.closeShared();
     }
   });
+
+  it('retention purges settled tombstones on a poll tick and /metrics exposes the commit counters', async () => {
+    const ROTOK = 'ro-token-0123456789abcdef';
+    const be = new MemorySharedBackend();
+    // An already-settled tombstone seeded before the gateway starts — the
+    // first refresh tick runs the (hourly-throttled) purge. The sleep ages
+    // the row past the millisecond cutoff — real Date.now() has ~1ms grain.
+    await be.importReservation({ payoutId: 'p-old', sourceKeyId: 'k', intentId: 'int-old', approvalIds: [], amountPaise: 1, verdict: { verdict: 'ALLOW' }, settled: true });
+    await sleep(10);
+    const fw = new Payrekha(payrekhaRules({ band: false }).rules, {
+      config: { mode: 'enforce', adminTokenSha256: sha(ADMIN) },
+      keys: issuerKeys,
+      now: () => T0,
+    });
+    const gw = createGateway({
+      firewall: fw,
+      apiKeys: [
+        { id: 'lms', sha256: sha(API), origin: 'prod' },
+        { id: 'reg', sha256: sha(REGTOK), origin: 'prod', roles: ['intents'] },
+        { id: 'ro', sha256: sha(ROTOK), origin: 'prod', roles: ['read'] },
+      ],
+      adminKeySha256: sha(ADMIN),
+      hashKey: HK,
+      sharedState: { backend: be, controlPollMs: 20, reservationRetentionMs: 1 },
+      now: () => T0,
+    });
+    const u = await listen(gw);
+    try {
+      await sleep(80);
+      assert.deepEqual(await be.reservationStats(), { pending: 0, settled: 0 }, 'the seeded tombstone must be purged');
+      const post = (path: string, body: unknown, tok = API) => fetch(u + path, { method: 'POST', headers: { authorization: `Bearer ${tok}`, 'content-type': 'application/json' }, body: JSON.stringify(body) });
+      assert.equal((await post('/v1/intents', loanIntent('int-met'), REGTOK)).status, 201);
+      const v = (await (await post('/v1/evaluate', { payoutId: 'p-met', intentId: 'int-met', ...loan })).json()) as { verdict: string };
+      assert.equal(v.verdict, 'ALLOW');
+      const text = await (await fetch(u + '/metrics', { headers: { authorization: `Bearer ${ROTOK}` } })).text();
+      assert.ok(text.includes('payrekha_shared_commits_total 1'), text);
+      assert.ok(text.includes('payrekha_shared_committed_total 1'), text);
+      assert.ok(text.includes('payrekha_shared_purged_reservations_total 1'), text);
+      assert.ok(text.includes('payrekha_shared_commit_ms_count 1'), text);
+    } finally {
+      gw.server.close();
+      await gw.closeShared();
+    }
+  });
 });

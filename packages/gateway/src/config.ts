@@ -45,6 +45,8 @@ export interface PayrekhaFileConfig {
     readonly sharedState?: {
       readonly commitPolicy?: 'all' | readonly IntentKind[];
       readonly controlPollMs?: number;
+      /** Settled reservation tombstone retention, e.g. 90 for days ×86400000 — purged hourly on the store clock. */
+      readonly reservationRetentionDays?: number;
     };
   };
 }
@@ -140,6 +142,10 @@ function postgresShared(url: string, tablePrefix: string | undefined): SharedSta
     settleReservation: async (id, k) => (await be).settleReservation(id, k),
     readControl: async () => (await be).readControl(),
     writeControl: async (m) => (await be).writeControl(m),
+    importIntent: async (r) => (await be).importIntent(r),
+    importReservation: async (r) => (await be).importReservation(r),
+    purgeReservations: async (ms) => (await be).purgeReservations(ms),
+    reservationStats: async () => (await be).reservationStats(),
     close: async () => (await be).close?.(),
   };
 }
@@ -266,9 +272,11 @@ export function bootFromEnv(env: NodeJS.ProcessEnv = process.env, log: (m: strin
     const policy = sharedCfg?.commitPolicy ?? 'all';
     if (policy !== 'all' && !policy.every((k) => INTENT_KINDS.includes(k))) throw new Error('gateway.sharedState.commitPolicy must be "all" or a list of IntentKinds');
     if (sharedCfg?.controlPollMs !== undefined && (!Number.isSafeInteger(sharedCfg.controlPollMs) || sharedCfg.controlPollMs < 100)) throw new Error('gateway.sharedState.controlPollMs must be an integer ≥ 100');
+    const retentionDays = sharedCfg?.reservationRetentionDays;
+    if (retentionDays !== undefined && (typeof retentionDays !== 'number' || !Number.isFinite(retentionDays) || retentionDays <= 0)) throw new Error('gateway.sharedState.reservationRetentionDays must be a positive number');
     const backend = sharedPgUrl !== undefined ? postgresShared(sharedPgUrl, env['PAYREKHA_SHARED_PG_PREFIX']) : new MemorySharedBackend();
     if (sharedPgUrl === undefined) log('warning: sharedState enabled without PAYREKHA_SHARED_PG_URL — in-memory backend: single replica only');
-    sharedState = { backend, commitPolicy: policy, ...(sharedCfg?.controlPollMs !== undefined ? { controlPollMs: sharedCfg.controlPollMs } : {}) };
+    sharedState = { backend, commitPolicy: policy, ...(sharedCfg?.controlPollMs !== undefined ? { controlPollMs: sharedCfg.controlPollMs } : {}), ...(retentionDays !== undefined ? { reservationRetentionMs: Math.round(retentionDays * 86_400_000) } : {}) };
     log(`shared state: ${backend.describe} (commitPolicy: ${policy === 'all' ? 'all' : policy.join(',')})`);
   }
   const gateway = createGateway({

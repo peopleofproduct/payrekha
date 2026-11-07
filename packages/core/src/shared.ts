@@ -73,6 +73,22 @@ export interface SharedStateBackend {
    * the caller retries with a fresh read.
    */
   writeControl(mutate: (cur: SharedControlState) => SharedControlState): Promise<boolean>;
+  /**
+   * Import an intent + counters at cutover (`state → shared import`). Existing
+   * rows keep the *higher* counters — a replica that already committed must
+   * not be walked backwards.
+   */
+  importIntent(rec: { readonly intent: Intent; readonly uses: number; readonly usedPaise: number }): Promise<void>;
+  /**
+   * Import a reservation binding at cutover. First row wins (`ON CONFLICT DO
+   * NOTHING`) — a binding that already exists is newer truth, not an error.
+   * `verdict` is whatever the importer synthesized (snapshot rows carry none).
+   */
+  importReservation(r: { readonly payoutId: string; readonly sourceKeyId: string; readonly intentId: string; readonly approvalIds: readonly string[]; readonly amountPaise: number; readonly verdict: unknown; readonly settled: boolean }): Promise<void>;
+  /** Delete settled reservation tombstones older than `olderThanMs` (store clock). Returns rows purged. */
+  purgeReservations(olderThanMs: number): Promise<number>;
+  /** Reservation counts for ops visibility — pending rows are intents still held. */
+  reservationStats(): Promise<{ readonly pending: number; readonly settled: number }>;
   close?(): Promise<void>;
 }
 
@@ -85,7 +101,7 @@ export interface SharedStateBackend {
 export class MemorySharedBackend implements SharedStateBackend {
   readonly describe = 'memory';
   private readonly intents = new Map<string, { intent: Intent; uses: number; usedPaise: number }>();
-  private readonly reservations = new Map<string, { verdict: unknown; settled: boolean; intentId: string; approvalIds: readonly string[]; amountPaise: number; sourceKeyId: string }>();
+  private readonly reservations = new Map<string, { verdict: unknown; settled: boolean; intentId: string; approvalIds: readonly string[]; amountPaise: number; sourceKeyId: string; createdMs?: number }>();
   private control: SharedControlState = { gen: 0 };
   /** Test hook: pretend a call failed — fail-closed semantics get exercised. */
   failNext = false;
@@ -129,7 +145,7 @@ export class MemorySharedBackend implements SharedStateBackend {
       cur.usedPaise += c.amountPaise;
       counters[id] = { uses: cur.uses, usedPaise: cur.usedPaise };
     }
-    this.reservations.set(c.payoutId, { verdict: c.verdict, settled: false, intentId: c.intentId, approvalIds: c.approvalIds, amountPaise: c.amountPaise, sourceKeyId: c.sourceKeyId });
+    this.reservations.set(c.payoutId, { verdict: c.verdict, settled: false, intentId: c.intentId, approvalIds: c.approvalIds, amountPaise: c.amountPaise, sourceKeyId: c.sourceKeyId, createdMs: Date.now() });
     return { committed: true, gen: this.control.gen, counters };
   }
 
@@ -173,5 +189,47 @@ export class MemorySharedBackend implements SharedStateBackend {
     if (this.failNext) throw new Error('backend down');
     this.control = { ...mutate(this.control), gen: this.control.gen + 1 };
     return true;
+  }
+
+  async importIntent(rec: { intent: Intent; uses: number; usedPaise: number }): Promise<void> {
+    if (this.failNext) throw new Error('backend down');
+    const cur = this.intents.get(rec.intent.intentId);
+    if (cur === undefined) {
+      this.intents.set(rec.intent.intentId, { intent: rec.intent, uses: rec.uses, usedPaise: rec.usedPaise });
+    } else {
+      if (cur.intent.signature !== rec.intent.signature) throw new Error(`intent '${rec.intent.intentId}' conflicts with the registered copy`);
+      cur.uses = Math.max(cur.uses, rec.uses);
+      cur.usedPaise = Math.max(cur.usedPaise, rec.usedPaise);
+    }
+  }
+
+  async importReservation(r: { payoutId: string; sourceKeyId: string; intentId: string; approvalIds: readonly string[]; amountPaise: number; verdict: unknown; settled: boolean }): Promise<void> {
+    if (this.failNext) throw new Error('backend down');
+    if (this.reservations.has(r.payoutId)) return;
+    this.reservations.set(r.payoutId, { verdict: r.verdict, settled: r.settled, intentId: r.intentId, approvalIds: r.approvalIds, amountPaise: r.amountPaise, sourceKeyId: r.sourceKeyId, createdMs: Date.now() });
+  }
+
+  async purgeReservations(olderThanMs: number): Promise<number> {
+    if (this.failNext) throw new Error('backend down');
+    const cutoff = Date.now() - olderThanMs;
+    let n = 0;
+    for (const [id, r] of this.reservations) {
+      if (r.settled && (r.createdMs ?? 0) < cutoff) {
+        this.reservations.delete(id);
+        n += 1;
+      }
+    }
+    return n;
+  }
+
+  async reservationStats(): Promise<{ pending: number; settled: number }> {
+    if (this.failNext) throw new Error('backend down');
+    let pending = 0;
+    let settled = 0;
+    for (const r of this.reservations.values()) {
+      if (r.settled) settled += 1;
+      else pending += 1;
+    }
+    return { pending, settled };
   }
 }

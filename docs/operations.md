@@ -87,12 +87,22 @@ With `PAYREKHA_SHARED_PG_URL` set (plus optional `PAYREKHA_SHARED_PG_PREFIX`, de
 
 - `gateway.sharedState.commitPolicy`: `'all'` (default) or a list of IntentKinds that must commit — the per-kind consistency/latency knob (e.g. `["VDA_WITHDRAWAL","LOAN_DISBURSAL"]` while REFUND stays local-fast).
 - `gateway.sharedState.controlPollMs` (default 2000): control-state convergence poll. The commit checks the control generation inside the transaction, so a revocation or HIGH_ALERT reaches the money path in ~0 ms — the poll only warms the read path.
+- `gateway.sharedState.reservationRetentionDays` (unset = keep forever): settled payoutId tombstones older than this are purged hourly, on the database clock. Keep ≥ your payoutId reuse horizon + margin (90 is a sane default); payoutIds should be ULID/date-prefixed so uniqueness is never relied on beyond the window. Pending (unsettled) reservations are never purged.
 - Config `gateway.sharedState` without the URL boots on an in-memory backend — single replica only, warned at boot.
 - Store unreachable: enforce-mode intent-bound payouts DECLINE (`store.commit-failed` evidence), others degrade; `/readyz` reports not-ready until the poll reconnects. There is no allow-on-outage switch — break-glass is an LB failover to a fenced single active, never a flag.
 - Registrations (`POST /v1/intents`, mint), outcomes and admin control ops write through synchronously and return 503 on store failure — retry is idempotent.
 - Velocity/cooling/fingerprint heuristics stay per-replica (Phase 1): REVIEW gates, not authorisation counters. Use LB affinity by `sourceKeyId` to keep them coherent.
 
 Rehearse before trusting it: `npm run drill:shared-state` (or `PAYREKHA_SHARED_PG_URL=… node scripts/drill-shared-state.mjs`) drives concurrent spend, payoutId storms, outage and revocation scenarios through two live replicas.
+
+**Cutover from single-node/snapshot to active-active**
+
+1. Freeze schema drift — run the export against the *current* snapshot, not a stale copy.
+2. `PAYREKHA_STATE_KEY=… node scripts/state-to-shared.mjs --file <snapshot> --dry-run` — verifies the signature and prints intent/reservation/control counts.
+3. `PAYREKHA_SHARED_PG_URL=… node scripts/state-to-shared.mjs --file <snapshot>` — imports intents (GREATEST-merged counters), reservations (first binding wins) and control state (revocations/alert/per-kind modes unioned, `mode` stays config-authoritative). Idempotent — safe to re-run and safe under live single-node traffic; in-flight intents cannot double-spend because imported counters never move backwards.
+4. Start the replicas with `gateway.sharedState` set and watch `payrekha_shared_*` metrics (`commits`/`conflicts`/`commit_ms` tell you the commit path is hot and healthy before you cut the LB).
+
+Commit-path observability lives on `/metrics`: `payrekha_shared_commits_total`, `…_committed_total`, `…_conflicts_total{conflict=}`, `…_failclosed_total`, `…_miss_fetches_total`, `…_stale_syncs_total`, `…_purged_reservations_total` and `payrekha_shared_commit_ms_{sum,count,max}`. Alert on `failclosed` growth (store wobble) and `commit_ms` p99 climbing toward your verdict-path latency budget.
 
 ## Tuning with replay
 

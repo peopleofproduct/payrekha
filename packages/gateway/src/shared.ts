@@ -17,6 +17,11 @@ export interface SharedStateOptions {
    * for the read path and readiness, not the safety mechanism.
    */
   readonly controlPollMs?: number;
+  /**
+   * Settled reservation tombstone retention (ADR 0004 §2). Set rows are
+   * purged at most once an hour on the store's clock. Unset = keep forever.
+   */
+  readonly reservationRetentionMs?: number;
 }
 
 const actionFor = (verdict: PayoutVerdict['verdict'], mode: PayoutVerdict['mode']): EffectiveAction =>
@@ -37,8 +42,11 @@ const actionFor = (verdict: PayoutVerdict['verdict'], mode: PayoutVerdict['mode'
 export class SharedStateDriver {
   private gen = 0;
   private timer: ReturnType<typeof setInterval> | undefined;
+  private lastPurgeMs = 0;
   /** Reachability we observed — feeds /readyz through setSharedReady. */
   private reachable = true;
+  /** Verdict-path observability (ADR 0004 §7) — the first external dependency must be measured. */
+  readonly metrics = { commits: 0, committed: 0, conflicts: { payoutId: 0, uses: 0, control: 0 }, failClosed: 0, missFetches: 0, staleSyncs: 0, purgedReservations: 0, commitMs: { sum: 0, count: 0, max: 0 } };
 
   constructor(
     private readonly fw: Payrekha,
@@ -71,6 +79,12 @@ export class SharedStateDriver {
       this.gen = s.gen;
       this.fw.applyControl(s);
       this.markReachable(true);
+      const retention = this.o.reservationRetentionMs;
+      if (retention !== undefined && where !== 'commit' && this.now() - this.lastPurgeMs > 3_600_000) {
+        this.lastPurgeMs = this.now();
+        const n = await this.o.backend.purgeReservations(retention);
+        if (n > 0) this.metrics.purgedReservations += n;
+      }
     } catch (e) {
       this.onError(`shared-control-${where}`, e);
       this.markReachable(false);
@@ -125,7 +139,9 @@ export class SharedStateDriver {
         return rec === undefined ? [] : [rec.intent];
       });
       let res: CommitResult;
+      const t0 = this.now();
       try {
+        this.metrics.commits += 1;
         res = await this.o.backend.commit({
           payoutId: p.payoutId,
           sourceKeyId: p.sourceKeyId ?? '',
@@ -138,9 +154,15 @@ export class SharedStateDriver {
         });
       } catch (e) {
         return this.failClosed(v, p, e);
+      } finally {
+        const ms = this.now() - t0;
+        this.metrics.commitMs.count += 1;
+        this.metrics.commitMs.sum += ms;
+        if (ms > this.metrics.commitMs.max) this.metrics.commitMs.max = ms;
       }
       if (!('conflict' in res)) {
         this.gen = res.gen;
+        this.metrics.committed += 1;
         this.markReachable(true);
         // The commit carries authoritative counters — converge every time so
         // cross-replica releases and other replicas' spends stop drifting.
@@ -149,6 +171,7 @@ export class SharedStateDriver {
       }
       // Lost a race: local consumption was premature — roll it back and
       // re-evaluate with fresher facts.
+      this.metrics.conflicts[res.conflict] += 1;
       this.fw.unbind(p.payoutId, p.sourceKeyId);
       if (res.conflict === 'payoutId') return this.replayStored(res.verdict, v);
       if (res.conflict === 'control') {
@@ -190,6 +213,7 @@ export class SharedStateDriver {
       }
     }
     if (!found) return v;
+    this.metrics.missFetches += 1;
     this.fw.unbind(p.payoutId, p.sourceKeyId);
     return this.fw.evaluate(p);
   }
@@ -216,6 +240,7 @@ export class SharedStateDriver {
       }
     }
     if (!moved) return v;
+    this.metrics.staleSyncs += 1;
     this.fw.unbind(p.payoutId, p.sourceKeyId);
     return this.fw.evaluate(p);
   }
@@ -240,6 +265,7 @@ export class SharedStateDriver {
 
   private failClosed(v: PayoutVerdict, p: PayoutRequest, e: unknown): PayoutVerdict {
     this.fw.unbind(p.payoutId, p.sourceKeyId);
+    this.metrics.failClosed += 1;
     this.markReachable(false);
     const msg = e instanceof Error ? e.message : 'unknown error';
     return v.mode === 'enforce'

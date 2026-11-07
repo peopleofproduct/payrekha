@@ -115,4 +115,35 @@ describe('PostgresSharedBackend without a database', () => {
     assert.ok('conflict' in r && r.conflict === 'payoutId');
     assert.deepEqual(r.verdict, { verdict: 'ALLOW', decisionId: 'pd_x' });
   });
+
+  it('import merges counters upward and never writes a reservation over an existing binding', async () => {
+    const sql: string[] = [];
+    const behaviour = async (q: string): Promise<{ rows: Record<string, unknown>[]; rowCount: number }> => {
+      sql.push(q);
+      return { rows: [], rowCount: 0 };
+    };
+    const b = new PostgresSharedBackend({ pool: { query: behaviour, connect: async () => ({ query: behaviour, release: () => undefined }), end: async () => undefined } as never });
+    const intent = { intentId: 'i', kind: 'REFUND', maxAmountPaise: 1, beneficiaryRef: 'r', maxUses: 1, notBeforeMs: 0, expiresAtMs: 1, issuer: 'x', keyId: 'k', signature: 's' };
+    await b.importIntent({ intent: intent as never, uses: 3, usedPaise: 400 });
+    await b.importReservation({ payoutId: 'p', sourceKeyId: 'k', intentId: 'i', approvalIds: [], amountPaise: 1, verdict: {}, settled: false });
+    const imp = sql.find((q) => q.includes('GREATEST'));
+    assert.ok(imp !== undefined, 'importIntent must GREATEST-merge so a live replica is never walked backwards');
+    assert.ok(imp.includes('ON CONFLICT (intent_id) DO UPDATE'), 'intent import must be an upsert');
+    const res = sql.find((q) => q.includes('INSERT INTO payrekha_sa_reservations'));
+    assert.ok(res !== undefined && res.includes('ON CONFLICT (payout_id) DO NOTHING'), 'reservation import must keep the existing binding (first write wins)');
+  });
+
+  it('purge deletes only settled tombstones and keeps the clock in the database', async () => {
+    const sql: string[] = [];
+    const behaviour = async (q: string): Promise<{ rows: Record<string, unknown>[]; rowCount: number }> => {
+      sql.push(q);
+      return { rows: [], rowCount: 7 };
+    };
+    const b = new PostgresSharedBackend({ pool: { query: behaviour, connect: async () => ({ query: behaviour, release: () => undefined }), end: async () => undefined } as never });
+    const n = await b.purgeReservations(90 * 86_400_000);
+    assert.equal(n, 7);
+    const del = sql.find((q) => q.startsWith('DELETE'));
+    assert.ok(del !== undefined && del.includes('settled = true'), 'purge must only touch settled tombstones — pending reservations hold live intents');
+    assert.ok(del.includes('now()'), 'retention cutoff must be computed on the database clock — replicas skew');
+  });
 });

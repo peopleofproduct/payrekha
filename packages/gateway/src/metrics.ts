@@ -45,6 +45,18 @@ export function renderMetrics(fw: Payrekha, stats: GatewayStats, webhook?: Webho
   metric('payrekha_state_save_errors_total', 'counter', 'Failed state snapshots.', [['', stats.stateSaveErrors]]);
   metric('payrekha_decision_log_errors_total', 'counter', 'Failed decision-log writes.', [['', stats.logErrors + logErrors]]);
   metric('payrekha_hook_errors_total', 'counter', 'Decision/audit hooks that threw.', [['', m.hookErrors]]);
+  if (stats.shared !== undefined) {
+    const s = stats.shared;
+    metric('payrekha_shared_commits_total', 'counter', 'Shared-state commit transactions attempted.', [['', s.commits]]);
+    metric('payrekha_shared_committed_total', 'counter', 'Shared-state commits that landed.', [['', s.committed]]);
+    metric('payrekha_shared_conflicts_total', 'counter', 'Commit conflicts by kind.', Object.entries(s.conflicts).map(([k, v]) => [`{conflict="${k}"}`, v]));
+    metric('payrekha_shared_failclosed_total', 'counter', 'Payouts failed closed on a shared-store outage.', [['', s.failClosed]]);
+    metric('payrekha_shared_miss_fetches_total', 'counter', 'Intents fetched from the shared store after a local miss.', [['', s.missFetches]]);
+    metric('payrekha_shared_stale_syncs_total', 'counter', 'Blocks re-evaluated after a shared-counter refresh.', [['', s.staleSyncs]]);
+    metric('payrekha_shared_purged_reservations_total', 'counter', 'Settled reservation tombstones purged by retention.', [['', s.purgedReservations]]);
+    L.push('# HELP payrekha_shared_commit_ms Shared-commit wall time (this replica).', '# TYPE payrekha_shared_commit_ms summary');
+    L.push(`payrekha_shared_commit_ms_sum ${s.commitMs.sum}`, `payrekha_shared_commit_ms_count ${s.commitMs.count}`, `payrekha_shared_commit_ms_max ${s.commitMs.max}`);
+  }
   if (webhook !== undefined)
     metric('payrekha_webhooks_total', 'counter', 'Webhook deliveries.', [
       ['{result="sent"}', webhook.sent],

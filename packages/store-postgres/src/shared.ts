@@ -250,6 +250,39 @@ export class PostgresSharedBackend implements SharedStateBackend {
     }
   }
 
+  async importIntent(rec: { intent: Intent; uses: number; usedPaise: number }): Promise<void> {
+    await this.init();
+    // GREATEST-merge: a replica that already committed holds higher counters —
+    // the import must never walk truth backwards.
+    await this.pool.query(
+      `INSERT INTO ${this.intents} (intent_id, intent, uses, used_paise) VALUES ($1, $2::jsonb, $3, $4)
+       ON CONFLICT (intent_id) DO UPDATE SET uses = GREATEST(${this.intents}.uses, EXCLUDED.uses), used_paise = GREATEST(${this.intents}.used_paise, EXCLUDED.used_paise)`,
+      [rec.intent.intentId, JSON.stringify(rec.intent), rec.uses, rec.usedPaise],
+    );
+  }
+
+  async importReservation(r: { payoutId: string; sourceKeyId: string; intentId: string; approvalIds: readonly string[]; amountPaise: number; verdict: unknown; settled: boolean }): Promise<void> {
+    await this.init();
+    await this.pool.query(
+      `INSERT INTO ${this.reservations} (payout_id, source_key_id, intent_id, approval_ids, amount_paise, verdict, settled) VALUES ($1, $2, $3, $4::jsonb, $5, $6::jsonb, $7) ON CONFLICT (payout_id) DO NOTHING`,
+      [r.payoutId, r.sourceKeyId, r.intentId, JSON.stringify(r.approvalIds), r.amountPaise, JSON.stringify(r.verdict), r.settled],
+    );
+  }
+
+  async purgeReservations(olderThanMs: number): Promise<number> {
+    await this.init();
+    // Store clock — replicas skew, `now()` is the one time everyone agrees on.
+    const r = await this.pool.query(`DELETE FROM ${this.reservations} WHERE settled = true AND created_at < now() - ($1::bigint * interval '1 millisecond')`, [olderThanMs]);
+    return r.rowCount ?? 0;
+  }
+
+  async reservationStats(): Promise<{ pending: number; settled: number }> {
+    await this.init();
+    const r = await this.pool.query<{ pending: string; settled: string }>(`SELECT count(*) FILTER (WHERE settled = false) AS pending, count(*) FILTER (WHERE settled = true) AS settled FROM ${this.reservations}`);
+    const row = r.rows[0];
+    return { pending: Number(row?.pending ?? 0), settled: Number(row?.settled ?? 0) };
+  }
+
   async close(): Promise<void> {
     if (this.ownsPool) await this.pool.end();
   }
