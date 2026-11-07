@@ -73,6 +73,21 @@ update is the gate that catches it. Invariant:
 > authoritative store confirms the reservation row was inserted and every
 > cited intent consumed its use atomically.
 
+Two properties fall out of that shape and are load-bearing:
+
+- **Idempotent commit.** A retried commit for the same `payoutId` hits the
+  `ON CONFLICT` path and returns the stored verdict — the network can be
+  flapped at will without a second consumption.
+- **Granular opt-in.** `commitPolicy: 'all' | IntentKind[] | 'none'` lets a
+  lender put the authoritative commit only on the kinds that need it
+  (`VDA_WITHDRAWAL`, `LOAN_DISBURSAL`) while low-value kinds stay
+  local-fast. Same knob philosophy as `requiredApprovals`/`modeByKind` —
+  each team sets its own blast radius vs latency trade.
+
+On `conflict(uses)` or a store error the replica drops the affected intent
+from its read cache and re-checks; on **reconnect after an outage it
+re-syncs `uses` wholesale** — remote commits landed while it was away.
+
 `commitReservation` primitive:
 
 ```text
@@ -93,16 +108,31 @@ Redis: the same conditionals in one Lua script.
 
 Because the reservation row carries `decision_id` + verdict, a cross-
 replica retry gets the *original* verdict — dedupe becomes global, not
-per-replica. TTL on the row matches `dedupeCapacity` semantics.
+per-replica. Tombstone retention is bounded (`retentionDays`, e.g. 90):
+settled rows older than the window export to the audit store and purge —
+a forever-growing table is a liability at PA scale, and `payoutId`
+guidance (ULID/date-prefixed) means uniqueness is never relied on beyond
+it. TTL/retention decisions run on the **store's clock**, never node
+time — replicas skew.
 
-### 3. Control-plane state writes through, synchronously
+### 3. Control-plane state writes through — and rides the commit
 
 HIGH_ALERT, mode changes, issuer-key revocation, canary edits: rare admin
 ops → synchronous CAS write to a shared `control` table (`alert_state`,
 `mode`, `keyring_gen`, `canaries_gen`) + append-only `control_audit`.
-Replicas poll on a short interval (or LISTEN/notify where available); a
-gen bump triggers re-verify/reload. Failure to write = the admin op is
-refused, never half-applied.
+Propagation is two-layered:
+
+- **The money path is instant.** Every `commitReservation` reads the
+  control generation in the *same transaction* — a `keyring_gen` or
+  `alert_state` bump returns `conflict(control)`, the replica refreshes
+  and re-evaluates. Revocation-to-stop latency on the authorize path is
+  ~0 ms, not the poll interval. This is what closes the real race: a
+  stolen issuer key sprinting across replicas during a propagation gap.
+- **Cache warming pushes.** LISTEN/NOTIFY where the backend has it, else
+  a short poll — keeps the read-through cache fresh for the fields that
+  never reach the verdict path.
+
+Failure to write = the admin op is refused, never half-applied.
 
 ### 4. Heuristic state stays per-replica in Phase 1
 
@@ -115,13 +145,19 @@ guidance (sticky by `sourceKeyId`) ships with the feature. Phase 2
 candidates: the same commit piggybacks budget increments, or Redis-side
 counters feeding a read-through cache.
 
-### 5. Failure semantics fail closed
+### 5. Failure semantics fail closed — no break-glass on the authorize path
 
 Shared store unreachable at commit time: `enforce` → DECLINE + `degraded`
 (the money does not move — the brand); `advise` → verdict + degraded;
 `shadow` → ALLOW + degraded. `/readyz` reports store reachability.
 Registration (`POST /v1/intents`, mint) writes through synchronously —
 an unreachable store refuses the write, it does not queue.
+
+There is deliberately **no degraded-allow knob** for intent-bound kinds:
+a flag that lets payouts proceed without confirmed consumption becomes a
+misconfiguration CVE within a year. Break-glass belongs at the LB —
+failover to a single fenced active (today's active-passive topology) —
+never inside the verdict path.
 
 ### 6. Deployment modes (all stay supported)
 
@@ -131,8 +167,25 @@ an unreachable store refuses the write, it does not queue.
 | active-passive | PostgresStateStore snapshot CAS | today, unchanged |
 | active-active | shared intents/reservations/dedupe/control | Phase 1 |
 
-Phase 1 backend: Postgres (deploys already have it via `store-postgres`).
-Redis adapter implements the same seam; in-memory remains the default.
+Phase 1 backend: Postgres (deploys already have it via `store-postgres`;
+HA is RDS Multi-AZ/Patroni — a solved problem buyers already run). Redis
+adapter implements the same seam later — a commit log, not a truth store,
+unless persistence is configured; say so in its doc. In-memory remains
+the default.
+
+### 7. Cutover and proof are part of the feature
+
+- **Import tooling**: single-node → active-active needs `state export →
+  shared import` for reservations + `uses`, else a mid-flight intent
+  double-spends at cutover.
+- **Observability**: commit latency histogram, conflict-rate counter,
+  store-unreachable gauge — the first external dependency on the verdict
+  path must be measured from day one.
+- **Chaos drill matrix**: kill -9 mid-commit, PG failover, partition,
+  clock skew — the proof is adversarial, not the code review.
+- **Auditor's sentence**: *authorisation counters are linearizable
+  through a single Postgres transaction; everything else is bounded-stale
+  by design, with named staleness.*
 
 ## Consequences
 
