@@ -14,5 +14,6 @@
 
 - **Keys must be per-environment.** If one key id serves both UAT and prod, `origin` cannot tell a UAT-network call from a prod one — the defence falls back to the intent binding (still BLOCK without intent) and behaviour rules. Issue separate keys per environment; `PAYREKHA_API_KEYS` requires an `origin` per key for exactly this reason.
 - **An untagged origin is only visible if someone marks it.** `/v1/evaluate` and `ext_authz` always assert `prod|nonprod`; `unknown` only arises in SDK embeddings that honestly mark untagged calls — set `unknownOrigin: "review"` there.
+- **Pin each caller's expected environment** with `rules.origin.keyOrigins` (`sourceKeyId → 'prod'|'nonprod'`): a nonprod-intended caller arriving on a prod route under an unfamiliar name produces [`origin.mismatch`](origin.mismatch.md) REVIEW evidence instead of slipping through.
 
 Every hit carries the rule ID, a plain-words reason with ₹ amounts, and structured `evidence`. Tests: `packages/rules/test/rules.test.ts`.

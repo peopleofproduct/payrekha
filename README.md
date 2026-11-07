@@ -141,6 +141,7 @@ Every hit carries a rule ID, a plain-words reason with ₹ amounts, and structur
 | [`velocity.outflow`](docs/rules/velocity.outflow.md) | Outflow over budget per API key, merchant or globally | REVIEW, BLOCK above 2× |
 | [`amount.band-anomaly`](docs/rules/amount.band-anomaly.md) | Far above the rolling median/MAD band | REVIEW |
 | [`origin.nonprod`](docs/rules/origin.nonprod.md) | Call from a UAT or staging origin or key | BLOCK |
+| [`origin.mismatch`](docs/rules/origin.mismatch.md) | Caller's declared environment disagrees with its route origin | REVIEW |
 | [`identity.fingerprint`](docs/rules/identity.fingerprint.md) | API key used from a new edge-asserted source | REVIEW |
 | [`canary.tripped`](docs/rules/canary.tripped.md) | Planted canary beneficiary, key or intent touched | BLOCK + HIGH_ALERT |
 | [`calendar.window`](docs/rules/calendar.window.md) | Holiday, weekend or night window (evidence only) | ALLOW (tightens others) |

@@ -284,6 +284,27 @@ describe('identity.fingerprint', () => {
   });
 });
 
+describe('origin.mismatch', () => {
+  it('reviews a caller declared nonprod arriving on a prod route — a name the block lists do not know', () => {
+    const { fw } = firewall({ requireIntent: { REFUND: false } }, { origin: { keyOrigins: { 'lms-uat': 'nonprod' } } });
+    const v = fw.evaluate(payout({ beneficiaryRef: A, kind: 'REFUND', amountPaise: 100_00, sourceKeyId: 'lms-uat' }));
+    assert.deepEqual(ruleIds(v), ['origin.mismatch']);
+    assert.equal(v.verdict, 'REVIEW');
+    assert.equal(v.hits[0]!.evidence['expected'], 'nonprod');
+    assert.equal(v.hits[0]!.evidence['actual'], 'prod');
+  });
+  it('matching declarations and unlisted callers stay quiet', () => {
+    const { fw } = firewall({ requireIntent: { REFUND: false } }, { origin: { keyOrigins: { 'lms-prod': 'prod' } } });
+    assert.deepEqual(fw.evaluate(payout({ beneficiaryRef: A, kind: 'REFUND', amountPaise: 100_00 })).hits, []);
+    assert.deepEqual(fw.evaluate(payout({ beneficiaryRef: A, kind: 'REFUND', amountPaise: 100_00, sourceKeyId: 'unlisted' })).hits, []);
+  });
+  it('a prod-declared caller on a nonprod route BLOCKs at origin.nonprod first', () => {
+    const { fw } = firewall({ requireIntent: { REFUND: false } }, { origin: { keyOrigins: { 'lms-prod': 'prod' } } });
+    const v = fw.evaluate(payout({ beneficiaryRef: A, kind: 'REFUND', amountPaise: 100_00, origin: 'nonprod' }));
+    assert.deepEqual(ruleIds(v), ['origin.nonprod']);
+  });
+});
+
 describe('canary.tripped', () => {
   it('blocks, raises HIGH_ALERT, and the next unbound payout of an exempt kind is blocked too', () => {
     const { fw } = firewall({ requireIntent: { REFUND: false } });

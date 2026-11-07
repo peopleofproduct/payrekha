@@ -31,6 +31,6 @@ The advisory tells SOCs to correlate for *machine-speed, multi-technique attack 
 
 Tune the thresholds (`≥3 techniques`, `≥5`, `≥10`) after shadow data shows your baseline — these are starting points, not universal constants.
 
-Alert on: any `canary.tripped`; `alertState == "HIGH_ALERT"`; `path == "admin"` (mode changes and resets); `origin == "nonprod"`; `degraded == true` bursts; `action:"outcome.denied"`; `time.skew` hits; and `identity.fingerprint` changes (token usage from a new source — the logged `sourceHint` carries the edge-asserted IP/hint for geo/ASN correlation).
+Alert on: any `canary.tripped`; `alertState == "HIGH_ALERT"`; `path == "admin"` (mode changes and resets); `origin == "nonprod"` and `origin.mismatch` (environment/key drift); `degraded == true` bursts; `action:"outcome.denied"`; `time.skew` hits; and `identity.fingerprint` changes (token usage from a new source — the logged `sourceHint` carries the edge-asserted IP/hint for geo/ASN correlation).
 
 **Webhooks (SOAR):** set `PAYREKHA_WEBHOOK_URL` and `PAYREKHA_WEBHOOK_SECRET`. BLOCK and HIGH_ALERT events are POSTed asynchronously with retry and backoff, so they never delay a verdict. Verify them with `x-payrekha-signature: sha256=HMAC(secret, "<x-payrekha-timestamp>.<body>")`.

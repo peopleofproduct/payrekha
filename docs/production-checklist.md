@@ -10,6 +10,7 @@ What must be true before PayRekha sits on a real payout path. Work top to bottom
 - [ ] Secrets in a Secret store, never in `values.yaml` or the image: `PAYREKHA_API_KEYS`, `PAYREKHA_ADMIN_KEY`, `PAYREKHA_HASH_KEY`, issuer secrets. Admin token ≥ 32 chars in a vault, access logged.
 - [ ] `PAYREKHA_API_KEYS` role-scoped: payout caller `evaluate`(+`outcomes` if it reports rail status), LOS `intents`, monitoring `read`. No roleless keys in production.
 - [ ] **Separate API keys per environment.** `origin` binds the key's environment, not the caller's network segment — a key id shared between UAT and prod is invisible to `origin.nonprod`. Give every environment its own key id and mark it `prod` or `nonprod` accordingly.
+- [ ] Optionally pin each caller's expected environment: `rules.origin.keyOrigins` (`sourceKeyId → 'prod'|'nonprod'`) emits `origin.mismatch` REVIEW evidence on any disagreement — catches drift between `PAYREKHA_API_KEYS` and Envoy route config.
 - [ ] `firewall.maxTimestampSkewMs` set (e.g. 300000) — flags client-clock anomalies as `time.skew`.
 - [ ] `gateway.trustClientTimestamp` unset/false unless the caller's clock is genuinely trusted.
 

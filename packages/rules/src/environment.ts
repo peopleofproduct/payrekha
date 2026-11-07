@@ -11,6 +11,14 @@ export interface OriginOptions {
   readonly nonProdKeyPrefixes?: readonly string[];
   /** What to do when the network layer did not tag the origin. Default `ignore`. */
   readonly unknownOrigin?: 'ignore' | 'review';
+  /**
+   * Declared environment per caller: `sourceKeyId → 'prod'|'nonprod'`. A
+   * caller whose asserted route origin disagrees produces an
+   * `origin.mismatch` REVIEW — the drift/pivot evidence `origin.nonprod`
+   * can't see on a prod route. Keys that must never move prod money
+   * still belong in `nonProdKeyIds` (that leg BLOCKs).
+   */
+  readonly keyOrigins?: Readonly<Record<string, 'prod' | 'nonprod'>>;
 }
 
 const DEFAULT_PREFIXES = ['uat-', 'uat_', 'stg-', 'stg_', 'staging-', 'staging_', 'sandbox-', 'sandbox_', 'test-', 'test_'];
@@ -33,6 +41,31 @@ export function originRule(o: OriginOptions = {}): PayoutRule {
       if (p.origin === 'unknown' && o.unknownOrigin === 'review')
         return hit('origin.nonprod', Verdict.Review, 'Network origin was not tagged by the gateway', { origin: p.origin, sourceKeyId: p.sourceKeyId, matchedKeyList: false });
       return null;
+    },
+  };
+}
+
+/**
+ * The caller's declared environment (`keyOrigins`) disagrees with the
+ * asserted route origin — config drift, or a credential used from the
+ * wrong environment's lane (the G4 residual: a nonprod credential on a
+ * prod-routed call under a name the block lists don't know). REVIEW
+ * evidence either direction; a prod caller on a nonprod route is already
+ * BLOCKed by `origin.nonprod` before this rule runs.
+ */
+export function originMismatchRule(o: OriginOptions = {}): PayoutRule {
+  const declared = o.keyOrigins ?? {};
+  return {
+    name: 'origin.mismatch',
+    evaluate(p) {
+      if (p.origin !== 'prod' && p.origin !== 'nonprod') return null;
+      const expected = declared[p.sourceKeyId];
+      if (expected === undefined || expected === p.origin) return null;
+      return hit('origin.mismatch', Verdict.Review, `Caller '${p.sourceKeyId}' is declared ${expected} but arrived on a ${p.origin} origin — environment/key drift`, {
+        sourceKeyId: p.sourceKeyId,
+        expected,
+        actual: p.origin,
+      });
     },
   };
 }
