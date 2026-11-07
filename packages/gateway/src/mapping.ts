@@ -30,6 +30,13 @@ export interface FieldMapping {
   /** Label for who produced the signal ('feedzai', 'los-heuristic') — evidence only. */
   readonly externalSource?: Source;
   /**
+   * Edge-asserted source-network hint (peer IP, user-agent, geo) — untrusted
+   * evidence for `identity.fingerprint` and the decision log. Map from
+   * proxy-set headers (`header.x-envoy-external-address`, `header.user-agent`),
+   * never a client-writable body field. An array composes parts, joined `|`.
+   */
+  readonly sourceHint?: Source | readonly Source[];
+  /**
    * Kept as `clientTimestampMs` evidence unless `extAuthz.trustClientTimestamp`
    * is set — a client-controlled clock is never the decision clock.
    */
@@ -111,6 +118,10 @@ export function mapPayout(req: ForwardedRequest, m: FieldMapping, hashKey: strin
       /* unusable mobile: feed lookup simply skipped */
     }
   }
+  const hintParts = (Array.isArray(m.sourceHint) ? m.sourceHint : m.sourceHint !== undefined ? [m.sourceHint] : [])
+    .map((s) => resolve(req, s))
+    .filter((v): v is string => typeof v === 'string' && v !== '');
+  if (hintParts.length > 0) out['sourceHint'] = hintParts.join('|').slice(0, 256);
   return out;
 }
 

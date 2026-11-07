@@ -55,6 +55,8 @@ static_resources:
                               - { exact: x-risk-score }
                               - { exact: x-risk-verdict }
                               - { exact: x-risk-source }
+                              # Envoy-computed XFF → sourceHint (identity.fingerprint evidence)
+                              - { exact: x-forwarded-for }
                           headers_to_add:
                             - { key: x-payrekha-key, value: REPLACE_WITH_PAYREKHA_EXT_AUTHZ_KEY }
                             - { key: x-client-id, value: payout-service }

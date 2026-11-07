@@ -212,13 +212,17 @@ export function createGateway(o: GatewayOptions): GatewayHandle {
       o.webhook?.send({ type: 'payout.blocked', atMs: now(), decisionId: v.decisionId, payoutId: v.payoutId, rules: v.hits.map((h) => h.rule), mode: v.mode, effectiveAction: v.effectiveAction });
   };
 
-  const evaluate = (body: unknown, key: ApiKey, rid: string): PayoutVerdict => {
+  const evaluate = (body: unknown, key: ApiKey, rid: string, peerHint?: string): PayoutVerdict => {
     const p = body !== null && typeof body === 'object' ? { ...(body as Record<string, unknown>) } : body;
     if (p !== null && typeof p === 'object') {
       const b = p as Record<string, unknown>;
       hashAtEntry(b, o.hashKey);
       b['sourceKeyId'] = key.id;
       b['origin'] = key.origin;
+      // The caller cannot assert its own source identity — the socket peer
+      // is the only honest hint on this path (richer hints use ext_authz).
+      delete b['sourceHint'];
+      if (peerHint !== undefined && peerHint !== '') b['sourceHint'] = peerHint;
       if (key.merchantIds !== undefined) {
         const mid = b['merchantId'];
         if (typeof mid === 'string' ? !key.merchantIds.includes(mid) : b['kind'] === 'PA_SETTLEMENT')
@@ -252,7 +256,7 @@ export function createGateway(o: GatewayOptions): GatewayHandle {
     if (path === '/v1/evaluate' && m === 'POST') {
       const key = authKey(req, 'evaluate');
       const body = await readBody(req, max);
-      return [200, evaluate(body, key, rid)];
+      return [200, evaluate(body, key, rid, req.socket.remoteAddress)];
     }
     if (path === '/v1/intents' && m === 'POST') {
       const key = authKey(req, 'intents');

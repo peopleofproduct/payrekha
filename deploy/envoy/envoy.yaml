@@ -46,6 +46,8 @@ static_resources:
                               - { exact: x-payrekha-intent }
                               - { exact: x-payout-kind }
                               - { exact: x-request-id }
+                              # Envoy-computed XFF → sourceHint (identity.fingerprint evidence)
+                              - { exact: x-forwarded-for }
                           headers_to_add:
                             - { key: x-payrekha-key, value: demo-ext-authz-key-0123 }
                             - { key: x-client-id, value: demo-payout-api }

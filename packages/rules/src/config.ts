@@ -3,7 +3,7 @@
 
 import type { IntentKind, PayoutRule } from '@payrekha/core';
 import { bandRule, coolingRule, probeRule, velocityRule, type BandOptions, type CoolingOptions, type ProbeOptions, type VelocityOptions } from './behaviour.js';
-import { attestationRule, calendarRule, canaryRule, originRule, type OriginOptions } from './environment.js';
+import { attestationRule, calendarRule, canaryRule, fingerprintRule, originRule, type FingerprintOptions, type OriginOptions } from './environment.js';
 import { externalRule, type ExternalOptions } from './external.js';
 import { FraudFeed, feedRule, type FeedRuleOptions } from './feed.js';
 import { intentRule } from './intent.js';
@@ -15,6 +15,7 @@ export interface RulesConfig {
   readonly velocity?: VelocityOptions;
   readonly band?: BandOptions | false;
   readonly origin?: OriginOptions;
+  readonly fingerprint?: FingerprintOptions;
   readonly settlement?: AccountChangedOptions;
   readonly feed?: FeedRuleOptions;
   readonly external?: ExternalOptions;
@@ -35,6 +36,7 @@ export function payrekhaRules(cfg: RulesConfig = {}, feed = new FraudFeed()): Ru
   const rules: PayoutRule[] = [
     canaryRule(),
     originRule(cfg.origin),
+    fingerprintRule(cfg.fingerprint),
     intentRule(),
     externalRule(cfg.external),
     settlementOverCapturedRule(),
@@ -54,6 +56,7 @@ export function payrekhaRules(cfg: RulesConfig = {}, feed = new FraudFeed()): Ru
 export const RULE_IDS = [
   'canary.tripped',
   'origin.nonprod',
+  'identity.fingerprint',
   'intent.missing',
   'intent.bad-signature',
   'intent.kind-mismatch',

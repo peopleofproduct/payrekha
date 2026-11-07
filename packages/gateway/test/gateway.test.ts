@@ -63,6 +63,7 @@ function boot(mode: 'shadow' | 'enforce', extra: { intentVerificationsPerMinute?
         channel: { const: 'IMPS' },
         sourceKeyId: 'header.x-client-id',
         timestampMs: 'body.claimed_ts',
+        sourceHint: 'header.x-forwarded-for',
       },
     },
   });
@@ -113,6 +114,29 @@ describe('gateway (enforce)', () => {
   it('origin and sourceKeyId come from the key, not the body', async () => {
     const v = (await (await post('/v1/evaluate', { payoutId: 'p-u', kind: 'REFUND', amountPaise: 100_00, beneficiaryRef: benRef, channel: 'IMPS', origin: 'prod', sourceKeyId: 'lms-prod' }, UAT)).json()) as { hits: { rule: string }[] };
     assert.deepEqual(v.hits.map((h) => h.rule), ['origin.nonprod']);
+  });
+
+  it('sourceHint: the socket peer is stamped, a body-supplied hint is dropped', async () => {
+    const res = await post('/v1/evaluate', { payoutId: 'p-sh', kind: 'REFUND', amountPaise: 100_00, beneficiaryRef: benRef, channel: 'IMPS', sourceHint: 'attacker-asserted-1.2.3.4' });
+    assert.equal(res.status, 200);
+    const line = log.lines.at(-1) as { sourceHint?: string };
+    assert.equal(line.sourceHint, '127.0.0.1', 'the peer IP is the only honest hint on /v1/evaluate');
+  });
+
+  it('ext_authz: sourceHint maps from proxy headers and fingerprints token usage', async () => {
+    await post('/v1/intents', loanIntent('int-fp1'));
+    await post('/v1/intents', loanIntent('int-fp2'));
+    const first = await post('/ext_authz/payouts',
+      { request_id: 'fp-1', amount_in_paise: 24000000, beneficiary: { account_number: '000123456789', ifsc: 'HDFC0001234' } },
+      '', { 'x-payrekha-key': EXT, 'x-payrekha-intent': 'int-fp1', 'x-client-id': 'fp-key', 'x-forwarded-for': '198.51.100.7' });
+    assert.equal(first.status, 200, JSON.stringify(await first.clone().json()));
+    assert.equal(first.headers.get('x-payrekha-rules'), 'identity.fingerprint', 'first hint enrols as evidence');
+    assert.equal((log.lines.at(-1) as { sourceHint?: string }).sourceHint, '198.51.100.7');
+    const moved = await post('/ext_authz/payouts',
+      { request_id: 'fp-2', amount_in_paise: 24000000, beneficiary: { account_number: '000123456789', ifsc: 'HDFC0001234' } },
+      '', { 'x-payrekha-key': EXT, 'x-payrekha-intent': 'int-fp2', 'x-client-id': 'fp-key', 'x-forwarded-for': '203.0.113.9' });
+    assert.equal(moved.status, 403, 'a changed hint REVIEWs → HOLD in enforce');
+    assert.equal(moved.headers.get('x-payrekha-rules'), 'identity.fingerprint');
   });
 
   it('unparseable body → degraded REVIEW, never ALLOW', async () => {

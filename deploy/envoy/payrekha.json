@@ -31,7 +31,8 @@
         "vpa": "body.beneficiary.vpa"
       },
       "channel": "body.mode",
-      "sourceKeyId": "header.x-client-id"
+      "sourceKeyId": "header.x-client-id",
+      "sourceHint": "header.x-forwarded-for"
     }
   }
 }

@@ -35,7 +35,8 @@
       "sourceKeyId": "header.x-client-id",
       "riskScore": "header.x-risk-score",
       "externalVerdict": "header.x-risk-verdict",
-      "externalSource": "header.x-risk-source"
+      "externalSource": "header.x-risk-source",
+      "sourceHint": "header.x-forwarded-for"
     }
   }
 }

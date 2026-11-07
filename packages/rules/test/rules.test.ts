@@ -250,6 +250,40 @@ describe('origin.nonprod', () => {
   });
 });
 
+describe('identity.fingerprint', () => {
+  it('enrols the first hint, stays quiet while it matches, reviews a change', () => {
+    const { fw } = firewall({ requireIntent: { REFUND: false } });
+    const p1 = fw.evaluate(payout({ beneficiaryRef: A, kind: 'REFUND', amountPaise: 100_00, sourceHint: '10.0.0.7' }));
+    assert.deepEqual(ruleIds(p1), ['identity.fingerprint']);
+    assert.equal(p1.verdict, 'ALLOW', 'enrolment is evidence only');
+    assert.equal(fw.evaluate(payout({ beneficiaryRef: A, kind: 'REFUND', amountPaise: 100_00, sourceHint: '10.0.0.7' })).hits.length, 0);
+    const moved = fw.evaluate(payout({ beneficiaryRef: A, kind: 'REFUND', amountPaise: 100_00, sourceHint: '203.0.113.9' }));
+    assert.equal(moved.verdict, 'REVIEW');
+    assert.equal(moved.hits[0]!.rule, 'identity.fingerprint');
+    assert.equal(moved.hits[0]!.evidence['previousHint'], '10.0.0.7');
+  });
+  it('no hint → the rule stays out of the way entirely', () => {
+    const { fw } = firewall({ requireIntent: { REFUND: false } });
+    assert.equal(fw.evaluate(payout({ beneficiaryRef: A, kind: 'REFUND', amountPaise: 100_00 })).hits.length, 0);
+    assert.equal(fw.evaluate(payout({ beneficiaryRef: A, kind: 'REFUND', amountPaise: 100_00 })).hits.length, 0);
+  });
+  it('onChange: evidence logs the change without holding the payout', () => {
+    const { fw } = firewall({ requireIntent: { REFUND: false } }, { fingerprint: { onChange: 'evidence' } });
+    fw.evaluate(payout({ beneficiaryRef: A, kind: 'REFUND', amountPaise: 100_00, sourceHint: '10.0.0.7' }));
+    const v = fw.evaluate(payout({ beneficiaryRef: A, kind: 'REFUND', amountPaise: 100_00, sourceHint: '203.0.113.9' }));
+    assert.equal(v.verdict, 'ALLOW');
+    assert.deepEqual(ruleIds(v), ['identity.fingerprint']);
+  });
+  it('enrolment survives export/restore', () => {
+    const { fw } = firewall({ requireIntent: { REFUND: false } });
+    fw.evaluate(payout({ beneficiaryRef: A, kind: 'REFUND', amountPaise: 100_00, sourceHint: '10.0.0.7' }));
+    const { fw: fw2 } = firewall({ requireIntent: { REFUND: false } });
+    fw2.restoreState(JSON.parse(JSON.stringify(fw.exportState())));
+    assert.equal(fw2.evaluate(payout({ beneficiaryRef: A, kind: 'REFUND', amountPaise: 100_00, sourceHint: '10.0.0.7' })).hits.length, 0, 'restored fingerprint means no enrolment hit');
+    assert.equal(fw2.evaluate(payout({ beneficiaryRef: A, kind: 'REFUND', amountPaise: 100_00, sourceHint: '172.16.0.1' })).verdict, 'REVIEW');
+  });
+});
+
 describe('canary.tripped', () => {
   it('blocks, raises HIGH_ALERT, and the next unbound payout of an exempt kind is blocked too', () => {
     const { fw } = firewall({ requireIntent: { REFUND: false } });

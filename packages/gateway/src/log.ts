@@ -19,6 +19,8 @@ export interface DecisionRecord {
   readonly sourceKeyId?: string;
   readonly origin?: string;
   readonly merchantId?: string;
+  /** Edge-asserted source-network hint (peer IP / proxy headers). Untrusted evidence. */
+  readonly sourceHint?: string;
   /** Caller's claimed timestamp when the gateway overrode it. Untrusted evidence. */
   readonly clientTimestampMs?: number;
   readonly mode: string;
@@ -59,7 +61,7 @@ export function decisionRecord(v: PayoutVerdict, p: Partial<PayoutRequest> | und
     // Only a hashed ref is ever logged; a raw-looking value is dropped.
     const b = safe(p.beneficiaryRef);
     if (b !== undefined) r['beneficiaryRef'] = b;
-    for (const k of ['intentId', 'sourceKeyId', 'origin', 'merchantId'] as const) if (typeof p[k] === 'string') r[k] = (p[k] as string).slice(0, 128);
+    for (const k of ['intentId', 'sourceKeyId', 'origin', 'merchantId', 'sourceHint'] as const) if (typeof p[k] === 'string') r[k] = (p[k] as string).slice(0, 128);
     if (Number.isSafeInteger(p.clientTimestampMs)) r['clientTimestampMs'] = p.clientTimestampMs;
   }
   return r as unknown as DecisionRecord;
@@ -103,6 +105,10 @@ export function toCef(r: DecisionRecord, version = '0.1.0'): string {
     ['cn1Label', 'amountPaise'],
     ['cn1', r.amountPaise],
     ['suser', r.sourceKeyId],
+    // A bare-IP hint also fills CEF's native `src` field for SIEM correlation.
+    ['src', r.sourceHint !== undefined && /^[0-9a-fA-F:.]{3,45}$/.test(r.sourceHint) ? r.sourceHint : undefined],
+    ['cs7Label', 'sourceHint'],
+    ['cs7', r.sourceHint],
   ];
   const e = ext
     .filter((x): x is [string, string | number] => x[1] !== undefined && x[1] !== '')

@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 // Copyright 2026 Kapil — People of Product™
 
-import { Verdict, type IntentKind, type PayoutRule } from '@payrekha/core';
+import { LruMap, Verdict, type IntentKind, type PayoutRule } from '@payrekha/core';
 import { hit } from './util.js';
 
 export interface OriginOptions {
@@ -53,6 +53,56 @@ export function canaryRule(): PayoutRule {
       if (which === null) return null;
       return hit('canary.tripped', Verdict.Block, `Canary ${which} touched — entering HIGH_ALERT`, { canary: which, sourceKeyId: p.sourceKeyId }, 'HIGH_ALERT');
     },
+  };
+}
+
+export interface FingerprintOptions {
+  /**
+   * What a changed hint means. Default `review`; `evidence` logs an
+   * ALLOW-severity hit (a lead for the SIEM, nothing held); `block` for
+   * callers whose hint should never legitimately move.
+   */
+  readonly onChange?: 'review' | 'block' | 'evidence';
+  /** Bound on tracked keys. Default 100,000 (LRU). */
+  readonly maxTrackedKeys?: number;
+}
+
+/**
+ * Token-usage fingerprinting (CERT-In RA12): the first `sourceHint` an API
+ * key presents enrols it; a different hint later means the credential is
+ * being used from somewhere new. The hint is edge-asserted (socket peer /
+ * proxy headers — never the body), so a change is a lead, not proof —
+ * egress IP rotation happens. Each transition re-enrols, so a hint
+ * flapping between values fires on every flip; compose the hint for
+ * stability (e.g. ASN or subnet, not the raw rotating IP).
+ */
+export function fingerprintRule(o: FingerprintOptions = {}): PayoutRule {
+  const onChange = o.onChange ?? 'review';
+  const seen = new LruMap<string, string>(o.maxTrackedKeys ?? 100_000);
+  return {
+    name: 'identity.fingerprint',
+    evaluate(p) {
+      if (p.sourceHint === undefined || typeof p.sourceKeyId !== 'string' || p.sourceKeyId === '') return null;
+      const enrolled = seen.get(p.sourceKeyId);
+      if (enrolled === undefined) {
+        seen.set(p.sourceKeyId, p.sourceHint);
+        return hit('identity.fingerprint', Verdict.Allow, 'First source hint enrolled for this API key', { sourceKeyId: p.sourceKeyId, enrolled: true });
+      }
+      if (enrolled === p.sourceHint) return null;
+      seen.set(p.sourceKeyId, p.sourceHint);
+      return hit(
+        'identity.fingerprint',
+        onChange === 'block' ? Verdict.Block : onChange === 'evidence' ? Verdict.Allow : Verdict.Review,
+        'This API key is being used from a new source — token usage from an unusual source (edge-asserted hint changed)',
+        { sourceKeyId: p.sourceKeyId, enrolled: false, previousHint: enrolled.slice(0, 64) },
+      );
+    },
+    reset: () => seen.clear(),
+    exportState: () => [...seen.entriesLeastRecentFirst()],
+    restoreState(s) {
+      for (const [k, v] of s as [string, string][]) seen.set(k, v);
+    },
+    stats: () => ({ fingerprintedKeys: seen.size }),
   };
 }
 

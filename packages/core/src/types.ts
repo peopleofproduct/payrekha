@@ -100,6 +100,14 @@ export interface PayoutRequest {
   readonly externalVerdict?: string;
   /** Who produced the signal ('feedzai', 'sardine', 'los-heuristic') — evidence label. */
   readonly externalSource?: string;
+  /**
+   * Edge-asserted source-network hint for this call — the socket peer IP
+   * on /v1/evaluate, or proxy-asserted header parts (IP, user-agent, geo)
+   * joined `|` on ext_authz. Untrusted evidence: stamped by the
+   * gateway/edge layer, never honoured from the request body. Advisory
+   * like `riskScore` — feeds `identity.fingerprint` and the decision log.
+   */
+  readonly sourceHint?: string;
   readonly timestampMs: number;
   /**
    * Untrusted evidence, not an input: when the gateway overrides a

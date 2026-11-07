@@ -50,8 +50,8 @@ for (const [field, src] of Object.entries(mapping)) {
     rows.push({ field: 'beneficiary', label, value: out.beneficiaryRef !== undefined ? '<hashed → beneficiaryRef>' : undefined, required: true });
     continue;
   }
-  const spec = typeof src === 'object' && src !== null ? src : undefined;
-  const label = spec !== undefined ? `const ${JSON.stringify(spec.const)}` : String(src);
+  const spec = typeof src === 'object' && src !== null && !Array.isArray(src) ? src : undefined;
+  const label = Array.isArray(src) ? src.join(' + ') : spec !== undefined ? `const ${JSON.stringify(spec.const)}` : String(src);
   rows.push({ field, label, value: out[field], required: REQUIRED.includes(field) });
 }
 

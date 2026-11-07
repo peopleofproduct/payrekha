@@ -18,7 +18,7 @@ This table covers only the recommended actions that concern **payouts**: money l
 | Assume persistence; entities were re-attacked after remediation | HIGH_ALERT never expires; it needs an authenticated, reasoned reset and survives restarts | `HIGH_ALERT`, `PUT /v1/state` |
 | Deploy deception to detect intruders | Canary beneficiaries, API keys and intents | `canary.tripped` → `HIGH_ALERT` |
 | Treat client applications as untrusted; server-side validation and request signing | Every payout re-validated server-side; an intent is a signed business approval bound to kind, amount, beneficiary, window and use count — replay is structurally dead | `intent.*` rules, payoutId↔intent binding |
-| Alert on token usage from unusual source IPs, user agents or geographies | Per-key velocity budgets and origin assertions give the SIEM a per-token signal; IP/UA/geo anomaly detection itself is SIEM-side today (see exclusions) | `velocity.outflow`, `origin.nonprod` |
+| Alert on token usage from unusual source IPs, user agents or geographies | `identity.fingerprint`: an API key's first edge-asserted `sourceHint` enrols; a changed hint REVIEWs (peer IP on /v1/evaluate, proxy-header mapping on ext_authz — never the body). Geo/ASN enrichment stays SIEM-side | `identity.fingerprint`, `sourceHint` in the decision log |
 | Multi-signature approvals for withdrawals | Single-signer intents today: a payout binds exactly one intent from one issuer ("two keys to move money"). m-of-n co-approval is planned | see exclusions |
 | Monitor and log transactions; share with SOC | JSONL/CEF decision log with rule IDs and evidence, Prometheus metrics, signed SOAR webhooks | [SIEM](integrations/siem.md) |
 | Key management and rotation | Per-issuer keys scoped to kinds; rotation and revocation with re-verification | [intents.md](intents.md) |
@@ -46,5 +46,5 @@ PayRekha does not do any of the following. You still need them.
 - Restricted indicators of compromise. PayRekha keys on behaviour and does not use CERT-In's restricted indicators.
 - Incident reporting to **CERT-In/CSIRT-Fin** within the mandated timelines, and bulk fraudulent-transaction reporting to **I4C / CFCFRMS**.
 - **m-of-n multi-approval**: a payout binds exactly one signed intent from one issuer. Multi-approver intents are on the roadmap.
-- Source IP / user-agent / geography anomaly detection on token usage — correlate `sourceKeyId` in the decision log against your WAF/API-gateway telemetry.
+- Geographic / ASN anomaly scoring on token usage — `identity.fingerprint` flags a credential used from a new edge-asserted source; enriching that hint with geo reputation stays SIEM-side.
 - Payouts that bypass PayRekha on the network path. Network policy must make it the only route.

@@ -201,6 +201,7 @@ export function payoutShapeProblem(x: unknown): string | null {
   if (p['riskScore'] !== undefined && (typeof p['riskScore'] !== 'number' || !Number.isFinite(p['riskScore']) || p['riskScore'] < 0 || p['riskScore'] > 1)) return 'riskScore (number 0..1)';
   if (p['externalVerdict'] !== undefined && !isStr(p['externalVerdict'], 64)) return 'externalVerdict';
   if (p['externalSource'] !== undefined && !isStr(p['externalSource'], 64)) return 'externalSource';
+  if (p['sourceHint'] !== undefined && !isStr(p['sourceHint'], 256)) return 'sourceHint';
   if (!Number.isSafeInteger(p['timestampMs']) || (p['timestampMs'] as number) <= 0) return 'timestampMs';
   return null;
 }
