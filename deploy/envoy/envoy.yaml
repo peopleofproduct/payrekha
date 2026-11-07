@@ -18,6 +18,13 @@ static_resources:
                       routes:
                         - match: { prefix: "/payouts" }
                           route: { cluster: payout_api }
+                          # ADR 0004 Phase 1: heuristic state is per-replica.
+                          # Hash by the asserted sourceKeyId so one caller keeps
+                          # one evaluator (and one payout-api pod) — budgets
+                          # don't multiply across replicas. Swap the header for
+                          # however your deployment asserts caller identity.
+                          hash_policy:
+                            - header: { header_name: x-client-id }
                         - match: { prefix: "/" }
                           route: { cluster: payout_api }
                           typed_per_filter_config:
@@ -69,12 +76,16 @@ static_resources:
     - name: payrekha
       type: STRICT_DNS
       connect_timeout: 0.25s
+      # RING_HASH honours the route's hash_policy (x-client-id above) so the
+      # ext_authz hop lands on the same payrekha replica per caller key.
+      lb_policy: RING_HASH
       load_assignment:
         cluster_name: payrekha
         endpoints: [{ lb_endpoints: [{ endpoint: { address: { socket_address: { address: payrekha, port_value: 8080 } } } }] }]
     - name: payout_api
       type: STRICT_DNS
       connect_timeout: 0.25s
+      lb_policy: RING_HASH
       load_assignment:
         cluster_name: payout_api
         endpoints: [{ lb_endpoints: [{ endpoint: { address: { socket_address: { address: payout-api, port_value: 9000 } } } }] }]

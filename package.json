@@ -30,6 +30,7 @@
     "check:openapi": "node scripts/check-openapi.mjs",
     "loadcheck": "npm run build >/dev/null && node scripts/load-check.mjs",
     "drill:crash": "npm run build >/dev/null && node scripts/drill-crash.mjs",
+    "drill:shared-state": "npm run build >/dev/null && node scripts/drill-shared-state.mjs",
     "publish:check": "tsc -b && npm publish --workspaces --dry-run --tag alpha",
     "verify:deploy": "node scripts/verify-deploy.mjs",
     "format": "prettier --write .",

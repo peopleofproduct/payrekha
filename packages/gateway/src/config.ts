@@ -3,7 +3,7 @@
 
 import { createHash } from 'node:crypto';
 import { readFileSync } from 'node:fs';
-import { FileStateStore, Payrekha, signIntent, type FirewallConfig, type IssuerKey, type Mode, type StateStore } from '@payrekha/core';
+import { FileStateStore, MemorySharedBackend, Payrekha, signIntent, INTENT_KINDS, type FirewallConfig, type IntentKind, type IssuerKey, type Mode, type SharedStateBackend, type StateStore } from '@payrekha/core';
 import { payrekhaRules, type RulesConfig } from '@payrekha/rules';
 import { auditRecord, fileDecisionLog } from './log.js';
 import { API_ROLES, createGateway, type ApiKey, type ApiRole, type ExtAuthzOptions, type GatewayHandle, type GatewayOptions } from './server.js';
@@ -35,6 +35,16 @@ export interface PayrekhaFileConfig {
       readonly maxAmountPaise?: number;
       readonly mintsPerMinute?: number;
       readonly modes?: readonly Mode[];
+    };
+    /**
+     * ADR 0004 active-active shared state (backend comes from
+     * PAYREKHA_SHARED_PG_URL; without it an in-memory backend is used —
+     * single replica only, warned at boot). `commitPolicy` is the lender's
+     * consistency knob: 'all' (default) or the IntentKinds that must commit.
+     */
+    readonly sharedState?: {
+      readonly commitPolicy?: 'all' | readonly IntentKind[];
+      readonly controlPollMs?: number;
     };
   };
 }
@@ -105,6 +115,32 @@ function postgresStore(url: string, table: string | undefined, name: string | un
     save: async (fw) => (await store).save(fw),
     load: async (fw) => (await store).load(fw),
     close: async () => (await store).close?.(),
+  };
+}
+
+type PgSharedCtor = new (o: { connectionString: string; tablePrefix?: string }) => SharedStateBackend;
+
+/** Shared-state Postgres support is also optional — same lazy-import pattern as the snapshot store. */
+function postgresShared(url: string, tablePrefix: string | undefined): SharedStateBackend {
+  const spec = '@payrekha/store-postgres';
+  const be: Promise<SharedStateBackend> = import(spec).then(
+    (m: { PostgresSharedBackend: PgSharedCtor }) => new m.PostgresSharedBackend({ connectionString: url, ...(tablePrefix !== undefined ? { tablePrefix } : {}) }),
+    () => {
+      throw new Error('PAYREKHA_SHARED_PG_URL is set but @payrekha/store-postgres is not installed');
+    },
+  );
+  be.catch(() => undefined);
+  return {
+    describe: `postgres:${tablePrefix ?? 'payrekha_sa'}`,
+    putIntent: async (i) => (await be).putIntent(i),
+    getIntent: async (id) => (await be).getIntent(id),
+    commit: async (c) => (await be).commit(c),
+    intentState: async (id) => (await be).intentState(id),
+    releaseReservation: async (id, k) => (await be).releaseReservation(id, k),
+    settleReservation: async (id, k) => (await be).settleReservation(id, k),
+    readControl: async () => (await be).readControl(),
+    writeControl: async (m) => (await be).writeControl(m),
+    close: async () => (await be).close?.(),
   };
 }
 
@@ -223,6 +259,18 @@ export function bootFromEnv(env: NodeJS.ProcessEnv = process.env, log: (m: strin
       if (roles.includes('mint') && (roles.includes('evaluate') || roles.includes('intents'))) log(`warning: API key '${k.id}' holds mint alongside evaluate/intents — split the roles so one stolen token cannot both authorise and execute`);
     }
   }
+  const sharedCfg = cfg.gateway?.sharedState;
+  const sharedPgUrl = env['PAYREKHA_SHARED_PG_URL'];
+  let sharedState: GatewayOptions['sharedState'];
+  if (sharedPgUrl !== undefined || sharedCfg !== undefined) {
+    const policy = sharedCfg?.commitPolicy ?? 'all';
+    if (policy !== 'all' && !policy.every((k) => INTENT_KINDS.includes(k))) throw new Error('gateway.sharedState.commitPolicy must be "all" or a list of IntentKinds');
+    if (sharedCfg?.controlPollMs !== undefined && (!Number.isSafeInteger(sharedCfg.controlPollMs) || sharedCfg.controlPollMs < 100)) throw new Error('gateway.sharedState.controlPollMs must be an integer ≥ 100');
+    const backend = sharedPgUrl !== undefined ? postgresShared(sharedPgUrl, env['PAYREKHA_SHARED_PG_PREFIX']) : new MemorySharedBackend();
+    if (sharedPgUrl === undefined) log('warning: sharedState enabled without PAYREKHA_SHARED_PG_URL — in-memory backend: single replica only');
+    sharedState = { backend, commitPolicy: policy, ...(sharedCfg?.controlPollMs !== undefined ? { controlPollMs: sharedCfg.controlPollMs } : {}) };
+    log(`shared state: ${backend.describe} (commitPolicy: ${policy === 'all' ? 'all' : policy.join(',')})`);
+  }
   const gateway = createGateway({
     firewall,
     apiKeys: scopedKeys,
@@ -234,6 +282,7 @@ export function bootFromEnv(env: NodeJS.ProcessEnv = process.env, log: (m: strin
     ...(webhook !== undefined ? { webhook } : {}),
     ...(extAuthz !== undefined ? { extAuthz } : {}),
     ...(stateStore !== undefined ? { stateStore } : {}),
+    ...(sharedState !== undefined ? { sharedState } : {}),
     onError: (where, e) => log(`payrekha ${where}: ${e instanceof Error ? e.message : String(e)}`),
   });
   let stateLoaded: Promise<void> = Promise.resolve();

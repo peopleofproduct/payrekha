@@ -8,6 +8,7 @@ import { looksLikeRawIdentifier } from './hash.js';
 import { intentSigningPayload, signIntent, Keyring, type IssuerKey, type SignerKey, type UnsignedIntent } from './intent.js';
 import { BeneficiaryLedger, CanaryRegistry, MerchantLedger, type BeneficiaryEntry, type CanarySets, type MerchantEntry } from './ledger.js';
 import { IntentRegistry, MemoryIntentStore, type IntentCheck, type IntentStore, type RegisterResult } from './registry.js';
+import type { SharedControlState } from './shared.js';
 import {
   CHANNELS,
   INTENT_KINDS,
@@ -562,6 +563,64 @@ export class Payrekha {
 
   auditTrail(): readonly AuditEntry[] {
     return this.audit.slice();
+  }
+
+  /**
+   * Roll back this replica's local consumption of a payout — the shared
+   * commit reported the reservation belongs to someone else or lost the
+   * uses race (ADR 0004). Releases the intents and evicts the dedupe verdict
+   * so a re-evaluate sees the truth. Internal use only — not an outcome.
+   */
+  unbind(payoutId: string, sourceKeyId?: string): void {
+    this.intents.release(payoutId, sourceKeyId);
+    this.dedupe.delete(`${String(sourceKeyId ?? '')}\n${payoutId}`);
+  }
+
+  /**
+   * Reconcile control-plane state learned from the shared backend (ADR 0004).
+   * Not an admin op — the admin already acted on the writer replica; this one
+   * is converging. Fields absent from `s` are left alone; fields present
+   * (including `highAlert: null`) apply. Every transition is audited locally.
+   */
+  applyControl(s: SharedControlState, atMs = this.now()): void {
+    if (s.highAlert !== undefined) {
+      if (s.highAlert !== null && this.highAlert === null) {
+        this.highAlert = { since: s.highAlert.since, reason: s.highAlert.reason };
+        const e = this.record({ atMs, action: 'alert.enter', actor: 'shared-control', reason: s.highAlert.reason, from: 'NORMAL', to: 'HIGH_ALERT' });
+        this.fireAlertChange('NORMAL', 'HIGH_ALERT', e);
+      } else if (s.highAlert === null && this.highAlert !== null) {
+        this.highAlert = null;
+        this.recentBlocks.length = 0;
+        const e = this.record({ atMs, action: 'alert.reset', actor: 'shared-control', reason: 'remote reset', from: 'HIGH_ALERT', to: 'NORMAL' });
+        this.fireAlertChange('HIGH_ALERT', 'NORMAL', e);
+      }
+    }
+    if (s.mode !== undefined && s.mode !== this.mode) {
+      const from = this.mode;
+      this.mode = s.mode;
+      this.record({ atMs, action: 'mode.set', actor: 'shared-control', reason: 'shared control', from, to: s.mode });
+    }
+    if (s.modeByKind !== undefined) {
+      for (const kind of Object.keys(s.modeByKind) as IntentKind[]) {
+        const next = s.modeByKind[kind];
+        if (next === undefined) continue;
+        const from = this.modeByKind[kind] ?? this.mode;
+        if (next === null) {
+          if (this.modeByKind[kind] !== undefined) {
+            delete this.modeByKind[kind];
+            this.record({ atMs, action: `mode.clear:${kind}`, actor: 'shared-control', reason: 'shared control', from, to: 'inherit' });
+          }
+        } else if (next !== this.modeByKind[kind]) {
+          this.modeByKind[kind] = next;
+          this.record({ atMs, action: `mode.set:${kind}`, actor: 'shared-control', reason: 'shared control', from, to: next });
+        }
+      }
+    }
+    for (const keyId of s.revokedKeyIds ?? []) {
+      if (this.keyring.revoke(keyId)) {
+        this.record({ atMs, action: 'key.revoked', actor: 'shared-control', reason: 'shared control', to: keyId });
+      }
+    }
   }
 
   private authorize(cred: Credential, action: string): void {

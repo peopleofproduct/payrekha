@@ -4,7 +4,7 @@ import { createHash, createHmac } from 'node:crypto';
 import { createServer } from 'node:http';
 import type { AddressInfo } from 'node:net';
 import { after, before, describe, it } from 'node:test';
-import { generateIssuerKeyPair, hashBeneficiary, Payrekha, signIntent, type IntentKind } from '@payrekha/core';
+import { generateIssuerKeyPair, hashBeneficiary, MemorySharedBackend, Payrekha, signIntent, type IntentKind } from '@payrekha/core';
 import { auditRecord, createGateway, memoryDecisionLog, parseApiKeys, signWebhook, toCef, WebhookSender, type GatewayHandle } from '@payrekha/gateway';
 import { payrekhaRules } from '@payrekha/rules';
 
@@ -525,5 +525,133 @@ describe('audit records and key parsing', () => {
     const legacy = parseApiKeys('lms:prod:tok:with:colons-0123');
     assert.equal(legacy[0]?.roles, undefined);
     assert.equal(legacy[0]?.sha256, sha('tok:with:colons-0123'));
+  });
+});
+
+const sleep = (ms: number) => new Promise<void>((r) => setTimeout(r, ms));
+
+describe('shared state (ADR 0004 active-active)', () => {
+  // Two gateways on one backend = two replicas on one authoritative store.
+  // controlPollMs stays huge so every convergence in this suite is provably
+  // commit-driven, except the fail-closed test which needs poll recovery.
+  const backend = new MemorySharedBackend();
+  const issuerKeys = [
+    { keyId: 'los-1', issuer: 'los-prod', alg: 'ed25519' as const, publicKey: LOS.publicKey, kinds: ['LOAN_DISBURSAL' as const, 'VERIFICATION' as const] },
+    { keyId: 'los-2', issuer: 'los-prod', alg: 'ed25519' as const, publicKey: LOS2.publicKey, kinds: ['LOAN_DISBURSAL' as const] },
+    { keyId: 'risk-1', issuer: 'risk-desk', alg: 'ed25519' as const, publicKey: RISK.publicKey, kinds: ['LOAN_DISBURSAL' as const] },
+  ];
+  const replica = (pollMs: number) => {
+    const fw = new Payrekha(payrekhaRules({ band: false }).rules, {
+      config: { mode: 'enforce', adminTokenSha256: sha(ADMIN) },
+      keys: issuerKeys,
+      now: () => T0,
+    });
+    return createGateway({
+      firewall: fw,
+      apiKeys: [
+        { id: 'lms', sha256: sha(API), origin: 'prod' },
+        { id: 'reg', sha256: sha(REGTOK), origin: 'prod', roles: ['intents'] },
+      ],
+      adminKeySha256: sha(ADMIN),
+      hashKey: HK,
+      sharedState: { backend, controlPollMs: pollMs },
+      now: () => T0,
+    });
+  };
+  const pair = { a: replica(3_600_000), b: replica(3_600_000) };
+  const urls: Record<string, string> = {};
+  before(async () => {
+    urls['a'] = await listen(pair.a);
+    urls['b'] = await listen(pair.b);
+  });
+  after(async () => {
+    pair.a.server.close();
+    pair.b.server.close();
+    await pair.a.closeShared();
+    await pair.b.closeShared();
+  });
+  const call = (side: 'a' | 'b', path: string, body: unknown, token = API, method = 'POST') =>
+    fetch(urls[side]! + path, { method, headers: { authorization: `Bearer ${token}`, 'content-type': 'application/json' }, body: JSON.stringify(body) });
+  const loan = { kind: 'LOAN_DISBURSAL', amountPaise: 2_40_000_00, beneficiaryRef: benRef, channel: 'IMPS' };
+
+  it('an intent registered on replica A is consumable on replica B (miss-fetch)', async () => {
+    assert.equal((await call('a', '/v1/intents', loanIntent('int-s1'), REGTOK)).status, 201);
+    const v = (await (await call('b', '/v1/evaluate', { payoutId: 'p-s1', intentId: 'int-s1', ...loan })).json()) as { verdict: string };
+    assert.equal(v.verdict, 'ALLOW', JSON.stringify(v));
+  });
+
+  it('two replicas cannot spend the same intent use', async () => {
+    await call('a', '/v1/intents', loanIntent('int-s2'), REGTOK);
+    const first = (await (await call('a', '/v1/evaluate', { payoutId: 'p-s2a', intentId: 'int-s2', ...loan })).json()) as { verdict: string };
+    assert.equal(first.verdict, 'ALLOW');
+    const second = (await (await call('b', '/v1/evaluate', { payoutId: 'p-s2b', intentId: 'int-s2', ...loan })).json()) as { verdict: string; hits: { rule: string }[] };
+    assert.equal(second.verdict, 'BLOCK', JSON.stringify(second));
+    assert.ok(second.hits.some((h) => h.rule === 'intent.reused'));
+  });
+
+  it('a payoutId duplicated across replicas replays the stored verdict', async () => {
+    await call('a', '/v1/intents', loanIntent('int-s3'), REGTOK);
+    const first = (await (await call('a', '/v1/evaluate', { payoutId: 'p-dup', intentId: 'int-s3', ...loan })).json()) as { decisionId: string; verdict: string };
+    assert.equal(first.verdict, 'ALLOW');
+    const second = (await (await call('b', '/v1/evaluate', { payoutId: 'p-dup', intentId: 'int-s3', ...loan })).json()) as { decisionId: string; verdict: string; deduped: boolean };
+    assert.equal(second.verdict, 'ALLOW');
+    assert.equal(second.deduped, true);
+    assert.equal(second.decisionId, first.decisionId, 'the cross-replica retry gets the original decision');
+  });
+
+  it('a key revocation on replica A stops an in-flight cite on replica B via the commit gen check', async () => {
+    // int-s5 is signed by los-2 — registered and written through while valid.
+    assert.equal((await call('a', '/v1/intents', loanIntent('int-s5', 'los-2', LOS2.privateKey), REGTOK)).status, 201);
+    const del = await call('a', '/v1/issuers/los-2', { actor: 'soc', reason: 'los-2 leaked' }, ADMIN, 'DELETE');
+    assert.equal(del.status, 200);
+    const v = (await (await call('b', '/v1/evaluate', { payoutId: 'p-s5', intentId: 'int-s5', ...loan })).json()) as { verdict: string; hits: { rule: string }[] };
+    assert.equal(v.verdict, 'BLOCK', 'the revocation must reach the authorize path, not just the poll');
+    assert.ok(v.hits.some((h) => h.rule === 'intent.bad-signature'), JSON.stringify(v.hits));
+  });
+
+  it('a failed outcome reported on replica B frees the intent committed by replica A', async () => {
+    await call('a', '/v1/intents', loanIntent('int-s7'), REGTOK);
+    const first = (await (await call('a', '/v1/evaluate', { payoutId: 'p-rel', intentId: 'int-s7', ...loan })).json()) as { verdict: string };
+    assert.equal(first.verdict, 'ALLOW');
+    const o = (await (await call('b', '/v1/outcomes', { payoutId: 'p-rel', outcome: 'failed' })).json()) as { known: boolean };
+    assert.equal(o.known, true, 'replica B never held it — the shared row did');
+    const next = (await (await call('b', '/v1/evaluate', { payoutId: 'p-rel2', intentId: 'int-s7', ...loan })).json()) as { verdict: string };
+    assert.equal(next.verdict, 'ALLOW', 'the released use is spendable on another replica');
+    // And replica A converges: its stale counter syncs on the intent.* block.
+    const third = (await (await call('a', '/v1/evaluate', { payoutId: 'p-rel3', intentId: 'int-s7', ...loan })).json()) as { verdict: string; hits: { rule: string }[] };
+    assert.equal(third.verdict, 'BLOCK');
+    assert.ok(third.hits.some((h) => h.rule === 'intent.reused'), JSON.stringify(third.hits));
+  });
+
+  it('a failed registration write-through refuses the call', async () => {
+    backend.failNext = true;
+    assert.equal((await call('a', '/v1/intents', loanIntent('int-s8'), REGTOK)).status, 503);
+    backend.failNext = false;
+  });
+
+  it('store down fails closed: DECLINE in enforce, readyz drops, poll recovers', async () => {
+    const fast = replica(25);
+    const fastUrl = await listen(fast);
+    try {
+      // Register on THIS replica so the local registry knows the intent —
+      // only the commit path should fail below.
+      assert.equal((await fetch(fastUrl + '/v1/intents', { method: 'POST', headers: { authorization: `Bearer ${REGTOK}`, 'content-type': 'application/json' }, body: JSON.stringify(loanIntent('int-s9')) })).status, 201);
+      const post = (p: unknown) => fetch(fastUrl + '/v1/evaluate', { method: 'POST', headers: { authorization: `Bearer ${API}`, 'content-type': 'application/json' }, body: JSON.stringify(p) });
+      backend.failNext = true;
+      const v = (await (await post({ payoutId: 'p-down', intentId: 'int-s9', ...loan })).json()) as { verdict: string; effectiveAction: string; hits: { rule: string }[] };
+      assert.equal(v.verdict, 'BLOCK');
+      assert.equal(v.effectiveAction, 'DECLINE');
+      assert.ok(v.hits.some((h) => h.rule === 'store.commit-failed'), JSON.stringify(v.hits));
+      await sleep(60);
+      assert.equal(fast.stats.ready, false, 'the impaired money path is not ready');
+      backend.failNext = false;
+      await sleep(80);
+      assert.equal(fast.stats.ready, true, 'the poll restores readiness');
+      const ok = (await (await post({ payoutId: 'p-back', intentId: 'int-s9', ...loan })).json()) as { verdict: string };
+      assert.equal(ok.verdict, 'ALLOW');
+    } finally {
+      fast.server.close();
+      await fast.closeShared();
+    }
   });
 });

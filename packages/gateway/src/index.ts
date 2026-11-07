@@ -6,4 +6,5 @@ export * from './log.js';
 export * from './mapping.js';
 export * from './metrics.js';
 export * from './server.js';
+export * from './shared.js';
 export * from './webhook.js';

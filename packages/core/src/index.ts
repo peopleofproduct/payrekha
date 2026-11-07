@@ -14,4 +14,5 @@ export { LruMap } from './lru.js';
 export { TimeRing } from './ring.js';
 export * from './firewall.js';
 export { FileStateStore, type StateStore } from './store.js';
+export { MemorySharedBackend, type CommitResult, type ReservationCommit, type SharedControlState, type SharedStateBackend } from './shared.js';
 export { signSnapshot, verifyAndUnwrap } from './snapshot.js';

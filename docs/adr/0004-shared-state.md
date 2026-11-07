@@ -1,6 +1,6 @@
 # ADR 0004 — Shared state: atomic-commit seam for active-active replicas
 
-- Status: proposed
+- Status: accepted — Phase 1 implemented (2026-11-07)
 - Date: 2026-11-07
 
 ## Context
@@ -201,3 +201,20 @@ the default.
   verdict path (~1 ms LAN); `/readyz` now includes store health.
 - Phase-2 backlog: shared heuristic budgets, LISTEN-driven push,
   lease-free failover notes.
+
+## Implementation notes (Phase 1, shipped)
+
+| ADR piece | Shipped as |
+|---|---|
+| Commit primitive | `SharedStateBackend.commit` (core `shared.ts`) — one txn: `SELECT gen … FOR UPDATE` → reservation `INSERT … ON CONFLICT DO NOTHING` → per-intent conditional `UPDATE … RETURNING uses, used_paise`. `PostgresSharedBackend` (`store-postgres/shared.ts`); `MemorySharedBackend` for tests/single-node. |
+| Authoritative verdict gate | `SharedStateDriver.finalize` (`gateway/shared.ts`) awaited inside `/v1/evaluate` and `ext_authz` — no `evaluateAsync` facade was needed: in-process `Payrekha.evaluate` is untouched. |
+| Conflicts | `payoutId` → stored-verdict replay (same dedupe semantics, `deduped: true`); `uses` → `syncCounters` + re-evaluate; `control` → `readControl` + `Payrekha.applyControl` + re-evaluate. Committed results piggyback authoritative counters; a local `intent.*` BLOCK also triggers a counter refresh (`staleSync`) so cross-replica releases converge. |
+| Miss-fetch | A cited intent unknown locally is fetched from the backend and registered — registration on replica A is consumable on B. |
+| Control-plane | `PUT /v1/state` (alert + mode) and `DELETE /v1/issuers/:keyId` write the control row after the local apply (audit keeps the real actor), then converge via `applyControl`. First alarm wins on concurrent raises. Canary edits are **not yet** propagated — snapshot sync covers standbys; flagged for Phase 1.5. |
+| Granularity | `gateway.sharedState.commitPolicy`: `'all'` (default) or `IntentKind[]`; `controlPollMs` (default 2 s) warms the read path. Config-only mode without `PAYREKHA_SHARED_PG_URL` uses the memory backend (single replica, warned at boot). |
+| Fail closed | Commit/refresh failure → `fw.unbind` (local consumption rolled back) → enforce: `BLOCK`+`DECLINE` with `store.commit-failed` evidence; otherwise `REVIEW`+degraded. `/readyz` drops while unreachable and recovers via the poll. Registration/mint/outcome writes are synchronous — 503 + safe retry, never queued. |
+
+Still open from §7: reservation tombstone retention sweeps, `state export →
+shared import` migration tooling, commit-latency metrics, and the
+process-level chaos matrix beyond `scripts/drill-shared-state.mjs`
+(in-memory + real-PG modes).

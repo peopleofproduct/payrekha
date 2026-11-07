@@ -15,6 +15,7 @@ the date + result in your ops log.
 | D5 | Snapshot-key rotation | Manual | Old snapshot loads, next save under new key |
 | D6 | HIGH_ALERT reset | `curl` | Verdicts resume; audit shows actor+reason |
 | D7 | SIEM delivery | Manual | One decision + one audit line parse in SIEM |
+| D8 | Active-active invariants | `scripts/drill-shared-state.mjs` | Exactly-one spend, stored verdicts, fail-closed outage, revocation reach |
 
 ## D1 — kill -9 during save (automated)
 
@@ -95,3 +96,22 @@ Reset without a recorded investigation is a process failure, not a system one.
 **Pass:** both parsed, not raw-dumped; no beneficiary identifiers anywhere —
 the log should contain only `h:v1:` hashed refs. If raw account/VPA strings
 appear, the caller bypassed the hash-at-entry path — find out how.
+
+## D8 — active-active invariants (automated)
+
+```bash
+node scripts/drill-shared-state.mjs            # in-memory backend
+PAYREKHA_SHARED_PG_URL=postgres://… node scripts/drill-shared-state.mjs
+```
+
+Three gateway replicas on one shared backend, over real HTTP: (S1) five
+concurrent evaluations on a `maxUses: 1` intent → exactly one ALLOW; (S2) a
+payoutId storm across replicas → every retry replays the same decisionId;
+(S3) store outage → enforce-mode DECLINE + `/readyz` 503 + poll recovery;
+(S4) issuer-key revocation on A → B's next cite BLOCKs through the commit
+generation check; (S5) a `failed` outcome on B frees the use A committed.
+
+**Pass:** `Drill D2 PASSED`. A failure means the commit/conflict/fail-closed
+machinery regressed — release blocker for any active-active deploy. Run it
+against the real Postgres (`PAYREKHA_SHARED_PG_URL`) before go-live; the
+in-memory run covers the flow, not the SQL.

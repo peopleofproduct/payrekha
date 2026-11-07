@@ -7,6 +7,7 @@ import { AuthorizationError, hashBeneficiary, looksLikeRawIdentifier, INTENT_KIN
 import { decisionRecord, type DecisionLog } from './log.js';
 import { mapPayout, type FieldMapping } from './mapping.js';
 import { renderMetrics } from './metrics.js';
+import { SharedStateDriver, type SharedStateOptions } from './shared.js';
 import type { WebhookSender } from './webhook.js';
 
 /** What an API key may call. `read` covers GET /v1/state and /metrics. */
@@ -71,6 +72,14 @@ export interface GatewayOptions {
   readonly extAuthz?: ExtAuthzOptions;
   readonly stateStore?: StateStore;
   /**
+   * ADR 0004 active-active shared state. When set, intent consumption for
+   * `commitPolicy` kinds commits atomically through the backend before a
+   * non-DECLINE verdict leaves — two replicas can never double-spend an
+   * intent use or bind the same payoutId twice. Store down fails closed:
+   * enforce-mode payouts DECLINE, others degrade. There is no allow-on-outage.
+   */
+  readonly sharedState?: SharedStateOptions;
+  /**
    * Trust a `timestampMs` field in the request body. Default false: the
    * gateway stamps server time (and keeps the caller's value as
    * `clientTimestampMs` evidence). Only for callers trusted to report time;
@@ -118,6 +127,8 @@ export interface GatewayHandle {
   setReady(ready: boolean, reason?: string): void;
   /** Resolves false when there is no store or the save failed. A second writer marks the gateway not ready. */
   saveState(): Promise<boolean>;
+  /** Stop the shared-state poll and release its backend. Safe without shared state. */
+  closeShared(): Promise<void>;
 }
 
 export interface GatewayStats {
@@ -200,6 +211,20 @@ export function createGateway(o: GatewayOptions): GatewayHandle {
   const intentCost = new Map<string, { reset: number; used: number }>();
   const mintCost = new Map<string, { reset: number; used: number }>();
   const recentDecisions: ReturnType<typeof decisionRecord>[] = [];
+  // ADR 0004: store-reachability drives readiness — an impaired money path is
+  // a not-ready pod, exactly what an LB should drain. Only our own reason is
+  // restored on recovery (a split-brain 'not ready' stays latched).
+  const setSharedReady = (ok: boolean) => {
+    if (!ok) {
+      stats.ready = false;
+      stats.notReadyReason = 'shared state unreachable';
+    } else if (stats.notReadyReason === 'shared state unreachable') {
+      stats.ready = true;
+      stats.notReadyReason = '';
+    }
+  };
+  const shared = o.sharedState === undefined ? undefined : new SharedStateDriver(fw, o.sharedState, onError, setSharedReady, now);
+  shared?.start();
   const authKey = (req: IncomingMessage, role: ApiRole): ApiKey => {
     const t = bearer(req);
     const k = t === undefined ? undefined : o.apiKeys.find((a) => hexEq(t, a.sha256));
@@ -227,7 +252,7 @@ export function createGateway(o: GatewayOptions): GatewayHandle {
       o.webhook?.send({ type: 'payout.blocked', atMs: now(), decisionId: v.decisionId, payoutId: v.payoutId, rules: v.hits.map((h) => h.rule), mode: v.mode, effectiveAction: v.effectiveAction });
   };
 
-  const evaluate = (body: unknown, key: ApiKey, rid: string, peerHint?: string): PayoutVerdict => {
+  const evaluate = async (body: unknown, key: ApiKey, rid: string, peerHint?: string): Promise<PayoutVerdict> => {
     const p = body !== null && typeof body === 'object' ? { ...(body as Record<string, unknown>) } : body;
     if (p !== null && typeof p === 'object') {
       const b = p as Record<string, unknown>;
@@ -250,7 +275,8 @@ export function createGateway(o: GatewayOptions): GatewayHandle {
       if (o.trustClientTimestamp === true && claimed !== undefined) b['timestampMs'] = claimed;
       else if (typeof claimed === 'number' && Number.isFinite(claimed) && claimed !== b['timestampMs']) b['clientTimestampMs'] = claimed;
     }
-    const v = fw.evaluate(p as PayoutRequest);
+    const v0 = fw.evaluate(p as PayoutRequest);
+    const v = shared === undefined ? v0 : await shared.finalize(v0, p as PayoutRequest);
     record(v, p, rid, 'evaluate');
     return v;
   };
@@ -271,7 +297,7 @@ export function createGateway(o: GatewayOptions): GatewayHandle {
     if (path === '/v1/evaluate' && m === 'POST') {
       const key = authKey(req, 'evaluate');
       const body = await readBody(req, max);
-      return [200, evaluate(body, key, rid, req.socket.remoteAddress)];
+      return [200, await evaluate(body, key, rid, req.socket.remoteAddress)];
     }
     if (path === '/v1/intents' && m === 'POST') {
       const key = authKey(req, 'intents');
@@ -289,6 +315,18 @@ export function createGateway(o: GatewayOptions): GatewayHandle {
       if (b.used + list.length > budget) throw new HttpError(429, `intent verification budget exceeded (${budget}/min)`);
       b.used += list.length;
       const results = list.map((i) => fw.registerIntent(i, now()));
+      if (shared !== undefined) {
+        // Write-through before reporting success: an intent a replica cannot
+        // see must not look registered. Retry is safe — puts are idempotent.
+        for (const [n, r] of results.entries()) {
+          if (!r.accepted) continue;
+          try {
+            await shared.writeThroughIntent(list[n]);
+          } catch {
+            throw new HttpError(503, `shared-state write-through failed for '${r.intentId}' — retry the call`);
+          }
+        }
+      }
       const status = results.every((r) => r.accepted) ? 201 : results.some((r) => r.accepted) ? 207 : 422;
       return [status, Array.isArray(body) ? { results } : results[0]];
     }
@@ -346,13 +384,32 @@ export function createGateway(o: GatewayOptions): GatewayHandle {
         ...(notBeforeMs !== undefined ? { notBeforeMs: notBeforeMs as number } : {}),
       };
       const res = fw.mintIntent(spec, key.id, now());
+      if (res.accepted && shared !== undefined) {
+        try {
+          await shared.writeThroughIntent({ intentId: res.intentId });
+        } catch {
+          throw new HttpError(503, 'shared-state write-through failed — retry the mint (same intentId is idempotent)');
+        }
+      }
       return [res.accepted ? 201 : 422, res];
     }
     if (path === '/v1/outcomes' && m === 'POST') {
       const key = authKey(req, 'outcomes');
       const b = (await readBody(req, max)) as { payoutId?: unknown; outcome?: unknown } | undefined;
       if (typeof b?.payoutId !== 'string' || !['settled', 'failed', 'reversed'].includes(b.outcome as string)) throw new HttpError(400, 'payoutId and outcome (settled|failed|reversed) required');
-      return [200, { payoutId: b.payoutId, known: fw.reportOutcome(b.payoutId, b.outcome as PayoutOutcome, key.id) }];
+      // With shared state the reservation row is the truth: apply the outcome
+      // there first (a replica may never have held the payout locally), then
+      // to local counters. Failure → 503; the call is safe to retry.
+      let remote = false;
+      if (shared !== undefined) {
+        try {
+          remote = await shared.applyOutcome(b.payoutId, b.outcome as 'settled' | 'failed' | 'reversed', key.id);
+        } catch {
+          throw new HttpError(503, 'shared-state outcome write failed — retry the call');
+        }
+      }
+      const known = fw.reportOutcome(b.payoutId, b.outcome as PayoutOutcome, key.id);
+      return [200, { payoutId: b.payoutId, known: remote || known }];
     }
     if (path === '/v1/state' && m === 'GET') {
       authKey(req, 'read');
@@ -396,9 +453,25 @@ export function createGateway(o: GatewayOptions): GatewayHandle {
       const b = ((await readBody(req, max)) ?? {}) as { mode?: Mode; kind?: IntentKind; highAlert?: 'raise' | 'reset'; actor?: string; reason?: string };
       const cred = { actor: String(b.actor ?? 'admin').slice(0, 64), reason: String(b.reason ?? '').slice(0, 256), adminToken: token };
       if (cred.reason === '') throw new HttpError(400, 'reason is required (it goes in the audit trail)');
+      // Apply locally first (audits the real admin), then write the control
+      // row so other replicas converge — a failed push is retried by the caller.
       if (b.highAlert === 'raise') fw.raiseHighAlert(cred.actor, cred.reason);
       if (b.highAlert === 'reset') fw.resetHighAlert(cred);
       if (b.mode !== undefined) fw.setMode(b.mode, cred, b.kind);
+      if (shared !== undefined && (b.highAlert !== undefined || b.mode !== undefined)) {
+        try {
+          await shared.pushControl((cur) => ({
+            ...cur,
+            // First alarm wins — a second replica's raise must not overwrite the original reason.
+            ...(b.highAlert === 'raise' && (cur.highAlert === undefined || cur.highAlert === null) ? { highAlert: { since: now(), reason: cred.reason } } : {}),
+            ...(b.highAlert === 'reset' ? { highAlert: null } : {}),
+            ...(b.mode !== undefined && b.kind === undefined ? { mode: b.mode } : {}),
+            ...(b.mode !== undefined && b.kind !== undefined ? { modeByKind: { ...cur.modeByKind, [b.kind]: b.mode } } : {}),
+          }));
+        } catch {
+          throw new HttpError(503, 'applied locally; shared-state propagation failed — retry the call');
+        }
+      }
       return [200, stateView()];
     }
     if (path.startsWith('/v1/issuers/') && m === 'DELETE') {
@@ -414,6 +487,13 @@ export function createGateway(o: GatewayOptions): GatewayHandle {
       const cred = { actor: String(b.actor ?? 'admin').slice(0, 64), reason: String(b.reason ?? '').slice(0, 256), adminToken: token };
       if (cred.reason === '') throw new HttpError(400, 'reason is required (it goes in the audit trail)');
       const ok = fw.revokeIssuerKey(keyId, cred);
+      if (ok && shared !== undefined) {
+        try {
+          await shared.pushControl((cur) => ({ ...cur, revokedKeyIds: [...new Set([...(cur.revokedKeyIds ?? []), keyId])] }));
+        } catch {
+          throw new HttpError(503, 'revoked locally; shared-state propagation failed — retry the call');
+        }
+      }
       return [ok ? 200 : 404, { keyId, revoked: ok, issuers: fw.keyring.list() }];
     }
     if (path === '/v1/canaries' && m === 'POST') {
@@ -449,7 +529,8 @@ export function createGateway(o: GatewayOptions): GatewayHandle {
       o.hashKey,
       { origin, nowMs: now(), trustClientTimestamp: x.trustClientTimestamp === true },
     );
-    const v = fw.evaluate(payout as unknown as PayoutRequest);
+    const v0 = fw.evaluate(payout as unknown as PayoutRequest);
+    const v = shared === undefined ? v0 : await shared.finalize(v0, payout as unknown as PayoutRequest);
     record(v, payout, rid, 'ext_authz');
     const headers = {
       'x-payrekha-verdict': v.verdict,
@@ -519,6 +600,9 @@ export function createGateway(o: GatewayOptions): GatewayHandle {
       } finally {
         saving = false;
       }
+    },
+    async closeShared() {
+      await shared?.close();
     },
   };
 }

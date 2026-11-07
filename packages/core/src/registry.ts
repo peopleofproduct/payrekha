@@ -161,6 +161,30 @@ export class IntentRegistry {
     return this.store.get(intentId);
   }
 
+  /**
+   * The reservation bound to this payoutId, if any. The gateway reads this
+   * to know `evaluate` consumed intents — that's the trigger for the shared
+   * commit (ADR 0004).
+   */
+  reservationOf(payoutId: string): { readonly intentId: string; readonly approvalIds: readonly string[]; readonly amountPaise: number; readonly sourceKeyId: string | undefined } | undefined {
+    const r = this.reservations.get(payoutId);
+    if (r === undefined) return undefined;
+    return { intentId: r.intentId, approvalIds: r.approvalIds ?? [], amountPaise: r.amountPaise, sourceKeyId: r.sourceKeyId };
+  }
+
+  /**
+   * Authoritative counters learned from the shared backend (ADR 0004): the
+   * remote value is the truth for committed consumption — including drops
+   * after a cross-replica release. Local reservations not yet committed
+   * correct themselves through the commit conflict path.
+   */
+  syncCounters(intentId: string, uses: number, usedPaise: number): void {
+    const rec = this.store.get(intentId);
+    if (rec === undefined) return;
+    rec.uses = uses;
+    rec.usedPaise = usedPaise;
+  }
+
   /** Bind a payout to its intent. Pure read — consumption happens in `reserve`. */
   check(p: PayoutRequest, required: boolean, approval?: ApprovalRequirement): IntentCheck {
     if (p.intentId === undefined || p.intentId === '') {

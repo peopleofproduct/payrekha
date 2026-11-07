@@ -79,7 +79,20 @@ The snapshot holds ledgers, velocity windows, intents, dedupe and alert state (h
 
 Until the snapshot has been read, `/readyz` and every API call return 503, and the gateway retries every `PAYREKHA_STATE_RETRY_MS` (default 5 s). So an unreachable database or a corrupt file never starts the gateway with an empty memory, and nothing is saved over a snapshot it could not read.
 
-Every Postgres save is a compare-and-set on a version counter. If another instance has written the same row, this instance goes unready with `state written by another instance` instead of overwriting a HIGH_ALERT. That makes Postgres good for durability and active/standby failover (the standby loads on start), not for active-active: run one active replica per `PAYREKHA_STATE_NAME`. A shared store for active-active velocity windows is on the [ROADMAP](../ROADMAP.md).
+Every Postgres save is a compare-and-set on a version counter. If another instance has written the same row, this instance goes unready with `state written by another instance` instead of overwriting a HIGH_ALERT. That makes the snapshot store good for durability and active/standby failover (the standby loads on start). For active-active replicas, use shared state instead:
+
+### Shared state (ADR 0004, active-active)
+
+With `PAYREKHA_SHARED_PG_URL` set (plus optional `PAYREKHA_SHARED_PG_PREFIX`, default `payrekha_sa`), every replica commits intent consumption through one Postgres transaction before a non-DECLINE verdict leaves — a use can never be double-spent and a payoutId can never bind twice, no matter which replica answers. Three tables are created on first use: `*_intents` (immutable docs + authoritative counters), `*_reservations` (payoutId tombstones + stored verdicts), `*_control` (alert/mode/revocations + generation).
+
+- `gateway.sharedState.commitPolicy`: `'all'` (default) or a list of IntentKinds that must commit — the per-kind consistency/latency knob (e.g. `["VDA_WITHDRAWAL","LOAN_DISBURSAL"]` while REFUND stays local-fast).
+- `gateway.sharedState.controlPollMs` (default 2000): control-state convergence poll. The commit checks the control generation inside the transaction, so a revocation or HIGH_ALERT reaches the money path in ~0 ms — the poll only warms the read path.
+- Config `gateway.sharedState` without the URL boots on an in-memory backend — single replica only, warned at boot.
+- Store unreachable: enforce-mode intent-bound payouts DECLINE (`store.commit-failed` evidence), others degrade; `/readyz` reports not-ready until the poll reconnects. There is no allow-on-outage switch — break-glass is an LB failover to a fenced single active, never a flag.
+- Registrations (`POST /v1/intents`, mint), outcomes and admin control ops write through synchronously and return 503 on store failure — retry is idempotent.
+- Velocity/cooling/fingerprint heuristics stay per-replica (Phase 1): REVIEW gates, not authorisation counters. Use LB affinity by `sourceKeyId` to keep them coherent.
+
+Rehearse before trusting it: `npm run drill:shared-state` (or `PAYREKHA_SHARED_PG_URL=… node scripts/drill-shared-state.mjs`) drives concurrent spend, payoutId storms, outage and revocation scenarios through two live replicas.
 
 ## Tuning with replay
 

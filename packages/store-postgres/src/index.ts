@@ -4,6 +4,8 @@
 import pg from 'pg';
 import { signSnapshot, verifyAndUnwrap, type FirewallSnapshot, type Payrekha, type StateStore } from '@payrekha/core';
 
+export { PostgresSharedBackend, type PostgresSharedBackendOptions } from './shared.js';
+
 export interface PostgresStateStoreOptions {
   /** e.g. postgres://payrekha@db:5432/payrekha. Ignored when `pool` is given. Never logged. */
   readonly connectionString?: string;
