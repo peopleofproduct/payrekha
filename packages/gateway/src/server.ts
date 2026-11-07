@@ -137,6 +137,8 @@ export interface GatewayStats {
   logErrors: number;
   ready: boolean;
   notReadyReason: string;
+  /** Wall time of the last state saves — export (sync) + serialize + write. */
+  stateSaveMs: { sum: number; count: number; max: number };
   /** Live reference into the SharedStateDriver counters — only set when sharedState is configured. */
   shared?: SharedStateDriver['metrics'];
 }
@@ -207,7 +209,7 @@ export function createGateway(o: GatewayOptions): GatewayHandle {
   const now = o.now ?? Date.now;
   const max = o.maxBodyBytes ?? 64 * 1024;
   let saving = false;
-  const stats: GatewayStats = { requests: new Map(), stateSaveErrors: 0, logErrors: 0, ready: true, notReadyReason: '' };
+  const stats: GatewayStats = { requests: new Map(), stateSaveErrors: 0, logErrors: 0, ready: true, notReadyReason: '', stateSaveMs: { sum: 0, count: 0, max: 0 } };
   const onError = o.onError ?? (() => undefined);
 
   const intentCost = new Map<string, { reset: number; used: number }>();
@@ -588,6 +590,7 @@ export function createGateway(o: GatewayOptions): GatewayHandle {
       // Never write while unready: a not-yet-read or contested snapshot must not be overwritten.
       if (o.stateStore === undefined || saving || !stats.ready) return false;
       saving = true;
+      const t0 = now();
       try {
         await o.stateStore.save(fw);
         return true;
@@ -602,6 +605,10 @@ export function createGateway(o: GatewayOptions): GatewayHandle {
         return false;
       } finally {
         saving = false;
+        const ms = now() - t0;
+        stats.stateSaveMs.count += 1;
+        stats.stateSaveMs.sum += ms;
+        if (ms > stats.stateSaveMs.max) stats.stateSaveMs.max = ms;
       }
     },
     async closeShared() {

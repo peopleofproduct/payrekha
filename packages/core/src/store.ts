@@ -1,9 +1,11 @@
 // SPDX-License-Identifier: Apache-2.0
 // Copyright 2026 Kapil — People of Product™
 
-import { existsSync, readFileSync, renameSync, writeFileSync } from 'node:fs';
+import { existsSync, readFileSync } from 'node:fs';
+import { rename, writeFile } from 'node:fs/promises';
 import type { Payrekha } from './firewall.js';
-import { signSnapshot, verifyAndUnwrap } from './snapshot.js';
+import { serializeSnapshot } from './serialize.js';
+import { verifyAndUnwrap } from './snapshot.js';
 
 /**
  * Where the firewall snapshot lives between restarts. `load` returns false
@@ -35,10 +37,16 @@ export class FileStateStore implements StateStore {
     return `file:${this.path}`;
   }
 
-  save(fw: Payrekha): void {
+  /**
+   * `exportState` stays synchronous — it is the point-in-time consistency
+   * anchor. Serialization + disk I/O are off the event loop: the snapshot
+   * object is immutable once exported, so `serializeSnapshot` can yield
+   * between records without tearing (B3).
+   */
+  async save(fw: Payrekha): Promise<void> {
     const tmp = `${this.path}.tmp-${process.pid}`;
-    writeFileSync(tmp, JSON.stringify(signSnapshot(fw.exportState(), this.hmacKey)), { mode: 0o600 });
-    renameSync(tmp, this.path);
+    await writeFile(tmp, await serializeSnapshot(fw.exportState(), this.hmacKey), { mode: 0o600 });
+    await rename(tmp, this.path);
   }
 
   /** Returns false when there is no snapshot yet. Throws on a corrupt or tampered one. */

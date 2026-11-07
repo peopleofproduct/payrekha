@@ -21,8 +21,12 @@ import {
   LruMap,
   normalizeMobile,
   Payrekha,
+  serializeCanonical,
+  serializeSnapshot,
   signIntent,
+  signSnapshot,
   TimeRing,
+  verifyAndUnwrap,
   Verdict,
   type PayoutContext,
   type PayoutRequest,
@@ -482,11 +486,11 @@ describe('timestamp trust boundary (maxTimestampSkewMs)', () => {
 describe('snapshot integrity (PAYREKHA_STATE_KEY)', () => {
   const dir = () => mkdtempSync(join(tmpdir(), 'prk-'));
   const key = 'state-key-0123456789abcdef0123456789';
-  it('signed snapshots round-trip; tampering and wrong keys are refused', () => {
+  it('signed snapshots round-trip; tampering and wrong keys are refused', async () => {
     const file = join(dir(), 's.json');
     const fw = new Payrekha([], { config: { mode: 'enforce' } });
     fw.evaluate(po());
-    new FileStateStore(file, key).save(fw);
+    await new FileStateStore(file, key).save(fw);
     const fw2 = new Payrekha([], {});
     assert.equal(new FileStateStore(file, key).load(fw2), true);
     // Wrong key and tampered content both fail closed.
@@ -496,36 +500,94 @@ describe('snapshot integrity (PAYREKHA_STATE_KEY)', () => {
     writeFileSync(file, JSON.stringify(tampered));
     assert.throws(() => new FileStateStore(file, key).load(fw2), /signature mismatch/);
   });
-  it('a key set against a legacy unsigned file refuses to load (no silent upgrade)', () => {
+  it('a key set against a legacy unsigned file refuses to load (no silent upgrade)', async () => {
     const file = join(dir(), 's.json');
-    new FileStateStore(file).save(new Payrekha([], {}));
+    await new FileStateStore(file).save(new Payrekha([], {}));
     assert.throws(() => new FileStateStore(file, key).load(new Payrekha([], {})), /unsigned/);
     // And the unsigned path is untouched for deployments without the key.
     assert.equal(new FileStateStore(file).load(new Payrekha([], {})), true);
   });
-  it('previous keys verify during rotation but never sign', () => {
+  it('previous keys verify during rotation but never sign', async () => {
     const file = join(dir(), 's.json');
-    new FileStateStore(file, 'old-key-0123456789abcdef012345678').save(new Payrekha([], {}));
+    await new FileStateStore(file, 'old-key-0123456789abcdef012345678').save(new Payrekha([], {}));
     // Rotated primary + retiring key → loads; save re-signs with the new key.
     const rotated = new FileStateStore(file, key, ['old-key-0123456789abcdef012345678']);
     assert.equal(rotated.load(new Payrekha([], {})), true);
-    rotated.save(new Payrekha([], {}));
+    await rotated.save(new Payrekha([], {}));
     assert.equal(new FileStateStore(file, key).load(new Payrekha([], {})), true);
     assert.throws(() => new FileStateStore(file, 'old-key-0123456789abcdef012345678').load(new Payrekha([], {})), /mismatch/);
   });
 });
 
 describe('FileStateStore', () => {
-  it('writes atomically with 0600 and restores', () => {
+  it('writes atomically with 0600 and restores', async () => {
     const dir = mkdtempSync(join(tmpdir(), 'payrekha-'));
     const path = join(dir, 'state.json');
     const fw = new Payrekha([]);
     fw.raiseHighAlert('t', 't');
     const store = new FileStateStore(path);
-    store.save(fw);
+    await store.save(fw);
     assert.equal(statSync(path).mode & 0o777, 0o600);
     const fw2 = new Payrekha([]);
     assert.equal(store.load(fw2), true);
     assert.equal(fw2.alertState, 'HIGH_ALERT');
+  });
+});
+
+describe('serializeSnapshot (B3 — chunked, off the event loop)', () => {
+  it('emits bytes identical to canonicalJson on arbitrary values', async () => {
+    const value = {
+      z: [1, 'x', null, true, [2, { b: [3, 4], a: 'k' }]],
+      a: { nested: { list: ['q', 7] }, s: 'trail' },
+      undef: undefined,
+    };
+    assert.equal(await serializeCanonical(value), canonicalJson(value));
+    assert.equal(await serializeCanonical(value, 1), canonicalJson(value), 'byte-identical even when yielding every step');
+    assert.throws(() => canonicalJson({ f: 1.5 }), /non-integer/);
+    await assert.rejects(serializeCanonical({ f: 1.5 }), /non-integer/);
+  });
+
+  it('signed output verifies; unsigned output is the canonical snapshot', async () => {
+    const dir = mkdtempSync(join(tmpdir(), 'payrekha-'));
+    const key = 'state-key-0123456789abcdef0123456789';
+    const fw = new Payrekha([], { config: { mode: 'enforce' } });
+    fw.evaluate(po());
+    fw.raiseHighAlert('t', 't');
+    const snap = fw.exportState();
+    const signed = await serializeSnapshot(snap, key);
+    // Round-trips through the same verifyAndUnwrap the stores use on load.
+    const back = verifyAndUnwrap(JSON.parse(signed), key);
+    assert.deepEqual(back.canaries, (snap as unknown as Record<string, unknown>)['canaries']);
+    assert.equal(back.highAlert === null, false);
+    const wrong = await serializeSnapshot(snap, 'other-key-0123456789abcdef0123456');
+    assert.throws(() => verifyAndUnwrap(JSON.parse(wrong), key), /signature mismatch/);
+    const unsigned = await serializeSnapshot(snap, undefined);
+    const backU = verifyAndUnwrap(JSON.parse(unsigned), undefined);
+    assert.equal(backU.mode, 'enforce');
+    // FileStateStore writes these exact bytes — a real save→load cycle.
+    const file = join(dir, 's.json');
+    await new FileStateStore(file, key).save(fw);
+    const fw2 = new Payrekha([], {});
+    assert.equal(new FileStateStore(file, key).load(fw2), true);
+    assert.equal(fw2.alertState, 'HIGH_ALERT');
+  });
+
+  it('yields to the event loop between record slices', async () => {
+    // 20k leaf records forces several pause() ticks at the default budget —
+    // if another macrotask runs mid-serialization the loop stayed live.
+    const value = { rows: Array.from({ length: 20_000 }, (_, i) => ({ k: `r${i}`, v: i })) };
+    let ran = false;
+    setTimeout(() => {
+      ran = true;
+    }, 0);
+    const body = await serializeCanonical(value, 512);
+    assert.equal(ran, true, 'a timer scheduled before serialize must fire before it finishes');
+    assert.equal(body, canonicalJson(value));
+  });
+
+  it('signSnapshot still exists for callers that serialize whole', () => {
+    const snap = new Payrekha([], {}).exportState();
+    const env = signSnapshot(snap, 'k'.repeat(32)) as { m: string };
+    assert.equal(typeof env.m, 'string');
   });
 });

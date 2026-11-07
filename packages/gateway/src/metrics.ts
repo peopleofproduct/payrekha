@@ -43,6 +43,13 @@ export function renderMetrics(fw: Payrekha, stats: GatewayStats, webhook?: Webho
   }));
   metric('payrekha_ready', 'gauge', '1 when the gateway is ready.', [['', stats.ready ? 1 : 0]]);
   metric('payrekha_state_save_errors_total', 'counter', 'Failed state snapshots.', [['', stats.stateSaveErrors]]);
+  L.push(
+    '# HELP payrekha_state_save_ms Snapshot save wall time — export (sync) + serialize + write.',
+    '# TYPE payrekha_state_save_ms summary',
+    `payrekha_state_save_ms_sum ${stats.stateSaveMs.sum}`,
+    `payrekha_state_save_ms_count ${stats.stateSaveMs.count}`,
+    `payrekha_state_save_ms_max ${stats.stateSaveMs.max}`,
+  );
   metric('payrekha_decision_log_errors_total', 'counter', 'Failed decision-log writes.', [['', stats.logErrors + logErrors]]);
   metric('payrekha_hook_errors_total', 'counter', 'Decision/audit hooks that threw.', [['', m.hookErrors]]);
   if (stats.shared !== undefined) {

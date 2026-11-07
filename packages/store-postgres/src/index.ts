@@ -2,7 +2,7 @@
 // Copyright 2026 Kapil — People of Product™
 
 import pg from 'pg';
-import { signSnapshot, verifyAndUnwrap, type FirewallSnapshot, type Payrekha, type StateStore } from '@payrekha/core';
+import { serializeSnapshot, verifyAndUnwrap, type FirewallSnapshot, type Payrekha, type StateStore } from '@payrekha/core';
 
 export { PostgresSharedBackend, type PostgresSharedBackendOptions } from './shared.js';
 
@@ -101,7 +101,9 @@ export class PostgresStateStore implements StateStore {
   async save(fw: Payrekha): Promise<void> {
     await this.init();
     if (this.version === null) throw new StaleStateError('save before load: refusing to overwrite a snapshot we have not read');
-    const snap = JSON.stringify(signSnapshot(fw.exportState(), this.hmacKey));
+    // Chunked canonical serialization — same bytes signSnapshot produced,
+    // but the event loop stays free between record slices (B3).
+    const snap = await serializeSnapshot(fw.exportState(), this.hmacKey);
     const r =
       this.version === 0
         ? await this.pool.query<{ version: string }>(

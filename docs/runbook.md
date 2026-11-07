@@ -85,18 +85,22 @@ One writer only. Promote a standby by scaling the fenced/down active to 0 first,
 
 ## Capacity envelope (measured — `npm run loadcheck`)
 
-On an M-series laptop, enforce mode with behaviour rules + intent checks:
+Full table, methodology and tuning guidance: `docs/capacity-envelope.md`.
+Headline numbers (dev host, enforce mode, behaviour rules + intent checks):
 
-| State size | eval p99 | snapshot serialize+HMAC stall | heap after run |
-|---|---|---|---|
-| 20k beneficiaries / 5k intents | ~42 µs | ~20 ms (0.4% of the 5 s cycle) | ~140 MB |
-| 100k beneficiaries / 30k intents | ~64 µs | ~205 ms (4.1%) | ~260 MB |
+| State size | eval p99 | snapshot export stall (sync) | serialize wall (off-loop) | heap after run |
+|---|---|---|---|---|
+| 20k intents / 50k beneficiaries (~12 MB snap) | ~32 µs | ~6 ms | ~82 ms | ~124 MB |
+| 100k intents / 200k beneficiaries (~56 MB snap) | ~34 µs | ~60 ms | ~340 ms | ~613 MB |
 
-The stall scales roughly linearly with snapshot bytes and is HMAC-dominated.
-**Trigger for async snapshot serialization: snapshots routinely > ~20 MB.**
-Watch `payrekha_eval_latency_micros` p99 and pod RSS against the 512 Mi limit
-on day one — dedupe entries grow toward their cap under unique payoutIds, so
-heap is driven by payout *rate*, not just beneficiary count.
+B3 sliced serialization + HMAC off the event loop — the residual sync pause
+is `exportState()` alone (linear in snapshot bytes; ~1% duty at 56 MB on the
+default 5 s interval, tunable via `PAYREKHA_STATE_INTERVAL_MS`). Watch
+`payrekha_eval_latency_micros` p99, `payrekha_state_save_ms_max`, and pod RSS
+against the 512 Mi limit on day one — dedupe entries grow toward their cap
+under unique payoutIds, so heap is driven by payout *rate*, not just
+beneficiary count. If export ms climbs toward ~250 ms the next step is
+per-section sharding, not a torn export — see the envelope doc.
 
 ## Rollback
 

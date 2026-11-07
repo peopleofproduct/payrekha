@@ -69,7 +69,7 @@ Envoy is configured with `failure_mode_allow: false`, which is the same as `hold
 
 ## State and restarts
 
-The snapshot holds ledgers, velocity windows, intents, dedupe and alert state (hashed refs only). It is saved every `PAYREKHA_STATE_INTERVAL_MS` (default 5 s) and on SIGTERM. Pick one backend:
+The snapshot holds ledgers, velocity windows, intents, dedupe and alert state (hashed refs only). It is saved every `PAYREKHA_STATE_INTERVAL_MS` (default 5 s) and on SIGTERM. The save keeps `exportState()` as the only synchronous step — serialization, HMAC and disk I/O are sliced off the event loop (see `docs/capacity-envelope.md` for the residual-stall bound and `payrekha_state_save_ms` on `/metrics`). Pick one backend:
 
 - `PAYREKHA_STATE_FILE`: a JSON file written atomically with mode `0600`.
 - `PAYREKHA_STATE_PG_URL`: Postgres via `@payrekha/store-postgres` (bundled in the image). One row per deployment in `PAYREKHA_STATE_PG_TABLE` (default `payrekha_state`), keyed by `PAYREKHA_STATE_NAME` (default `default`). The table is created on first use.

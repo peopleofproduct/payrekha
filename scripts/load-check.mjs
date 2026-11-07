@@ -4,15 +4,17 @@
 //
 // Synthetic load check — answers the two questions only volume settles:
 //   1. What is evaluate() p50/p99/max at realistic state sizes?
-//   2. How long does snapshot serialization (exportState + HMAC) stall the
-//      event loop at that size? (The every-5s save runs on it.)
+//   2. How long does the snapshot save stall the event loop? B3 sliced
+//      serialization off the hot path — the residual stall is exportState()
+//      alone; the probe measures the worst loop gap during serialize.
 //
 //   node scripts/load-check.mjs --beneficiaries 50000 --intents 20000 --seconds 15
 //   Flags: --merchants N --seconds N --json. Numbers are for THIS host;
 //   re-run on production-class hardware before setting enforce thresholds.
 import { createHash } from 'node:crypto';
 import { performance } from 'node:perf_hooks';
-import { ed25519PrivateKeyFromSeed, exportPublicKey, hashBeneficiary, Payrekha, signIntent, signSnapshot } from '../packages/core/dist/index.js';
+import { clearImmediate, setImmediate } from 'node:timers';
+import { ed25519PrivateKeyFromSeed, exportPublicKey, hashBeneficiary, Payrekha, serializeSnapshot, signIntent } from '../packages/core/dist/index.js';
 import { payrekhaRules } from '../packages/rules/dist/index.js';
 
 const arg = (name, dflt) => {
@@ -104,16 +106,29 @@ const used = lat.subarray(0, n).sort();
 const rps = Math.round(n / SECONDS);
 
 // ---- Phase C: snapshot serialization stall ---------------------------------
+// B3 split: exportState() is the residual SYNC cost (the consistency anchor —
+// it must see one instant's state). serializeSnapshot signs + serializes in
+// paced slices off the event loop, so wall time ≠ stall. We measure the max
+// event-loop gap during serialization — the number that hits eval p99.
 const stalls = [];
 let bytes = 0;
 for (let k = 0; k < 3; k++) {
   const t0 = performance.now();
   const snap = fw.exportState();
   const t1 = performance.now();
-  const wrapped = signSnapshot(snap, 'load-check-state-key-0123456789abcdef');
+  let maxGap = 0;
+  let last = performance.now();
+  const probe = setImmediate(function tick() {
+    const t = performance.now();
+    if (t - last > maxGap) maxGap = t - last;
+    last = t;
+    setImmediate(tick);
+  });
+  const body = await serializeSnapshot(snap, 'load-check-state-key-0123456789abcdef');
+  clearImmediate(probe);
   const t2 = performance.now();
-  bytes = JSON.stringify(wrapped).length;
-  stalls.push({ exportMs: t1 - t0, signMs: t2 - t1, totalMs: t2 - t0 });
+  bytes = body.length;
+  stalls.push({ exportMs: t1 - t0, serializeMs: t2 - t1, maxLoopGapMs: maxGap });
 }
 const stall = stalls[1]; // median of 3
 const heapEnd = process.memoryUsage().heapUsed;
@@ -129,11 +144,17 @@ const report = {
     max_us: Math.round(used[used.length - 1]),
     hits: Object.fromEntries([...hits.entries()].sort((a, b) => b[1] - a[1]).slice(0, 10)),
   },
-  snapshot: { bytes, exportMs: +stall.exportMs.toFixed(1), hmacMs: +stall.signMs.toFixed(1), totalMs: +stall.totalMs.toFixed(1), stallPctOf5sCycle: +((stall.totalMs / 5000) * 100).toFixed(2) },
+  snapshot: {
+    bytes,
+    exportMs: +stall.exportMs.toFixed(1),
+    serializeMs: +stall.serializeMs.toFixed(1),
+    maxLoopGapMs: +stall.maxLoopGapMs.toFixed(2),
+    stallPctOf5sCycle: +((stall.exportMs / 5000) * 100).toFixed(2),
+  },
   memory: { heapAfterSeedMB: +(heapAfterSeed / 1048576).toFixed(1), heapAfterRunMB: +(heapEnd / 1048576).toFixed(1) },
   verdict: {
     evalP99ok: pct(used, 0.99) < 5_000 ? 'ok (<5ms)' : 'WATCH: p99 >5ms',
-    snapshotStall: stall.totalMs < 250 ? 'ok — sync serialization acceptable' : 'INVESTIGATE: consider async snapshot serialization before enforce',
+    snapshotStall: stall.exportMs < 250 ? 'ok — export is the only sync pause; serialization is sliced' : 'INVESTIGATE: exportState() alone exceeds the bound — shard or reduce state',
   },
 };
 
@@ -141,7 +162,7 @@ if (JSON_OUT) {
   console.log(JSON.stringify(report, null, 2));
 } else {
   console.log(`\nevaluate: ${n} calls @ ~${rps} rps   p50 ${report.evaluate.p50_us}µs  p95 ${report.evaluate.p95_us}µs  p99 ${report.evaluate.p99_us}µs  max ${report.evaluate.max_us}µs`);
-  console.log(`snapshot: ${(bytes / 1048576).toFixed(1)} MB   export ${stall.exportMs.toFixed(1)}ms + hmac ${stall.signMs.toFixed(1)}ms = ${stall.totalMs.toFixed(1)}ms stall (${report.snapshot.stallPctOf5sCycle}% of the 5s cycle)`);
+  console.log(`snapshot: ${(bytes / 1048576).toFixed(1)} MB   export ${stall.exportMs.toFixed(1)}ms (sync stall) + serialize ${stall.serializeMs.toFixed(1)}ms (sliced; worst loop gap ${stall.maxLoopGapMs.toFixed(1)}ms)`);
   console.log(`heap:     ${report.memory.heapAfterSeedMB} MB after seed → ${report.memory.heapAfterRunMB} MB after run`);
   console.log(`top hits: ${Object.entries(report.evaluate.hits).map(([k, v]) => `${k}×${v}`).join('  ') || 'none'}`);
   console.log(`\nverdict:  eval p99 — ${report.verdict.evalP99ok}`);
