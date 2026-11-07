@@ -15,6 +15,13 @@ spec:
       ports: [{ port: 8080, protocol: TCP }]
   egress:
     - ports: [{ port: 53, protocol: UDP }, { port: 53, protocol: TCP }]
+    {{- if .Values.networkPolicy.postgresTo.enabled }}
+    # The state/shared-state database — without this the snapshot save and
+    # the ADR 0004 commit fail closed (payrekha goes unready, correctly).
+    - to:
+        - ipBlock: { cidr: {{ required "networkPolicy.postgresTo.cidr is required when enabled" .Values.networkPolicy.postgresTo.cidr }} }
+      ports: [{ port: {{ .Values.networkPolicy.postgresTo.port }}, protocol: TCP }]
+    {{- end }}
     {{- with .Values.networkPolicy.egress }}
     {{- toYaml . | nindent 4 }}
     {{- end }}

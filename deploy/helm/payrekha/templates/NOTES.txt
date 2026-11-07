@@ -1,4 +1,4 @@
-PayRekha {{ .Chart.AppVersion }} is running in {{ .Values.config.firewall.mode | default "shadow" }} mode (state: {{ .Values.state.type }}).
+PayRekha {{ .Chart.AppVersion }} is running in {{ .Values.config.firewall.mode | default "shadow" }} mode (topology: {{ .Values.topology }}, state: {{ .Values.state.type }}).
 
   kubectl -n {{ .Release.Namespace }} port-forward svc/{{ include "payrekha.fullname" . }} 8080:{{ .Values.service.port }}
   curl -s localhost:8080/readyz
@@ -6,5 +6,24 @@ PayRekha {{ .Chart.AppVersion }} is running in {{ .Values.config.firewall.mode |
 Shadow mode never blocks: it logs what it would have done. Switch to enforce
 only after replaying real traffic (docs/getting-started.md).
 {{- if .Values.networkPolicy.enabled }}
-Only pods labelled {{ toJson .Values.networkPolicy.clientPodSelector.matchLabels }} can reach it.
+Only pods labelled {{ toJson .Values.networkPolicy.clientPodSelector.matchLabels }} can reach it; egress is default-deny except DNS{{ if .Values.networkPolicy.postgresTo.enabled }} + Postgres{{ end }}.
+{{- end }}
+{{- if .Values.standby.enabled }}
+
+Standby is deployed at {{ .Values.standby.replicas }} replicas (must stay 0 —
+a live second writer CAS-fences itself). To promote on active loss:
+  kubectl -n {{ .Release.Namespace }} scale deploy/{{ include "payrekha.fullname" . }}-standby --replicas=1
+It boots, loads the latest snapshot, and serves. Scale the failed primary
+deploy/{{ include "payrekha.fullname" . }} to 0 first if it may come back.
+{{- end }}
+{{- if eq .Values.topology "activeActive" }}
+
+Active-active: {{ .Values.replicaCount }} replicas share the commit path via
+Postgres (ADR 0004). Watch payrekha_shared_failclosed_total — growth means
+the shared store is wobbling and the money path is declining.
+{{- end }}
+{{- if and .Values.serviceMonitor.enabled (not .Values.serviceMonitor.bearerTokenSecret.name) }}
+
+NOTE: ServiceMonitor is on but bearerTokenSecret is unset — /metrics needs a
+'read'-role API key, so Prometheus will see 401s until you set it.
 {{- end }}

@@ -1,0 +1,19 @@
+{{- if .Values.pdb.enabled }}
+apiVersion: policy/v1
+kind: PodDisruptionBudget
+metadata:
+  name: {{ include "payrekha.fullname" . }}
+  labels: {{- include "payrekha.labels" . | nindent 4 }}
+spec:
+  selector:
+    matchLabels: {{- include "payrekha.selector" . | nindent 6 }}
+  {{- if eq .Values.topology "activeActive" }}
+  # At least one replica must keep serving through drains/rollouts.
+  minAvailable: {{ .Values.pdb.minAvailable }}
+  {{- else }}
+  # Single writer: drains allowed — the snapshot makes restart lossless in
+  # seconds. maxUnavailable 0 would wedge node upgrades; if you need it,
+  # failover is an operator decision via standby.
+  maxUnavailable: {{ .Values.pdb.maxUnavailable }}
+  {{- end }}
+{{- end }}

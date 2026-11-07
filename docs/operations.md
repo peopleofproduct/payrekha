@@ -104,6 +104,10 @@ Rehearse before trusting it: `npm run drill:shared-state` (or `PAYREKHA_SHARED_P
 
 Commit-path observability lives on `/metrics`: `payrekha_shared_commits_total`, `…_committed_total`, `…_conflicts_total{conflict=}`, `…_failclosed_total`, `…_miss_fetches_total`, `…_stale_syncs_total`, `…_purged_reservations_total` and `payrekha_shared_commit_ms_{sum,count,max}`. Alert on `failclosed` growth (store wobble) and `commit_ms` p99 climbing toward your verdict-path latency budget.
 
+## Kubernetes (deploy/helm/payrekha)
+
+`helm install` renders the production profile: non-root read-only-root pods, `Recreate` rollouts, default-deny egress (DNS + your `postgresTo`/extra rules only), a PDB, and a fast-promotion **standby** Deployment kept at `standby.replicas: 0` — promote it with `kubectl scale deploy/<name>-standby --replicas=1` after fencing the primary to 0 (a live second writer CAS-fences itself permanently, so it must stay scaled down). For RTO≈0 use `topology: activeActive` — it requires `state.type=postgres`, `config.gateway.sharedState`, and `PAYREKHA_SHARED_PG_URL` in the secret; the chart `fail`s on invalid combinations at template time rather than deploying a half-safe pair. `serviceMonitor` + `bearerTokenSecret` scrape `/metrics` (read-role token required); `externalSecrets` materialises the env secret from ESO instead of `kubectl create secret`. See `deploy/helm/payrekha/README.md` for the hardening checklist.
+
 ## Tuning with replay
 
 1. Replay a month in intent-less mode and read the false-positive list.

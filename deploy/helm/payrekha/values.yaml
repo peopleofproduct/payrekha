@@ -3,9 +3,26 @@ image:
   tag: ""            # defaults to .Chart.AppVersion
   pullPolicy: IfNotPresent
 
-# One active writer per firewall. With state.type=postgres a second replica
-# that also writes is detected and goes unready (fail closed), so keep 1.
+# Topology decides what replicaCount may be and how rollouts behave:
+#   single        — one active writer, fenced by the snapshot store
+#                   (Recreate; a second writer CAS-fences itself unready).
+#   activeActive  — ADR 0004 shared state: N replicas all serve, intent
+#                   consumption commits through Postgres. Requires
+#                   state.type=postgres and config.gateway.sharedState set
+#                   (PAYREKHA_SHARED_PG_URL in existingSecret).
+topology: single
 replicaCount: 1
+
+# Fast-promotion standby (topology=single only): an identical Deployment
+# kept at `replicas` (default 0 — a live second writer would CAS-fence
+# itself unready forever, so it must stay scaled down). On active loss:
+#   kubectl scale deploy/<release>-payrekha-standby --replicas=1
+# The pod boots, loads the latest snapshot row, and starts serving.
+# RTO ≈ pod schedule + snapshot load (seconds for typical state sizes).
+# For RTO≈0 use topology=activeActive instead.
+standby:
+  enabled: false
+  replicas: 0
 
 # Secret you create yourself (the chart never takes secret values). Keys:
 #   PAYREKHA_API_KEYS   id:prod|nonprod[:role+role]:token,…   (required)
@@ -14,6 +31,8 @@ replicaCount: 1
 #   PAYREKHA_HASH_KEY   beneficiary hash key       (needed for raw fields / ext_authz)
 #   PAYREKHA_EXT_AUTHZ_KEY, PAYREKHA_WEBHOOK_SECRET, PAYREKHA_ISSUER_SECRET_<KEYID>
 #   PAYREKHA_STATE_PG_URL                          (when state.type=postgres)
+#   PAYREKHA_SHARED_PG_URL + PAYREKHA_SHARED_PG_PREFIX
+#                                                (when topology=activeActive)
 #   PAYREKHA_STATE_KEY    snapshot HMAC key, ≥32 chars     (recommended)
 #   PAYREKHA_STATE_KEY_PREVIOUS  retiring keys during rotation (comma-separated)
 #   PAYREKHA_MINT_KEY_ID + PAYREKHA_MINT_KEY    managed intents (ed25519 issuer
@@ -25,6 +44,11 @@ existingSecret: payrekha
 config:
   firewall:
     mode: shadow
+  # topology=activeActive requires this block (ADR 0004):
+  # gateway:
+  #   sharedState:
+  #     commitPolicy: all            # or [LOAN_DISBURSAL, VDA_WITHDRAWAL]
+  #     reservationRetentionDays: 90 # settled payoutId tombstone bound
 
 state:
   type: file         # file | postgres
@@ -48,6 +72,44 @@ resources:
   requests: { cpu: 100m, memory: 128Mi }
   limits: { memory: 512Mi }
 
+# Schedule the money path above burstable batch pods when the cluster is
+# contended — e.g. "system-cluster-critical" or a custom PriorityClass.
+priorityClassName: ""
+
+# PodDisruptionBudget. single: maxUnavailable 1 — drains are allowed (the
+# snapshot makes restart lossless in seconds). activeActive: minAvailable 1
+# — at least one replica must stay serving through any voluntary eviction.
+pdb:
+  enabled: true
+  maxUnavailable: 1    # used when topology=single
+  minAvailable: 1      # used when topology=activeActive
+
+# Prometheus Operator scraping of /metrics (read-role bearer required —
+# put a read-role API-key token in a secret and point bearerTokenSecret at it).
+serviceMonitor:
+  enabled: false
+  interval: 15s
+  scrapeTimeout: 10s
+  labels: {}
+  bearerTokenSecret:
+    name: ""           # e.g. payrekha-metrics-token
+    key: ""            # e.g. token
+
+# External Secrets Operator: materialise `existingSecret` from your secret
+# store instead of kubectl-creating it. The rendered Secret lands under the
+# same name, so everything downstream is unchanged. Either dataFrom
+# (extract a whole remote secret) or data (per-key mapping).
+externalSecrets:
+  enabled: false
+  refreshInterval: 1h
+  secretStoreRef:
+    name: ""
+    kind: ClusterSecretStore   # ClusterSecretStore | SecretStore
+  # dataFrom: [{ extract: { key: prod/payrekha } }]
+  dataFrom: []
+  # data: [{ secretKey: PAYREKHA_API_KEYS, remoteRef: { key: prod/payrekha, property: api-keys } }]
+  data: []
+
 networkPolicy:
   enabled: true
   # Pods allowed to call the API / ext_authz (your payout service or Envoy).
@@ -56,7 +118,13 @@ networkPolicy:
   # Prometheus pods allowed to scrape /metrics (same port, bearer-protected).
   prometheusNamespaceSelector:
     matchLabels: { kubernetes.io/metadata.name: monitoring }
-  # Extra egress (SOAR webhook, Postgres). DNS is always allowed.
+  # Egress is default-deny (RA14 applied to ourselves). DNS always allowed.
+  # postgresTo renders one egress rule for the state/shared-state database —
+  # everything else (SOAR webhook, etc.) goes in `egress` verbatim.
+  postgresTo:
+    enabled: false
+    cidr: ""           # e.g. 10.20.0.0/16 — your Postgres subnet
+    port: 5432
   egress: []
 
 podAnnotations: {}
