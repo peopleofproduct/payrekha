@@ -1,0 +1,59 @@
+# PayRekha correlation queries — Splunk (sourcetype=_json on PAYREKHA_DECISION_LOG)
+# Tuned to CIAD-2026-0058 RA23: machine-speed, multi-technique, off-hours operation
+# against a single target. Field names are top-level DecisionRecord fields;
+# rules{} is the multivalue rule list. Adjust index name to your deployment.
+
+# ── 1. Multi-technique burst (the advisory's core pattern) ──────────────────
+# ≥3 distinct rule ids on one sourceKeyId in 10 minutes = one caller tripping
+# several different defences — signature of an autonomous agent enumerating.
+index=payrekha type=decision
+| bin _time span=10m
+| stats dc(rules{}) AS techniques values(rules{}) AS rules count AS decisions BY _time sourceKeyId
+| where techniques >= 3 AND decisions >= 5
+| sort - techniques
+
+# ── 2. intent.missing burst — payout API probed without authorization ────────
+index=payrekha type=decision rules{}="intent.missing"
+| bin _time span=5m
+| stats count BY _time sourceKeyId origin
+| where count >= 5
+
+# ── 3. Non-business-hours operation (IST 23:00–06:00) ────────────────────────
+# IST = UTC+5:30 → minute-of-day arithmetic, TZ-independent.
+index=payrekha type=decision
+| eval ist_min=(tonumber(strftime(_time,"%H","UTC"))*60 + tonumber(strftime(_time,"%M","UTC")) + 330) % 1440
+| where ist_min >= 1380 OR ist_min < 360
+| bin _time span=1h
+| stats count sum(amountPaise) AS outflow_paise dc(rules{}) AS techniques BY _time sourceKeyId
+
+# ── 4. Degraded verdict burst — malformed-input probing or a failing rule ────
+index=payrekha type=decision degraded=true
+| bin _time span=10m
+| stats count values(ruleErrors{}) AS rule_errors BY _time
+| where count >= 10
+
+# ── 5. Canary trip / alert-state transitions — PAGE IMMEDIATELY ─────────────
+index=payrekha (type=decision rules{}="canary.tripped") OR (type=audit action="alert.*")
+| table _time type action actor reason sourceKeyId beneficiaryRef rules{}
+
+# ── 6. Probe chains — ₹1-then-large hits with the evidence attached ─────────
+index=payrekha type=decision rules{}="probe.micro-then-large"
+| table _time payoutId kind amountPaise beneficiaryRef sourceKeyId hits{}.evidence.minutesSinceMicro hits{}.evidence.multiple
+
+# ── 7. Settlement watch — account-change holds and over-captured blocks ─────
+index=payrekha type=decision rules{} IN ("settlement.account-changed","settlement.over-captured")
+| table _time merchantId amountPaise beneficiaryRef rules{} verdict effectiveAction
+
+# ── 8. UAT→prod pivot attempts ───────────────────────────────────────────────
+index=payrekha type=decision (origin="nonprod" OR rules{}="origin.nonprod")
+| bin _time span=1h | stats count BY _time sourceKeyId
+
+# ── 9. Outcome-report abuse — foreign key trying to free a bound intent ──────
+index=payrekha type=audit action="outcome.denied"
+| table _time actor reason
+
+# ── 10. Single-target pressure — all decisions against one beneficiary ───────
+# An enumerator hammering one account/VPA/address across techniques.
+index=payrekha type=decision beneficiaryRef="hb1_<ref>"
+| bin _time span=10m
+| stats dc(rules{}) AS techniques count sum(amountPaise) AS attempted_paise BY _time

@@ -55,6 +55,28 @@ POST /v1/evaluate              Authorization: Bearer <evaluate-role key>
   issuer — acceptable for pilots and shadow→enforce ramps, but external
   signing is the end state for money movement at scale.
 
+### When the mint tier is acceptable — and when it isn't
+
+The guarantee "even if they're inside, the money doesn't leave" rests on the
+signing key living in a *different* trust zone from the payout caller. Mint
+moves the signing key onto the PayRekha host — the storey collapses to "one
+host must hold" instead of "two keys must collude". Price that honestly:
+
+| Acceptable | Not acceptable |
+|---|---|
+| Shadow/advise ramps and pilots | `enforce` on high-value kinds at scale |
+| Low-value or rate-capped kinds | `VDA_WITHDRAWAL` / crypto withdrawals |
+| Proving the verdict machinery before the LOS team can schedule signing work | Long-running production with no date for Tier 2 |
+| Environments where the gateway is better isolated than the LOS (rare — verify) | Anywhere a mint-role key could sit next to an evaluate caller |
+
+If you do run mint, contain it: `mint` on a dedicated role key (never bundled
+with `evaluate`), ed25519 only (boot enforces), tight `defaultTtlMs`/`maxTtlMs`,
+issuer `kinds` scoped to exactly the kinds mint should authorise, and the
+`DELETE /v1/issuers/<keyId>` revocation path rehearsed — a mint key is an
+issuer key, and revoking it kills every intent it signed instantly. The plan
+to move off it (Tier 2 SDK signing) should be a roadmap item with an owner,
+not a someday.
+
 ## Tier 2 — sign in your system of record
 
 `clients/` has signers for Java, Python and Go (Node: `signIntent` from

@@ -1,0 +1,68 @@
+// PayRekha correlation queries — Elastic (ES|QL)
+// Assumes Filebeat ndjson ingest into payrekha-* with fields at top level
+// (type, ts→@timestamp, sourceKeyId, rules (keyword[]), verdict, degraded,
+// amountPaise, ...). MV_EXPAND requires ES 8.13+. Adjust index/fields to
+// your ingest pipeline. Tuned to CIAD-2026-0058 RA23.
+
+// ── 1. Multi-technique burst — ≥3 distinct rules on one key in 10m ──────────
+FROM payrekha-*
+| WHERE type == "decision"
+| MV_EXPAND rules
+| STATS techniques = COUNT_DISTINCT(rules), n = COUNT(*)
+    BY sourceKeyId, bucket = BUCKET(@timestamp, 10 minute)
+| WHERE techniques >= 3 AND n >= 5
+| SORT techniques DESC
+
+// ── 2. intent.missing burst ─────────────────────────────────────────────────
+FROM payrekha-*
+| WHERE type == "decision" AND rules == "intent.missing"
+| STATS n = COUNT(*) BY sourceKeyId, origin, bucket = BUCKET(@timestamp, 5 minute)
+| WHERE n >= 5
+
+// ── 3. Non-business-hours operation (IST 23:00–06:00) ───────────────────────
+FROM payrekha-*
+| WHERE type == "decision"
+| EVAL ist_min = (DATE_EXTRACT("hour", @timestamp) * 60
+              + DATE_EXTRACT("minute", @timestamp) + 330) % 1440
+| WHERE ist_min >= 1380 OR ist_min < 360
+| STATS n = COUNT(*), outflow = SUM(amountPaise)
+    BY sourceKeyId, bucket = BUCKET(@timestamp, 1 hour)
+
+// ── 4. Degraded verdict burst ───────────────────────────────────────────────
+FROM payrekha-*
+| WHERE type == "decision" AND degraded
+| STATS n = COUNT(*) BY bucket = BUCKET(@timestamp, 10 minute)
+| WHERE n >= 10
+
+// ── 5. Canary trip / alert-state transitions — PAGE ─────────────────────────
+FROM payrekha-*
+| WHERE (type == "decision" AND rules == "canary.tripped")
+     OR (type == "audit" AND action LIKE "alert*")
+
+// ── 6. Probe chains — ₹1-then-large hits ────────────────────────────────────
+FROM payrekha-*
+| WHERE type == "decision" AND rules == "probe.micro-then-large"
+| KEEP @timestamp, payoutId, kind, amountPaise, beneficiaryRef, sourceKeyId
+
+// ── 7. Settlement watch ─────────────────────────────────────────────────────
+FROM payrekha-*
+| WHERE type == "decision"
+    AND (rules == "settlement.account-changed" OR rules == "settlement.over-captured")
+| KEEP @timestamp, merchantId, amountPaise, beneficiaryRef, rules, verdict, effectiveAction
+
+// ── 8. UAT→prod pivot attempts ──────────────────────────────────────────────
+FROM payrekha-*
+| WHERE type == "decision" AND (origin == "nonprod" OR rules == "origin.nonprod")
+| STATS n = COUNT(*) BY sourceKeyId, bucket = BUCKET(@timestamp, 1 hour)
+
+// ── 9. Outcome-report abuse ─────────────────────────────────────────────────
+FROM payrekha-*
+| WHERE type == "audit" AND action == "outcome.denied"
+| KEEP @timestamp, actor, reason
+
+// ── 10. Single-target pressure — all decisions against one beneficiary ───────
+FROM payrekha-*
+| WHERE type == "decision" AND beneficiaryRef == "hb1_<ref>"
+| MV_EXPAND rules
+| STATS techniques = COUNT_DISTINCT(rules), n = COUNT(*), attempted = SUM(amountPaise)
+    BY bucket = BUCKET(@timestamp, 10 minute)

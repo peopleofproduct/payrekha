@@ -51,6 +51,34 @@ A rule threw — verdicts for that payout are `degraded`. Pull `payrekha_degrade
 | Admin token | Mode downgrade to shadow, HIGH_ALERT reset | Rotate `PAYREKHA_ADMIN_KEY`, rolling restart, then audit the decision log `type:"audit"` entries for `mode.set`/`alert.reset` you didn't make. |
 | Hash key | Beneficiary refs become unlinkable | Rotate requires re-keying all stored refs — plan this as a maintenance, not an incident fix; keep the old key until refs rotate. |
 
+## Incident response — reporting to CERT-In / CSIRT-Fin and I4C
+
+CIAD-2026-0058 obligates affected entities to report suspicious activity to CERT-In/CSIRT-Fin (`incident@cert-in.org.in`) with relevant logs, and bulk fraudulent transactions to I4C's Cyber Fraud Mitigation Centre (CFCFRMS portal). PayRekha's decision log is the evidence bundle for the payout surface — it carries hashed refs only, so it is safe to attach.
+
+1. **Isolate** — the affected host is yours to quarantine; PayRekha's part is `PUT /v1/state {"highAlert":"raise","actor":"<you>","reason":"INC-<id>"}` so every payout needs an intent while you work.
+2. **Preserve** — copy the decision log and snapshot somewhere write-once before anything rotates:
+
+   ```bash
+   cp "$PAYREKHA_DECISION_LOG" /evidence/decisions-$(date +%s).jsonl
+   cp "$PAYREKHA_STATE_FILE" /evidence/state-$(date +%s).json   # if file backend
+   ```
+
+3. **Extract the timeline** — every step of the attack chain is in the log:
+
+   ```bash
+   # every decision touching the suspect key in the window
+   jq -c 'select(.type=="decision" and .sourceKeyId=="<key-id>")' decisions.jsonl
+   # blocked/held payouts with rules and evidence
+   jq -c 'select(.type=="decision" and .verdict!="ALLOW") | {ts,payoutId,kind,amountPaise,rules,origin,alertState}' decisions.jsonl
+   # admin/audit events: who raised or reset what, denied outcome reports
+   jq -c 'select(.type=="audit")' decisions.jsonl
+   # the probe chain: micro then large to one beneficiary
+   jq -c 'select(.type=="decision" and (.rules|index("probe.micro-then-large") != null))' decisions.jsonl
+   ```
+
+4. **Rotate credentials** — see "Credential compromise" above: revoke issuer keys with `DELETE /v1/issuers/<keyId>` (tombstoned, survives restarts), rotate `PAYREKHA_API_KEYS` entries, rotate `PAYREKHA_ADMIN_KEY` if admin actions look foreign.
+5. **Report** — CERT-In/CSIRT-Fin at `incident@cert-in.org.in` (attach the extracted timeline + audit lines); bulk fraudulent transactions via I4C's CFCFRMS portal. Note in the report that beneficiary refs are `hb1_` keyed-HMAC hashes — share raw identifiers only through the legally required channels, from your own records.
+
 ## Promoting the standby (manual failover)
 
 One writer only. Promote a standby by scaling the fenced/down active to 0 first, then the standby up — never two writers at once. The standby serves 503 until it has read the snapshot (`/readyz` green = it is serving the *restored* state, not a guess).

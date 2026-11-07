@@ -15,7 +15,8 @@
 | A real intent, replayed to their own account | No | `intent.beneficiary-mismatch`, `intent.reused` |
 | A real intent, with the amount inflated | No | `intent.amount-exceeds` |
 | A refund-signing key, used to mint a disbursal | No | `intent.kind-mismatch` (keys are scoped to kinds) |
-| A UAT/staging key or box | No | `origin.nonprod`; the origin comes from the key, not the request body |
+| A UAT/staging key or box | No | `origin.nonprod`; the origin comes from the key (or the Envoy route), not the request body |
+| A **prod** key used from UAT/compromised infrastructure | Only without an intent | `origin` binds the *key's* environment, not the caller's network segment — issue separate keys per environment so this case can't exist; the intent binding still applies regardless |
 | A stolen payout key minting intents or reading state | No | Role-scoped keys (`evaluate`/`outcomes`/`intents`/`read`); a payout key holds only `evaluate` |
 | A stolen payout key reporting `failed` on another caller's payout to free its intent | No | Outcome reports are bound to the evaluating `sourceKeyId`; denials are audited |
 | Replaying a taken `payoutId` under a fresh intent to dodge `intent.reused` | No | A `payoutId` is bound to one intent for life, even across restarts (reservations persist) |

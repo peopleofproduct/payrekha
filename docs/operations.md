@@ -53,6 +53,8 @@ curl -XPUT localhost:8080/v1/state -H "authorization: Bearer $ADMIN" \
 
 Alert on `payrekha_high_alert == 1` (see `deploy/prometheus/alerts.yml`).
 
+While HIGH_ALERT is up, run the incident steps in [runbook.md — incident response](runbook.md#incident-response--reporting-to-cert-in--csirt-fin-and-i4c): preserve the decision log, extract the timeline, rotate the named credentials, and report to CERT-In/CSIRT-Fin and I4C/CFCFRMS as the advisory requires.
+
 ## Client fail modes
 
 If PayRekha is unreachable, the client decides using `onUnavailable`:

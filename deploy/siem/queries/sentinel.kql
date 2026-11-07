@@ -1,0 +1,69 @@
+// PayRekha correlation queries — Microsoft Sentinel (KQL)
+// Assumes the JSONL decision log lands in custom table Payrekha_CL with the
+// AMA custom-JSON suffixes (_s string, _d numeric, _b bool, _g guid).
+// rules_s is a JSON array string — parse with todynamic(). Adjust names to
+// your table/column mapping. Tuned to CIAD-2026-0058 RA23.
+
+// ── 1. Multi-technique burst — ≥3 distinct rules on one key in 10m ──────────
+Payrekha_CL
+| where type_s == "decision"
+| extend rules = todynamic(rules_s)
+| mv-expand rule = rules to typeof(string)
+| summarize techniques=dcount(rule), hits=make_set(rule), n=count()
+    by sourceKeyId_s, bin(TimeGenerated, 10m)
+| where techniques >= 3 and n >= 5
+| sort by techniques desc
+
+// ── 2. intent.missing burst — payout API probed without authorization ───────
+Payrekha_CL
+| where type_s == "decision" and rules_s has "intent.missing"
+| summarize n=count() by sourceKeyId_s, origin_s, bin(TimeGenerated, 5m)
+| where n >= 5
+
+// ── 3. Non-business-hours operation (IST 23:00–06:00) ───────────────────────
+Payrekha_CL
+| where type_s == "decision"
+| extend istMin = ((datetime_part("hour", TimeGenerated) * 60)
+                + datetime_part("minute", TimeGenerated) + 330) % 1440
+| where istMin >= 1380 or istMin < 360
+| summarize n=count(), outflow=sum(todouble(amountPaise_d)), techniques=dcount(tostring(todynamic(rules_s)))
+    by sourceKeyId_s, bin(TimeGenerated, 1h)
+
+// ── 4. Degraded verdict burst — malformed-input probing ─────────────────────
+Payrekha_CL
+| where type_s == "decision" and degraded_b == true
+| summarize n=count() by bin(TimeGenerated, 10m)
+| where n >= 10
+
+// ── 5. Canary trip / alert-state transitions — PAGE ─────────────────────────
+Payrekha_CL
+| where (type_s == "decision" and rules_s has "canary.tripped")
+     or (type_s == "audit" and action_s startswith "alert")
+| project TimeGenerated, type_s, action_s, actor_s, reason_s, sourceKeyId_s, beneficiaryRef_s, rules_s
+
+// ── 6. Probe chains — ₹1-then-large hits ────────────────────────────────────
+Payrekha_CL
+| where type_s == "decision" and rules_s has "probe.micro-then-large"
+| project TimeGenerated, payoutId_s, kind_s, amountPaise_d, beneficiaryRef_s, sourceKeyId_s, hits_s
+
+// ── 7. Settlement watch ─────────────────────────────────────────────────────
+Payrekha_CL
+| where type_s == "decision"
+    and (rules_s has "settlement.account-changed" or rules_s has "settlement.over-captured")
+| project TimeGenerated, merchantId_s, amountPaise_d, beneficiaryRef_s, rules_s, verdict_s, effectiveAction_s
+
+// ── 8. UAT→prod pivot attempts ──────────────────────────────────────────────
+Payrekha_CL
+| where type_s == "decision" and (origin_s == "nonprod" or rules_s has "origin.nonprod")
+| summarize n=count() by sourceKeyId_s, bin(TimeGenerated, 1h)
+
+// ── 9. Outcome-report abuse — foreign key freeing a bound intent ────────────
+Payrekha_CL
+| where type_s == "audit" and action_s == "outcome.denied"
+| project TimeGenerated, actor_s, reason_s
+
+// ── 10. Single-target pressure — all decisions against one beneficiary ──────
+Payrekha_CL
+| where type_s == "decision" and beneficiaryRef_s == "hb1_<ref>"
+| summarize techniques=dcount(tostring(todynamic(rules_s))), n=count(), attempted=sum(todouble(amountPaise_d))
+    by bin(TimeGenerated, 10m)

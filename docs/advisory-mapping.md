@@ -17,6 +17,9 @@ This table covers only the recommended actions that concern **payouts**: money l
 | Large transfers to new or mule accounts | Cooling period for beneficiaries first seen minutes ago; operator-loaded fraud feed | `beneficiary.cooling`, `feed.reputation` |
 | Assume persistence; entities were re-attacked after remediation | HIGH_ALERT never expires; it needs an authenticated, reasoned reset and survives restarts | `HIGH_ALERT`, `PUT /v1/state` |
 | Deploy deception to detect intruders | Canary beneficiaries, API keys and intents | `canary.tripped` → `HIGH_ALERT` |
+| Treat client applications as untrusted; server-side validation and request signing | Every payout re-validated server-side; an intent is a signed business approval bound to kind, amount, beneficiary, window and use count — replay is structurally dead | `intent.*` rules, payoutId↔intent binding |
+| Alert on token usage from unusual source IPs, user agents or geographies | Per-key velocity budgets and origin assertions give the SIEM a per-token signal; IP/UA/geo anomaly detection itself is SIEM-side today (see exclusions) | `velocity.outflow`, `origin.nonprod` |
+| Multi-signature approvals for withdrawals | Single-signer intents today: a payout binds exactly one intent from one issuer ("two keys to move money"). m-of-n co-approval is planned | see exclusions |
 | Monitor and log transactions; share with SOC | JSONL/CEF decision log with rule IDs and evidence, Prometheus metrics, signed SOAR webhooks | [SIEM](integrations/siem.md) |
 | Key management and rotation | Per-issuer keys scoped to kinds; rotation and revocation with re-verification | [intents.md](intents.md) |
 | Least privilege and hardening of security tooling | Non-root, read-only container; hashed tokens; separate admin token | [threat-model.md](threat-model.md) |
@@ -27,12 +30,21 @@ This table covers only the recommended actions that concern **payouts**: money l
 PayRekha does not do any of the following. You still need them.
 
 - **Cloud audit logging** (CloudTrail, Azure Activity Log, GCP Audit Logs) and log retention.
-- **Patching** and vulnerability management of internet-facing systems.
+- **Cloud control-plane hardening**: IMDS protections, least-privilege roles for instances and functions, security-group egress, serverless execution restrictions.
+- **Patching** and vulnerability management of internet-facing systems, including WAF virtual patching.
 - **Secret scanning** of your own code and configuration. PayRekha's CI scans only PayRekha.
-- **TLS inspection** and network egress control.
+- **TLS inspection** and network egress control, including default-deny egress policies on your server segments.
 - **EDR**, endpoint hardening and malware detection.
+- **File-integrity monitoring** on application hosts — web-shell detection and watching web roots / temp dirs for bursts of generated scripts.
+- **Detection of AI-driven offensive tooling**, and governance/monitoring of LLM API usage and keys on your infrastructure.
 - Identity: MFA, privileged access management, session control.
 - Removing or isolating exposed UAT/staging environments. PayRekha only refuses to let them move money.
+- **Branch protection, commit signing and code review on your own deployment repositories** (PayRekha applies these to itself).
+- **Penetration-test authorization policy** — written approval, defined scope and time windows for testing.
+- **Organisation-wide zero-trust, micro-segmentation and east-west traffic inspection.** PayRekha is the zero-trust instantiation for the payout path only.
+- **mTLS / signed-request replacement for shared fetcher-pool allow-lists** at vendor endpoints. PayRekha removes IP-based trust from the payout path; it does not itself terminate vendor mTLS connections.
 - Restricted indicators of compromise. PayRekha keys on behaviour and does not use CERT-In's restricted indicators.
-- Incident reporting to CERT-In within the mandated timelines.
+- Incident reporting to **CERT-In/CSIRT-Fin** within the mandated timelines, and bulk fraudulent-transaction reporting to **I4C / CFCFRMS**.
+- **m-of-n multi-approval**: a payout binds exactly one signed intent from one issuer. Multi-approver intents are on the roadmap.
+- Source IP / user-agent / geography anomaly detection on token usage — correlate `sourceKeyId` in the decision log against your WAF/API-gateway telemetry.
 - Payouts that bypass PayRekha on the network path. Network policy must make it the only route.
