@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 // Copyright 2026 Kapil — People of Product™
 
-import { hashBeneficiary, Verdict, type PayoutRule } from '@payrekha/core';
+import { hashBeneficiary, Verdict, type BeneficiaryIdentifier, type PayoutRule } from '@payrekha/core';
 import { hit } from './util.js';
 
 export type RiskBand = 'LOW' | 'MEDIUM' | 'HIGH' | 'VERY_HIGH';
@@ -14,9 +14,15 @@ export interface FeedEntry {
 
 /**
  * An operator-produced snapshot of a fraud-risk feed (e.g. the DoT FRI
- * list your bank already receives). PayRekha never calls the feed itself.
- * Entries carry `mobileRef` (already hashed with your PayRekha key) or a
- * raw `mobile` that is hashed on load and then discarded.
+ * list your bank already receives, or an I4C/CFCFRMS suspect extract).
+ * PayRekha never calls the feed itself. Entries key on any beneficiary
+ * identifier — account+IFSC, VPA, mobile, or VDA address — since all refs
+ * share the `hb1_` namespace. Shapes per entry:
+ *   `ref`         — an `hb1_…` ref already hashed with your PayRekha key
+ *   `beneficiary` — a raw {account,ifsc} | {vpa} | {mobile} | {address,network},
+ *                   hashed on load and then discarded
+ *   `mobile` / `mobileRef` — legacy spellings, still accepted
+ * `scripts/csv-to-feed-snapshot.mjs` converts an operator CSV to this shape.
  */
 export class FraudFeed {
   private entries = new Map<string, FeedEntry>();
@@ -30,8 +36,8 @@ export class FraudFeed {
     return this.loadedAt;
   }
 
-  lookup(mobileRef: string): FeedEntry | undefined {
-    return this.entries.get(mobileRef);
+  lookup(ref: string): FeedEntry | undefined {
+    return this.entries.get(ref);
   }
 
   /** Replace the snapshot atomically. Throws on a malformed file; the previous snapshot stays live. */
@@ -43,14 +49,19 @@ export class FraudFeed {
     const src = typeof s.source === 'string' ? s.source : 'operator';
     const next = new Map<string, FeedEntry>();
     s.entries.forEach((raw: unknown, i) => {
-      const e = raw as { mobileRef?: unknown; mobile?: unknown; band?: unknown; source?: unknown };
+      const e = raw as { ref?: unknown; beneficiary?: unknown; mobileRef?: unknown; mobile?: unknown; band?: unknown; source?: unknown };
       if (typeof e.band !== 'string' || !BANDS.includes(e.band as RiskBand)) throw new Error(`entries[${i}].band invalid`);
       let ref: string;
-      if (typeof e.mobileRef === 'string' && e.mobileRef.startsWith('hb1_')) ref = e.mobileRef;
-      else if (typeof e.mobile === 'string') {
-        if (hashKey === undefined) throw new Error(`entries[${i}] has a raw mobile but no hash key was supplied`);
-        ref = hashBeneficiary({ mobile: e.mobile }, hashKey);
-      } else throw new Error(`entries[${i}] needs mobileRef or mobile`);
+      if (typeof e.ref === 'string' && e.ref.startsWith('hb1_')) ref = e.ref;
+      else if (typeof e.mobileRef === 'string' && e.mobileRef.startsWith('hb1_')) ref = e.mobileRef;
+      else if (e.beneficiary !== undefined || typeof e.mobile === 'string') {
+        if (hashKey === undefined) throw new Error(`entries[${i}] has a raw identifier but no hash key was supplied`);
+        try {
+          ref = hashBeneficiary((e.beneficiary !== undefined ? e.beneficiary : { mobile: e.mobile }) as BeneficiaryIdentifier, hashKey);
+        } catch (err) {
+          throw new Error(`entries[${i}] invalid identifier: ${(err as Error).message}`);
+        }
+      } else throw new Error(`entries[${i}] needs ref, beneficiary, mobileRef or mobile`);
       next.set(ref, { band: e.band as RiskBand, source: typeof e.source === 'string' ? e.source : src });
     });
     this.entries = next;
@@ -72,14 +83,23 @@ export function feedRule(feed: FraudFeed, o: FeedRuleOptions = {}): PayoutRule {
   return {
     name: 'feed.reputation',
     evaluate(p) {
-      if (p.beneficiaryMobileRef === undefined || feed.size === 0) return null;
-      const e = feed.lookup(p.beneficiaryMobileRef);
+      if (feed.size === 0) return null;
+      let e = feed.lookup(p.beneficiaryRef);
+      let matched: 'beneficiary' | 'mobile' = 'beneficiary';
+      if (p.beneficiaryMobileRef !== undefined && p.beneficiaryMobileRef !== p.beneficiaryRef) {
+        const m = feed.lookup(p.beneficiaryMobileRef);
+        if (m !== undefined && (e === undefined || BANDS.indexOf(m.band) > BANDS.indexOf(e.band))) {
+          e = m;
+          matched = 'mobile';
+        }
+      }
       if (e === undefined) return null;
       const lvl = BANDS.indexOf(e.band);
       if (lvl < reviewAt) return null;
-      return hit('feed.reputation', lvl >= blockAt ? Verdict.Block : Verdict.Review, `Beneficiary mobile is ${e.band} risk on the ${e.source} feed snapshot`, {
+      return hit('feed.reputation', lvl >= blockAt ? Verdict.Block : Verdict.Review, `Beneficiary ${matched === 'mobile' ? 'mobile ' : ''}is ${e.band} risk on the ${e.source} feed snapshot`, {
         band: e.band,
         source: e.source,
+        matched,
         snapshotAgeMinutes: Math.round((p.timestampMs - feed.loadedAtMs) / 60_000),
       });
     },

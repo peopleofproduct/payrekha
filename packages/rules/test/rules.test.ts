@@ -3,7 +3,7 @@ import { strict as assert } from 'node:assert';
 import { describe, it } from 'node:test';
 import { hashBeneficiary, signIntent } from '@payrekha/core';
 import { RULE_IDS } from '@payrekha/rules';
-import { admin, firewall, intent, LOS, MIN, payout, ref, ruleIds, T0 } from './fixtures.ts';
+import { admin, firewall, HASH_KEY, intent, LOS, MIN, payout, ref, ruleIds, T0 } from './fixtures.ts';
 
 const A = ref('alice@okbank');
 const B = ref('mule@okbank');
@@ -294,6 +294,38 @@ describe('feed.reputation', () => {
     const { feed } = firewall();
     feed.load({ version: 1, entries: [{ mobile: '9876543210', band: 'HIGH' }] }, 'test-hash-key-0123456789abcdef');
     assert.throws(() => feed.load({ version: 1, entries: [{ band: 'NOPE' }] }));
+    assert.equal(feed.size, 1);
+  });
+  it('matches any beneficiary ref — account+IFSC, VPA and VDA address, not just mobile', () => {
+    const { fw, feed } = firewall({ requireIntent: { VENDOR_PAYOUT: false, VDA_WITHDRAWAL: false } });
+    const acct = hashBeneficiary({ account: '123456789012', ifsc: 'HDFC0001234' }, HASH_KEY);
+    const vpa = hashBeneficiary({ vpa: 'mule@okbank' }, HASH_KEY);
+    const vda = hashBeneficiary({ address: '0xDEADbeef', network: 'ethereum' }, HASH_KEY);
+    feed.load({ version: 1, source: 'i4c-cfcfrms', entries: [{ ref: acct, band: 'VERY_HIGH' }, { beneficiary: { vpa: 'mule@okbank' }, band: 'HIGH' }, { ref: vda, band: 'VERY_HIGH' }] }, HASH_KEY, T0);
+    assert.equal(fw.evaluate(payout({ beneficiaryRef: acct, kind: 'VENDOR_PAYOUT', amountPaise: 100_00 })).verdict, 'BLOCK');
+    const vp = fw.evaluate(payout({ beneficiaryRef: vpa, kind: 'VENDOR_PAYOUT', amountPaise: 100_00 }));
+    assert.equal(vp.verdict, 'REVIEW');
+    assert.equal(vp.hits[0]!.evidence['matched'], 'beneficiary');
+    assert.equal(fw.evaluate(payout({ beneficiaryRef: vda, kind: 'VDA_WITHDRAWAL', channel: 'CRYPTO', amountPaise: 100_00 })).verdict, 'BLOCK');
+  });
+  it('a pre-hashed ref snapshot needs no hash key', () => {
+    const { feed } = firewall();
+    const acct = hashBeneficiary({ account: '123456789012', ifsc: 'HDFC0001234' }, HASH_KEY);
+    assert.equal(feed.load({ version: 1, entries: [{ ref: acct, band: 'HIGH' }] }), 1);
+  });
+  it('when beneficiary and mobile both match, the worse band wins', () => {
+    const { fw, feed } = firewall({ requireIntent: { REFUND: false } });
+    const mobile = hashBeneficiary({ mobile: '9876543210' }, HASH_KEY);
+    feed.load({ version: 1, entries: [{ ref: A, band: 'MEDIUM' }, { mobileRef: mobile, band: 'VERY_HIGH' }] }, undefined, T0);
+    const v = fw.evaluate(payout({ beneficiaryRef: A, kind: 'REFUND', amountPaise: 100_00, beneficiaryMobileRef: mobile }));
+    assert.equal(v.verdict, 'BLOCK');
+    assert.equal(v.hits[0]!.evidence['matched'], 'mobile');
+  });
+  it('refuses raw-looking refs and malformed beneficiary objects', () => {
+    const { feed } = firewall();
+    feed.load({ version: 1, entries: [{ mobile: '9876543210', band: 'HIGH' }] }, HASH_KEY);
+    assert.throws(() => feed.load({ version: 1, entries: [{ ref: '123456789012', band: 'HIGH' }] }, HASH_KEY), /needs ref, beneficiary/);
+    assert.throws(() => feed.load({ version: 1, entries: [{ beneficiary: { account: 'not-digits', ifsc: 'HDFC0001234' }, band: 'HIGH' }] }, HASH_KEY), /invalid identifier: account number/);
     assert.equal(feed.size, 1);
   });
 });

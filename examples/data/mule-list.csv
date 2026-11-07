@@ -1,0 +1,6 @@
+kind,value,aux,band,source
+mobile,9876543210,,HIGH,dot-fri-2026-11
+account,000123456789,HDFC0001234,VERY_HIGH,i4c-cfcfrms
+vpa,mule-collect@okbank,,HIGH,i4c-cfcfrms
+address,0xDEADbeefc0ffee00112233445566778899aAbc,ethereum,VERY_HIGH,exchange-sir-2026-42
+ref,hb1_ReplaceWithARealHashedRef,,MEDIUM,internal-ir
