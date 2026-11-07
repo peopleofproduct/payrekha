@@ -134,6 +134,9 @@ Every hit carries a rule ID, a plain-words reason with ₹ amounts, and structur
 | [`intent.amount-exceeds`](docs/rules/intent.amount-exceeds.md) | Above the intent's ceiling | BLOCK |
 | [`intent.beneficiary-mismatch`](docs/rules/intent.beneficiary-mismatch.md) | A real intent replayed to another account | BLOCK |
 | [`intent.reused`](docs/rules/intent.reused.md) | Intent used more than `maxUses` times | BLOCK |
+| [`intent.approvals-insufficient`](docs/rules/intent.approvals-insufficient.md) | Fewer distinct-issuer approvals than `requiredApprovals` demands | BLOCK or REVIEW |
+| [`intent.approvals-not-distinct`](docs/rules/intent.approvals-not-distinct.md) | Two cited intents share an issuer — one party approving twice | BLOCK |
+| [`intent.approvals-invalid`](docs/rules/intent.approvals-invalid.md) | A cited approval is bad, mismatched, expired or re-spent | BLOCK |
 | [`settlement.over-captured`](docs/rules/settlement.over-captured.md) | Settlement above the reconciled amount | BLOCK |
 | [`settlement.account-changed`](docs/rules/settlement.account-changed.md) | Merchant settlement account changed recently | REVIEW |
 | [`probe.micro-then-large`](docs/rules/probe.micro-then-large.md) | ₹1 test, then a large payout (penny-drop aware) | REVIEW (BLOCK in HIGH_ALERT) |

@@ -16,6 +16,8 @@ export interface FieldMapping {
   readonly kind: Source;
   readonly amountPaise: Source;
   readonly intentId?: Source;
+  /** Additional intent ids for m-of-n approved kinds — array path or comma-joined header (`header.x-payrekha-approvals`). */
+  readonly approvalIds?: Source;
   readonly beneficiaryRef?: Source;
   readonly beneficiary?: { readonly account?: Source; readonly ifsc?: Source; readonly vpa?: Source; readonly mobile?: Source; readonly address?: Source; readonly network?: Source };
   readonly beneficiaryMobile?: Source;
@@ -99,6 +101,9 @@ export function mapPayout(req: ForwardedRequest, m: FieldMapping, hashKey: strin
     const v = resolve(req, s);
     if (v !== undefined && v !== '') out[k] = v;
   }
+  const aids = resolve(req, m.approvalIds);
+  const aidList = typeof aids === 'string' ? aids.split(',').map((s) => s.trim()).filter(Boolean) : Array.isArray(aids) ? aids.filter((a): a is string => typeof a === 'string') : [];
+  if (aidList.length > 0) out['approvalIds'] = aidList;
   const att = asBool(resolve(req, m.clientAttested));
   if (att !== undefined) out['clientAttested'] = att;
   const rs = asNum(resolve(req, m.riskScore));

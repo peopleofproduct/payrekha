@@ -13,6 +13,7 @@ import {
   INTENT_KINDS,
   Verdict,
   type AlertState,
+  type ApprovalRequirement,
   type AuditEntry,
   type EffectiveAction,
   type IntentKind,
@@ -57,6 +58,15 @@ export interface FirewallConfig {
   readonly modeByKind?: Partial<Record<IntentKind, Mode>>;
   /** Kinds that need an intent. Default: every kind. HIGH_ALERT forces every kind regardless. */
   readonly requireIntent?: Partial<Record<IntentKind, boolean>>;
+  /**
+   * Kinds needing m-of-n approval (ADR 0003): the payout must cite `count`
+   * intents — `intentId` plus `approvalIds` — each signed by a *distinct*
+   * issuer. A bare number means `{ count }` with BLOCK on insufficiency;
+   * `{ count, onInsufficient: 'review' }` holds instead of declining — the
+   * safeguard is on while approver systems onboard. `approverIssuers`
+   * restricts which issuers count (the risk desk's keyring).
+   */
+  readonly requiredApprovals?: Partial<Record<IntentKind, number | ApprovalRequirement>>;
   readonly multipliers?: Partial<Record<AlertState, Partial<Multipliers>>>;
   /** Enter HIGH_ALERT after this many BLOCK verdicts within `windowMs`. `count: 0` disables. */
   readonly highAlertOnBlocks?: { readonly count: number; readonly windowMs: number };
@@ -157,10 +167,16 @@ const posInt = (v: number | undefined, name: string, min = 1): void => {
  */
 export function validateFirewallConfig(cfg: FirewallConfig): void {
   if (cfg.mode !== undefined && !MODES.includes(cfg.mode)) throw new TypeError(`firewall config mode must be shadow, advise or enforce (got ${String(cfg.mode)})`);
-  for (const [table, name] of [[cfg.modeByKind, 'modeByKind'], [cfg.requireIntent, 'requireIntent']] as const) {
+  for (const [table, name] of [[cfg.modeByKind, 'modeByKind'], [cfg.requireIntent, 'requireIntent'], [cfg.requiredApprovals, 'requiredApprovals']] as const) {
     for (const k of Object.keys(table ?? {})) {
       if (!INTENT_KINDS.includes(k as IntentKind)) throw new TypeError(`firewall config ${name}.${k}: not a known IntentKind — a typo silently disables the rule`);
     }
+  }
+  for (const [k, v] of Object.entries(cfg.requiredApprovals ?? {})) {
+    const r = typeof v === 'number' ? { count: v } : v;
+    if (!Number.isSafeInteger(r?.count) || (r?.count ?? 0) < 2) throw new TypeError(`firewall config requiredApprovals.${k} must be an integer ≥ 2 (1 is the primary alone — leave the kind unset)`);
+    if (r?.onInsufficient !== undefined && r.onInsufficient !== 'block' && r.onInsufficient !== 'review') throw new TypeError(`firewall config requiredApprovals.${k}.onInsufficient must be block|review`);
+    if (r?.approverIssuers !== undefined && (!Array.isArray(r.approverIssuers) || !r.approverIssuers.every((s) => typeof s === 'string' && s.length > 0 && s.length <= 64))) throw new TypeError(`firewall config requiredApprovals.${k}.approverIssuers must be non-empty strings`);
   }
   for (const v of Object.values(cfg.modeByKind ?? {})) {
     if (!MODES.includes(v as Mode)) throw new TypeError(`firewall config modeByKind value must be shadow, advise or enforce (got ${String(v)})`);
@@ -188,6 +204,7 @@ export function payoutShapeProblem(x: unknown): string | null {
   if (!isStr(p['payoutId'], 128)) return 'payoutId';
   if (!INTENT_KINDS.includes(p['kind'] as IntentKind)) return 'kind';
   if (p['intentId'] !== undefined && typeof p['intentId'] !== 'string') return 'intentId';
+  if (p['approvalIds'] !== undefined && (!Array.isArray(p['approvalIds']) || (p['approvalIds'] as unknown[]).length > 8 || !(p['approvalIds'] as unknown[]).every((a) => isStr(a, 128)))) return 'approvalIds (array of ≤8 intent ids)';
   if (!Number.isSafeInteger(p['amountPaise']) || (p['amountPaise'] as number) <= 0) return 'amountPaise (positive integer paise)';
   if (!isStr(p['beneficiaryRef'])) return 'beneficiaryRef';
   if (looksLikeRawIdentifier(p['beneficiaryRef'] as string)) return 'beneficiaryRef looks raw (hash it)';
@@ -207,6 +224,12 @@ export function payoutShapeProblem(x: unknown): string | null {
 }
 
 const sha256 = (s: string): Buffer => createHash('sha256').update(s).digest();
+
+/** `requiredApprovals` accepts `2` as sugar for `{ count: 2 }`. */
+const approvalRequirement = (table: FirewallConfig['requiredApprovals'], kind: IntentKind | undefined): ApprovalRequirement | undefined => {
+  const v = kind !== undefined ? table?.[kind] : undefined;
+  return typeof v === 'number' ? { count: v } : v;
+};
 
 /**
  * The payout firewall: binds each payout to a signed intent, runs the
@@ -299,7 +322,7 @@ export class Payrekha {
       alertState,
       multipliers: this.multipliers[alertState],
       calendarWindow,
-      intent: wellFormed ? this.intents.check(evalPayout, required) : { status: 'missing', required },
+      intent: wellFormed ? this.intents.check(evalPayout, required, approvalRequirement(this.cfg.requiredApprovals, evalPayout.kind)) : { status: 'missing', required },
       beneficiary: wellFormed ? this.beneficiaries.get(evalPayout.beneficiaryRef) : undefined,
       merchant: wellFormed && evalPayout.merchantId !== undefined ? this.merchants.get(evalPayout.merchantId) : undefined,
       canaries: this.canaries,
@@ -389,7 +412,7 @@ export class Payrekha {
     this.beneficiaries.set(p.beneficiaryRef, entry);
     if (p.kind === 'PA_SETTLEMENT' && p.merchantId !== undefined) this.merchants.observe(p.merchantId, p.beneficiaryRef, p.timestampMs);
     if (action !== 'DECLINE' && ctx.intent.status === 'ok' && p.intentId !== undefined) {
-      this.intents.reserve(p.intentId, p.payoutId, p.amountPaise, p.sourceKeyId);
+      this.intents.reserve(p.intentId, p.payoutId, p.amountPaise, p.sourceKeyId, p.approvalIds);
     }
   }
 

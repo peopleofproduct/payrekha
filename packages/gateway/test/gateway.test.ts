@@ -4,7 +4,7 @@ import { createHash, createHmac } from 'node:crypto';
 import { createServer } from 'node:http';
 import type { AddressInfo } from 'node:net';
 import { after, before, describe, it } from 'node:test';
-import { generateIssuerKeyPair, hashBeneficiary, Payrekha, signIntent } from '@payrekha/core';
+import { generateIssuerKeyPair, hashBeneficiary, Payrekha, signIntent, type IntentKind } from '@payrekha/core';
 import { auditRecord, createGateway, memoryDecisionLog, parseApiKeys, signWebhook, toCef, WebhookSender, type GatewayHandle } from '@payrekha/gateway';
 import { payrekhaRules } from '@payrekha/rules';
 
@@ -21,14 +21,16 @@ const HK = 'gateway-hash-key-0123456789';
 const T0 = Date.UTC(2026, 10, 4, 5, 30);
 const LOS = generateIssuerKeyPair();
 const LOS2 = generateIssuerKeyPair();
+const RISK = generateIssuerKeyPair();
 
-function boot(mode: 'shadow' | 'enforce', extra: { intentVerificationsPerMinute?: number; mint?: boolean | { maxAmountPaise?: number; mintsPerMinute?: number; modes?: readonly ('shadow' | 'advise' | 'enforce')[] } } = {}) {
+function boot(mode: 'shadow' | 'enforce', extra: { intentVerificationsPerMinute?: number; requiredApprovals?: Partial<Record<IntentKind, number>>; mint?: boolean | { maxAmountPaise?: number; mintsPerMinute?: number; modes?: readonly ('shadow' | 'advise' | 'enforce')[] } } = {}) {
   const log = memoryDecisionLog();
   const fw = new Payrekha(payrekhaRules({ band: false }).rules, {
-    config: { mode, adminTokenSha256: sha(ADMIN) },
+    config: { mode, adminTokenSha256: sha(ADMIN), ...(extra.requiredApprovals !== undefined ? { requiredApprovals: extra.requiredApprovals } : {}) },
     keys: [
       { keyId: 'los-1', issuer: 'los-prod', alg: 'ed25519', publicKey: LOS.publicKey, kinds: ['LOAN_DISBURSAL', 'VERIFICATION'] },
       { keyId: 'los-2', issuer: 'los-prod', alg: 'ed25519', publicKey: LOS2.publicKey, kinds: ['LOAN_DISBURSAL'] },
+      { keyId: 'risk-1', issuer: 'risk-desk', alg: 'ed25519', publicKey: RISK.publicKey, kinds: ['LOAN_DISBURSAL'] },
     ],
     now: () => T0,
   });
@@ -59,6 +61,7 @@ function boot(mode: 'shadow' | 'enforce', extra: { intentVerificationsPerMinute?
         kind: { const: 'LOAN_DISBURSAL' },
         amountPaise: 'body.amount_in_paise',
         intentId: 'header.x-payrekha-intent',
+        approvalIds: 'header.x-payrekha-approvals',
         beneficiary: { account: 'body.beneficiary.account_number', ifsc: 'body.beneficiary.ifsc', address: 'body.beneficiary.address', network: 'body.beneficiary.network' },
         channel: { const: 'IMPS' },
         sourceKeyId: 'header.x-client-id',
@@ -378,6 +381,37 @@ describe('gateway (enforce): mint guardrails', () => {
     } finally {
       gw3.server.close();
     }
+  });
+});
+describe('gateway (enforce): multi-approval payouts', () => {
+  const { gw, log } = boot('enforce', { requiredApprovals: { LOAN_DISBURSAL: 2 } });
+  let url = '';
+  before(async () => (url = await listen(gw)));
+  after(() => gw.server.close());
+  const post = (path: string, body: unknown, tok = API, extra: Record<string, string> = {}) =>
+    fetch(url + path, { method: 'POST', headers: { authorization: `Bearer ${tok}`, 'content-type': 'application/json', ...extra }, body: JSON.stringify(body) });
+  const approvalIntent = (id: string) =>
+    signIntent({ intentId: id, kind: 'LOAN_DISBURSAL', maxAmountPaise: 2_40_000_00, beneficiaryRef: benRef, maxUses: 1, notBeforeMs: T0 - 60_000, expiresAtMs: T0 + 3_600_000, issuer: 'risk-desk', keyId: 'risk-1' }, { alg: 'ed25519', privateKey: RISK.privateKey });
+  const evalBody = (payoutId: string, extra: Record<string, unknown> = {}) => ({ payoutId, kind: 'LOAN_DISBURSAL', amountPaise: 2_40_000_00, beneficiaryRef: benRef, channel: 'IMPS', ...extra });
+
+  it('primary alone declines; citing a distinct-issuer approval allows', async () => {
+    assert.equal((await post('/v1/intents', loanIntent('ma-p1'), REGTOK)).status, 201);
+    assert.equal((await post('/v1/intents', approvalIntent('ma-a1'), REGTOK)).status, 201);
+    const v1 = (await (await post('/v1/evaluate', evalBody('ma-x1', { intentId: 'ma-p1' }))).json()) as { verdict: string; hits: { rule: string }[] };
+    assert.equal(v1.verdict, 'BLOCK');
+    assert.ok(v1.hits.some((h) => h.rule === 'intent.approvals-insufficient'), JSON.stringify(v1.hits));
+    const v2 = (await (await post('/v1/evaluate', evalBody('ma-x2', { intentId: 'ma-p1', approvalIds: ['ma-a1'] }))).json()) as { verdict: string };
+    assert.equal(v2.verdict, 'ALLOW', 'the declined first attempt consumed nothing — retry with the approval works');
+  });
+  it('ext_authz maps a comma-joined approvals header', async () => {
+    assert.equal((await post('/v1/intents', loanIntent('ma-p2'), REGTOK)).status, 201);
+    assert.equal((await post('/v1/intents', approvalIntent('ma-a2'), REGTOK)).status, 201);
+    const res = await post('/ext_authz/payouts', { request_id: 'ma-x3', amount_in_paise: 24000000, beneficiary: { account_number: '000123456789', ifsc: 'HDFC0001234' } }, '', { 'x-payrekha-key': EXT, 'x-payrekha-intent': 'ma-p2', 'x-payrekha-approvals': 'ma-a2', 'x-client-id': 'lms' });
+    assert.equal(res.status, 200, JSON.stringify(await res.clone().json()));
+    assert.equal((log.lines.at(-1) as { verdict?: string }).verdict, 'ALLOW', 'both ids mapped through and satisfied the requirement');
+    const res2 = await post('/ext_authz/payouts', { request_id: 'ma-x4', amount_in_paise: 24000000, beneficiary: { account_number: '000123456789', ifsc: 'HDFC0001234' } }, '', { 'x-payrekha-key': EXT, 'x-payrekha-intent': 'ma-p2', 'x-client-id': 'lms' });
+    assert.equal(res2.status, 403, 'primary alone is insufficient — and already consumed anyway');
+    assert.equal((log.lines.at(-1) as { verdict?: string }).verdict, 'BLOCK');
   });
 });
 describe('gateway (enforce): intent verification budget', () => {

@@ -9,7 +9,10 @@ import { hit, rupees } from './util.js';
  * *different* system (LOS/LMS, settlement engine). Emits one of
  * intent.missing · intent.bad-signature · intent.kind-mismatch ·
  * intent.expired · intent.beneficiary-mismatch · intent.reused ·
- * intent.amount-exceeds. All BLOCK.
+ * intent.amount-exceeds · intent.approvals-insufficient ·
+ * intent.approvals-not-distinct · intent.approvals-invalid. All BLOCK,
+ * except approvals-insufficient which follows the kind's
+ * `requiredApprovals.onInsufficient` (block | review).
  */
 export function intentRule(): PayoutRule {
   return {
@@ -55,6 +58,36 @@ export function intentRule(): PayoutRule {
             remainingPaise: c.remainingPaise ?? 0,
             maxAmountPaise: c.maxAmountPaise ?? 0,
           });
+        case 'approvals-insufficient': {
+          // Configured per kind: 'review' holds for the maker-checker queue
+          // while approvers onboard; 'block' (default) declines outright.
+          const v = c.approvals?.onInsufficient === 'review' ? Verdict.Review : Verdict.Block;
+          return hit(
+            'intent.approvals-insufficient',
+            v,
+            `${p.kind} needs ${c.approvals?.required ?? '?'} distinct-issuer approvals — only ${c.approvals?.provided ?? 1} valid intent(s) cited`,
+            {
+              ...ev,
+              ...(c.approvals !== undefined
+                ? { required: c.approvals.required, provided: c.approvals.provided, issuers: c.approvals.issuers.join(','), onInsufficient: c.approvals.onInsufficient }
+                : {}),
+            },
+          );
+        }
+        case 'approvals-not-distinct':
+          return hit(
+            'intent.approvals-not-distinct',
+            Verdict.Block,
+            `Approvals must come from distinct issuers — ${c.detail ?? 'one party cited twice'}`,
+            { ...ev, ...(c.approvals !== undefined ? { issuers: c.approvals.issuers.join(',') } : {}) },
+          );
+        case 'approvals-invalid':
+          return hit(
+            'intent.approvals-invalid',
+            Verdict.Block,
+            `Cited approval failed — ${c.detail ?? 'invalid approval'}`,
+            { ...ev, detail: c.detail ?? 'invalid', ...(c.approvals !== undefined ? { issuers: c.approvals.issuers.join(',') } : {}) },
+          );
       }
     },
   };

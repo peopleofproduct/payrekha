@@ -45,6 +45,27 @@ export const CHANNELS: readonly Channel[] = ['IMPS', 'NEFT', 'RTGS', 'UPI', 'INT
 export type Origin = 'prod' | 'nonprod' | 'unknown';
 
 /**
+ * m-of-n approval requirement for a payout kind (ADR 0003). The payout must
+ * cite `count` intents — primary included — each from a *distinct* issuer.
+ */
+export interface ApprovalRequirement {
+  /** Minimum distinct-issuer intents cited, primary included. ≥ 2. */
+  readonly count: number;
+  /**
+   * Verdict when fewer than `count` valid approvals are cited.
+   * `block` (default) declines; `review` holds for the maker-checker queue —
+   * the ramp position: the safeguard is on, the business flow is not jammed
+   * while approver systems onboard.
+   */
+  readonly onInsufficient?: 'block' | 'review';
+  /**
+   * Only these issuers count as approvers — point it at the risk desk's
+   * keyring so a caller cannot satisfy the count with any registered intent.
+   */
+  readonly approverIssuers?: readonly string[];
+}
+
+/**
  * "Why this money is allowed to leave." Created and signed by the system of
  * record (LOS/LMS, settlement engine, withdrawal service) — never by the
  * service that calls the payout API.
@@ -75,6 +96,13 @@ export interface PayoutRequest {
   readonly payoutId: string;
   readonly kind: IntentKind;
   readonly intentId?: string;
+  /**
+   * Additional registered intent ids when the kind needs m-of-n approval
+   * (`firewall.requiredApprovals`). Each must verify, bind the same kind +
+   * beneficiary + amount, and come from a *different issuer* — one party may
+   * never approve its own request twice. At most 8.
+   */
+  readonly approvalIds?: readonly string[];
   readonly amountPaise: number;
   /** Hashed beneficiary reference (see `hashBeneficiary`). */
   readonly beneficiaryRef: string;

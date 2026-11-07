@@ -3,7 +3,7 @@
 
 import { intentShapeProblem, type Keyring, type VerifyFailure } from './intent.js';
 import { LruMap } from './lru.js';
-import type { Intent, IntentKind, PayoutRequest } from './types.js';
+import type { ApprovalRequirement, Intent, IntentKind, PayoutRequest } from './types.js';
 
 /** A registered intent plus its consumption. */
 export interface IntentRecord {
@@ -63,7 +63,10 @@ export type IntentStatus =
   | 'expired'
   | 'amount-exceeds'
   | 'beneficiary-mismatch'
-  | 'reused';
+  | 'reused'
+  | 'approvals-insufficient'
+  | 'approvals-not-distinct'
+  | 'approvals-invalid';
 
 /** Result of binding a payout to its intent, computed once per evaluation. */
 export interface IntentCheck {
@@ -77,6 +80,18 @@ export interface IntentCheck {
   readonly uses?: number;
   readonly maxUses?: number;
   readonly detail?: string;
+  /**
+   * m-of-n approval accounting (ADR 0003): how many intents the kind must
+   * cite, how many valid distinct-issuer approvals were provided, and the
+   * issuers seen across every cited intent. Present whenever approvals were
+   * required or cited.
+   */
+  readonly approvals?: {
+    readonly required: number;
+    readonly provided: number;
+    readonly issuers: readonly string[];
+    readonly onInsufficient: 'block' | 'review';
+  };
 }
 
 interface Reservation {
@@ -96,6 +111,8 @@ interface Reservation {
    * first use once dedupe is evicted or lost on restart.
    */
   readonly settled?: boolean;
+  /** Additional intent ids consumed as approvals (ADR 0003). */
+  readonly approvalIds?: readonly string[];
 }
 
 /**
@@ -145,7 +162,7 @@ export class IntentRegistry {
   }
 
   /** Bind a payout to its intent. Pure read — consumption happens in `reserve`. */
-  check(p: PayoutRequest, required: boolean): IntentCheck {
+  check(p: PayoutRequest, required: boolean, approval?: ApprovalRequirement): IntentCheck {
     if (p.intentId === undefined || p.intentId === '') {
       return required ? { status: 'missing', required, detail: 'no intentId on payout' } : { status: 'not-required', required };
     }
@@ -180,18 +197,73 @@ export class IntentRegistry {
     if (held !== undefined && held.intentId !== p.intentId) return { ...base, status: 'reused', detail: 'payoutId already bound to another intent' };
     if (rec.uses >= i.maxUses && held === undefined) return { ...base, status: 'reused' };
     if (p.amountPaise > base.remainingPaise) return { ...base, status: 'amount-exceeds' };
-    return { ...base, status: 'ok' };
+    return this.checkApprovals(p, base, approval);
+  }
+
+  /**
+   * m-of-n approvals (ADR 0003). Every cited approval id must resolve to an
+   * intent that verifies, binds this payout's kind/beneficiary/amount and is
+   * inside its window, and must come from an issuer no other cited intent
+   * used — primary included. When `approval.approverIssuers` is set only
+   * those issuers count toward the requirement; a cited intent outside the
+   * list is still validated but does not count.
+   */
+  private checkApprovals(p: PayoutRequest, base: Omit<IntentCheck, 'status' | 'approvals'>, approval?: ApprovalRequirement): IntentCheck {
+    const cited = p.approvalIds ?? [];
+    if (cited.length === 0 && (approval === undefined || approval.count <= 1)) return { ...base, status: 'ok' };
+    const seen = new Set<string>([base.issuer ?? '']);
+    const eligible: string[] = [];
+    const held = this.reservations.get(p.payoutId);
+    const accounting = (req: ApprovalRequirement | undefined): NonNullable<IntentCheck['approvals']> => ({
+      required: req?.count ?? 1,
+      provided: 1 + eligible.length,
+      issuers: [...seen],
+      onInsufficient: req?.onInsufficient ?? 'block',
+    });
+    for (const id of cited) {
+      const rec = this.store.get(id);
+      const invalid = (d: string): IntentCheck => ({ ...base, status: 'approvals-invalid', detail: `approval '${id}': ${d}`, approvals: accounting(approval) });
+      if (rec === undefined) return invalid('not registered');
+      if (rec.verifiedGen !== this.keyring.generation) {
+        const v = this.keyring.verify(rec.intent, p.timestampMs);
+        rec.verification = v.ok ? 'ok' : v.reason;
+        rec.verifiedGen = this.keyring.generation;
+      }
+      const i = rec.intent;
+      if (rec.verification !== 'ok') return invalid(`signature rejected (${rec.verification})`);
+      if (i.kind !== p.kind) return invalid(`kind ${i.kind} ≠ ${p.kind}`);
+      if (p.timestampMs < i.notBeforeMs || p.timestampMs > i.expiresAtMs) return invalid('expired');
+      if (i.beneficiaryRef !== p.beneficiaryRef) return invalid('beneficiary mismatch');
+      if (p.amountPaise > Math.max(0, i.maxAmountPaise - rec.usedPaise)) return invalid('amount exceeds remaining');
+      const ownUse = held !== undefined && (held.intentId === id || held.approvalIds?.includes(id) === true);
+      if (rec.uses >= i.maxUses && !ownUse) return invalid('already consumed');
+      if (seen.has(i.issuer)) return { ...base, status: 'approvals-not-distinct', detail: `issuer '${i.issuer}' cited more than once`, approvals: accounting(approval) };
+      seen.add(i.issuer);
+      if (approval?.approverIssuers === undefined || approval.approverIssuers.includes(i.issuer)) eligible.push(i.issuer);
+    }
+    const approvals = accounting(approval);
+    if (approvals.provided < approvals.required) {
+      return { ...base, status: 'approvals-insufficient', approvals, detail: `${approvals.provided}/${approvals.required} distinct-issuer approvals` };
+    }
+    return { ...base, status: 'ok', approvals };
   }
 
   /** Consume one use for a payout that is going ahead. Idempotent per payoutId. */
-  reserve(intentId: string, payoutId: string, amountPaise: number, sourceKeyId?: string): void {
+  reserve(intentId: string, payoutId: string, amountPaise: number, sourceKeyId?: string, approvalIds?: readonly string[]): void {
     if (this.reservations.has(payoutId)) return;
-    const rec = this.store.get(intentId);
-    if (rec === undefined) return;
-    rec.uses += 1;
-    rec.usedPaise += amountPaise;
-    this.store.put(rec);
-    this.reservations.set(payoutId, { intentId, amountPaise, ...(sourceKeyId !== undefined ? { sourceKeyId } : {}) });
+    for (const id of [intentId, ...(approvalIds ?? [])]) {
+      const rec = this.store.get(id);
+      if (rec === undefined) continue;
+      rec.uses += 1;
+      rec.usedPaise += amountPaise;
+      this.store.put(rec);
+    }
+    this.reservations.set(payoutId, {
+      intentId,
+      amountPaise,
+      ...(sourceKeyId !== undefined ? { sourceKeyId } : {}),
+      ...(approvalIds !== undefined && approvalIds.length > 0 ? { approvalIds: [...approvalIds] } : {}),
+    });
   }
 
   /**
@@ -206,11 +278,13 @@ export class IntentRegistry {
     if (r.sourceKeyId !== undefined && r.sourceKeyId !== sourceKeyId) return 'denied';
     if (r.settled === true) return 'denied';
     this.reservations.delete(payoutId);
-    const rec = this.store.get(r.intentId);
-    if (rec === undefined) return 'released';
-    rec.uses = Math.max(0, rec.uses - 1);
-    rec.usedPaise = Math.max(0, rec.usedPaise - r.amountPaise);
-    this.store.put(rec);
+    for (const id of [r.intentId, ...(r.approvalIds ?? [])]) {
+      const rec = this.store.get(id);
+      if (rec === undefined) continue;
+      rec.uses = Math.max(0, rec.uses - 1);
+      rec.usedPaise = Math.max(0, rec.usedPaise - r.amountPaise);
+      this.store.put(rec);
+    }
     return 'released';
   }
 

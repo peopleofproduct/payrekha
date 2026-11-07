@@ -3,7 +3,7 @@ import { strict as assert } from 'node:assert';
 import { describe, it } from 'node:test';
 import { hashBeneficiary, signIntent } from '@payrekha/core';
 import { RULE_IDS } from '@payrekha/rules';
-import { admin, firewall, HASH_KEY, intent, LOS, MIN, payout, ref, ruleIds, T0 } from './fixtures.ts';
+import { admin, firewall, HASH_KEY, intent, LOS, MIN, MULTI_KEYS, OPS, payout, ref, RISK, ruleIds, T0 } from './fixtures.ts';
 
 const A = ref('alice@okbank');
 const B = ref('mule@okbank');
@@ -98,6 +98,86 @@ describe('intent.*', () => {
     const i = intent(fw, { beneficiaryRef: A });
     const evil = signIntent({ ...i, beneficiaryRef: B, signature: undefined } as never, { alg: 'ed25519', privateKey: LOS.privateKey });
     assert.equal(fw.registerIntent(evil, T0).accepted, false);
+  });
+});
+
+describe('intent.approvals', () => {
+  const approve = (fw: Parameters<typeof intent>[0], beneficiaryRef: string, keyId: string, issuer: string, privateKey: string) =>
+    intent(fw, { beneficiaryRef, keyId, issuer }, privateKey);
+  const cfg = { requiredApprovals: { LOAN_DISBURSAL: 2 } };
+
+  it('primary + a distinct-issuer approval allows; both intents are consumed', () => {
+    const { fw } = firewall(cfg, {}, MULTI_KEYS);
+    const pri = intent(fw, { beneficiaryRef: A });
+    const app = approve(fw, A, 'risk-1', 'risk-desk', RISK.privateKey);
+    const v = fw.evaluate(payout({ beneficiaryRef: A, intentId: pri.intentId, approvalIds: [app.intentId] }));
+    assert.equal(v.verdict, 'ALLOW', JSON.stringify(v.hits));
+    assert.equal(fw.intents.get(pri.intentId)?.uses, 1);
+    assert.equal(fw.intents.get(app.intentId)?.uses, 1, 'the approval is consumed too');
+  });
+  it('intent.approvals-insufficient: primary alone under a required-2 kind', () => {
+    const { fw } = firewall(cfg, {}, MULTI_KEYS);
+    const pri = intent(fw, { beneficiaryRef: A });
+    const v = fw.evaluate(payout({ beneficiaryRef: A, intentId: pri.intentId }));
+    assert.equal(v.verdict, 'BLOCK');
+    assert.deepEqual(ruleIds(v), ['intent.approvals-insufficient']);
+    assert.equal(v.hits[0]!.evidence['provided'], 1);
+    assert.equal(v.effectiveAction, 'DECLINE');
+    assert.equal(fw.intents.get(pri.intentId)?.uses, 0, 'a declined payout consumes nothing');
+  });
+  it('onInsufficient: review holds instead of declining — the safeguard is on, the flow is not jammed', () => {
+    const { fw } = firewall({ requiredApprovals: { LOAN_DISBURSAL: { count: 2, onInsufficient: 'review' } } }, {}, MULTI_KEYS);
+    const pri = intent(fw, { beneficiaryRef: A });
+    const v = fw.evaluate(payout({ beneficiaryRef: A, intentId: pri.intentId }));
+    assert.equal(v.verdict, 'REVIEW');
+    assert.equal(v.effectiveAction, 'HOLD', 'held for the maker-checker queue, not declined');
+  });
+  it('intent.approvals-not-distinct: a second intent from the same issuer cannot approve', () => {
+    const { fw } = firewall(cfg, {}, MULTI_KEYS);
+    const pri = intent(fw, { beneficiaryRef: A });
+    const same = intent(fw, { beneficiaryRef: A }); // also los-prod
+    const v = fw.evaluate(payout({ beneficiaryRef: A, intentId: pri.intentId, approvalIds: [same.intentId] }));
+    assert.deepEqual(ruleIds(v), ['intent.approvals-not-distinct']);
+  });
+  it('intent.approvals-invalid: unknown id, wrong beneficiary, expired', () => {
+    const { fw } = firewall(cfg, {}, MULTI_KEYS);
+    const pri = intent(fw, { beneficiaryRef: A });
+    assert.deepEqual(ruleIds(fw.evaluate(payout({ beneficiaryRef: A, intentId: pri.intentId, approvalIds: ['ghost'] }))), ['intent.approvals-invalid']);
+    const wrongBen = approve(fw, B, 'risk-1', 'risk-desk', RISK.privateKey);
+    assert.deepEqual(ruleIds(fw.evaluate(payout({ beneficiaryRef: A, intentId: pri.intentId, approvalIds: [wrongBen.intentId] }))), ['intent.approvals-invalid']);
+    const stale = intent(fw, { beneficiaryRef: A, keyId: 'risk-1', issuer: 'risk-desk', notBeforeMs: T0 - 2 * MIN, expiresAtMs: T0 - 1 }, RISK.privateKey);
+    assert.deepEqual(ruleIds(fw.evaluate(payout({ beneficiaryRef: A, intentId: pri.intentId, approvalIds: [stale.intentId] }))), ['intent.approvals-invalid']);
+  });
+  it('approverIssuers: only allowlisted issuers count toward the requirement', () => {
+    const { fw } = firewall({ requiredApprovals: { LOAN_DISBURSAL: { count: 2, approverIssuers: ['risk-desk'] } } }, {}, MULTI_KEYS);
+    const pri = intent(fw, { beneficiaryRef: A });
+    const offlist = approve(fw, A, 'ops-1', 'ops-team', OPS.privateKey);
+    assert.deepEqual(ruleIds(fw.evaluate(payout({ beneficiaryRef: A, intentId: pri.intentId, approvalIds: [offlist.intentId] }))), ['intent.approvals-insufficient'], 'ops-team approval is valid but does not count');
+    const onlist = approve(fw, A, 'risk-1', 'risk-desk', RISK.privateKey);
+    assert.equal(fw.evaluate(payout({ beneficiaryRef: A, intentId: pri.intentId, approvalIds: [offlist.intentId, onlist.intentId] })).verdict, 'ALLOW', 'a counted approval on top satisfies it');
+  });
+  it('an approval already consumed by another payout is invalid', () => {
+    const { fw } = firewall(cfg, {}, MULTI_KEYS);
+    const pri1 = intent(fw, { beneficiaryRef: A });
+    const app = approve(fw, A, 'risk-1', 'risk-desk', RISK.privateKey);
+    fw.evaluate(payout({ beneficiaryRef: A, intentId: pri1.intentId, approvalIds: [app.intentId] }));
+    const pri2 = intent(fw, { beneficiaryRef: A });
+    assert.deepEqual(ruleIds(fw.evaluate(payout({ beneficiaryRef: A, intentId: pri2.intentId, approvalIds: [app.intentId] }))), ['intent.approvals-invalid'], 'single-use approval cannot be re-spent');
+  });
+  it('a failed outcome releases the primary and every approval', () => {
+    const { fw } = firewall(cfg, {}, MULTI_KEYS);
+    const pri = intent(fw, { beneficiaryRef: A });
+    const app = approve(fw, A, 'risk-1', 'risk-desk', RISK.privateKey);
+    const po = payout({ beneficiaryRef: A, intentId: pri.intentId, approvalIds: [app.intentId] });
+    fw.evaluate(po);
+    fw.reportOutcome(po.payoutId, 'failed', 'lms-prod');
+    assert.equal(fw.intents.get(pri.intentId)?.uses, 0);
+    assert.equal(fw.intents.get(app.intentId)?.uses, 0, 'the approval is released too');
+  });
+  it('approvals are validated even when the kind does not require them', () => {
+    const { fw } = firewall({}, {}, MULTI_KEYS);
+    const pri = intent(fw, { beneficiaryRef: A });
+    assert.deepEqual(ruleIds(fw.evaluate(payout({ beneficiaryRef: A, intentId: pri.intentId, approvalIds: ['ghost'] }))), ['intent.approvals-invalid'], 'a cited bad approval is evidence, never a free pass');
   });
 });
 
