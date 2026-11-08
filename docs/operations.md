@@ -24,7 +24,9 @@ Change the mode at runtime with `PUT /v1/state` (admin token, `reason` required)
 
 m-of-n approvals: `firewall.requiredApprovals` per kind — `{ "VDA_WITHDRAWAL": 2 }` requires the payout's `intentId` plus a distinct-issuer intent in `approvalIds`. `onInsufficient: "review"` holds rather than declines while approvers onboard; `approverIssuers` restricts which issuers count. Approvers register intents through `/v1/intents` or mint like any issuer; every cited intent is consumed per payout and released together on `failed`/`reversed`. See ADR 0003.
 
-`/v1/decisions` serves the last 1000 verdicts from an in-memory ring (newest first; `?verdict=&payoutId=&intentId=&limit=` filters) — the durable record is the decision log/SIEM, this is the triage view. `/v1/audit` serves the last 1000 audit entries the same way. Upstream fraud scores attach to payouts as `riskScore`/`externalVerdict`/`externalSource` — advisory inputs for the `external` rule that can only make verdicts stricter (assert them at the proxy via `extAuthz.mapping` where you can, rather than trusting the body).
+`/v1/decisions` serves the last 1000 verdicts from an in-memory ring (newest first; `?verdict=&payoutId=&intentId=&limit=` filters) — the durable record is the decision log/SIEM, this is the triage view. `/v1/audit` serves the last 1000 audit entries the same way.
+
+**Console**: `GET /console` serves a built-in read-mostly triage UI (HIGH_ALERT panel with reasoned reset, HOLD queue, verdicts timeline, intent lookup, canary registration, audit trail). The shell is public — every data call inside it still requires a `read`-role key; writes prompt for the admin token. Disable with `PAYREKHA_CONSOLE=off`. Upstream fraud scores attach to payouts as `riskScore`/`externalVerdict`/`externalSource` — advisory inputs for the `external` rule that can only make verdicts stricter (assert them at the proxy via `extAuthz.mapping` where you can, rather than trusting the body).
 
 ```text
 PAYREKHA_API_KEYS='lms-prod:prod:evaluate+outcomes:<token>,los:prod:intents:<token>,grafana:prod:read:<token>'

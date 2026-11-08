@@ -119,6 +119,8 @@ export interface GatewayOptions {
   readonly now?: () => number;
   readonly version?: string;
   readonly onError?: (where: string, err: unknown) => void;
+  /** Pre-read console HTML served at GET /console — a shell, data stays key-gated. */
+  readonly consoleHtml?: string;
 }
 
 export interface GatewayHandle {
@@ -420,6 +422,12 @@ export function createGateway(o: GatewayOptions): GatewayHandle {
       authKey(req, 'read');
       return [200, stateView()];
     }
+    // Console shell — public, holds no data; every fetch inside it still
+    // needs a read-role API key. Served only when consoleHtml is wired.
+    if (path === '/console' && m === 'GET') {
+      if (o.consoleHtml === undefined) throw new HttpError(404, 'not found');
+      return [200, o.consoleHtml, { 'content-type': 'text/html; charset=utf-8' }];
+    }
     // Analyst surface: recent verdicts, audit trail and intent state — a
     // documented read API so consoles/triage tools can sit on top.
     if (path === '/v1/decisions' && m === 'GET') {
@@ -622,7 +630,7 @@ function routeLabel(url: string): string {
   if (p.startsWith('/ext_authz')) return '/ext_authz';
   if (p.startsWith('/v1/issuers/')) return '/v1/issuers';
   if (p.startsWith('/v1/intents/') && p !== '/v1/intents/mint') return '/v1/intents/item';
-  return ['/v1/evaluate', '/v1/intents', '/v1/intents/mint', '/v1/outcomes', '/v1/state', '/v1/decisions', '/v1/audit', '/v1/canaries', '/healthz', '/readyz', '/metrics'].includes(p) ? p : 'other';
+  return ['/v1/evaluate', '/v1/intents', '/v1/intents/mint', '/v1/outcomes', '/v1/state', '/v1/decisions', '/v1/audit', '/v1/canaries', '/console', '/healthz', '/readyz', '/metrics'].includes(p) ? p : 'other';
 }
 
 function send(res: ServerResponse, status: number, body: unknown, headers: Record<string, string> = {}): void {

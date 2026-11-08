@@ -151,7 +151,7 @@ function postgresShared(url: string, tablePrefix: string | undefined): SharedSta
 }
 
 /** Build firewall + gateway from a config file and environment variables. Fails closed on bad config. */
-export function bootFromEnv(env: NodeJS.ProcessEnv = process.env, log: (m: string) => void = (m) => console.error(m)): Booted {
+export function bootFromEnv(env: NodeJS.ProcessEnv = process.env, log: (m: string) => void = (m) => console.error(m), opts?: Pick<GatewayOptions, 'consoleHtml'>): Booted {
   const cfg = (env['PAYREKHA_CONFIG'] !== undefined ? readJson(env['PAYREKHA_CONFIG']) : {}) as PayrekhaFileConfig;
   const adminKey = env['PAYREKHA_ADMIN_KEY'];
   if (adminKey !== undefined && adminKey.length < 16) throw new Error('PAYREKHA_ADMIN_KEY must be at least 16 chars');
@@ -291,6 +291,7 @@ export function bootFromEnv(env: NodeJS.ProcessEnv = process.env, log: (m: strin
     ...(extAuthz !== undefined ? { extAuthz } : {}),
     ...(stateStore !== undefined ? { stateStore } : {}),
     ...(sharedState !== undefined ? { sharedState } : {}),
+    ...(opts?.consoleHtml !== undefined ? { consoleHtml: opts.consoleHtml } : {}),
     onError: (where, e) => log(`payrekha ${where}: ${e instanceof Error ? e.message : String(e)}`),
   });
   let stateLoaded: Promise<void> = Promise.resolve();

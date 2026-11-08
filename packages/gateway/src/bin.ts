@@ -2,9 +2,20 @@
 // SPDX-License-Identifier: Apache-2.0
 // Copyright 2026 Kapil — People of Product™
 
+import { readFileSync } from 'node:fs';
 import { bootFromEnv, envInt } from './config.js';
 
-const { firewall, gateway, stateStore } = bootFromEnv();
+// Console shell ships inside the package — a static file, not a build step.
+const consoleHtml = process.env['PAYREKHA_CONSOLE'] === 'off' ? undefined : safeConsole();
+const { firewall, gateway, stateStore } = bootFromEnv(process.env, undefined, consoleHtml === undefined ? {} : { consoleHtml });
+
+function safeConsole(): string | undefined {
+  try {
+    return readFileSync(new URL('../console/index.html', import.meta.url), 'utf8');
+  } catch {
+    return undefined;
+  }
+}
 const port = envInt(process.env, 'PORT', 8080);
 const host = process.env['HOST'] ?? '0.0.0.0';
 gateway.server.listen(port, host, () => {
