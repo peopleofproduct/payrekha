@@ -178,7 +178,7 @@ docs               getting started, intents, penny-drop, threat model, operation
 
 ## What PayRekha does not do (yet)
 
-There is no UI console (an operations console is planned), no ML, and no hosted service. It makes no calls to government or third-party APIs. A Go client and a shared store for active-active replicas are coming. See [ROADMAP](ROADMAP.md) and the honest [advisory mapping](docs/advisory-mapping.md#what-payrekha-does-not-cover).
+No ML, and no hosted service — it runs on your iron. It makes no calls to government or third-party APIs. See [ROADMAP](ROADMAP.md) and the honest [advisory mapping](docs/advisory-mapping.md#what-payrekha-does-not-cover).
 
 ## Documentation
 
