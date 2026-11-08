@@ -60,7 +60,7 @@ This is Diwali week — the festival that celebrates the very epic the Lakshman 
 | **What it is** | A TypeScript library and a small HTTP gateway (with an Envoy ext_authz adapter) that answers `ALLOW`, `REVIEW` or `BLOCK` for each payout. Measured p99 is about 19 µs in-process and 0.7 ms through the gateway on a laptop. |
 | **Who it's for** | Teams that run payout, disbursal, refund, settlement or withdrawal APIs, and the CISOs who answer for them. |
 | **What it is not** | Not an ML platform, not an EDR, and not a replacement for patching or cloud audit logs. It is the last check before the money leaves. |
-| **Maturity** | **Alpha** (`0.1.0-alpha.0`). Thresholds are illustrative and have not been tuned on production data. Run it in shadow mode first. |
+| **Maturity** | **Alpha** (`0.1.0-alpha.2`). Thresholds are illustrative and have not been tuned on production data. Run it in shadow mode first. |
 
 ## The attack it's built for
 

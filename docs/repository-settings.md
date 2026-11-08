@@ -15,8 +15,8 @@ PayRekha asks operators to protect their payout path; the repository holds itsel
 Verify a release image:
 
 ```bash
-cosign verify ghcr.io/peopleofproduct/payrekha:v0.1.0-alpha.0 \
+cosign verify ghcr.io/peopleofproduct/payrekha:v0.1.0-alpha.2 \
   --certificate-identity-regexp 'https://github.com/peopleofproduct/payrekha/' \
   --certificate-oidc-issuer https://token.actions.githubusercontent.com
-gh attestation verify oci://ghcr.io/peopleofproduct/payrekha:v0.1.0-alpha.0 --owner peopleofproduct
+gh attestation verify oci://ghcr.io/peopleofproduct/payrekha:v0.1.0-alpha.2 --owner peopleofproduct
 ```
