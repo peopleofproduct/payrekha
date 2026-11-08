@@ -186,7 +186,7 @@ There is no UI console (an operations console is planned), no ML, and no hosted 
 - [Getting started](docs/getting-started.md): replay, then shadow via Envoy, then advise, then enforce
 - [Intents](docs/intents.md): the model, signing, key rotation, and "two keys to move money"
 - [Penny-drop](docs/penny-drop.md): why naive ₹1 rules fail at lenders
-- [Threat model](docs/threat-model.md) · [Operations](docs/operations.md) · [Advisory mapping](docs/advisory-mapping.md) · [Failure modes](docs/failure-modes.md)
+- [Threat model](docs/threat-model.md) · [Operations](docs/operations.md) · [Advisory mapping](docs/advisory-mapping.md) · [Failure modes](docs/failure-modes.md) · [Audit pack](docs/audit-pack/README.md) · [Compliance](docs/compliance/README.md)
 - Integrations: [Envoy](docs/integrations/envoy.md) · [Java/Spring](docs/integrations/java-spring.md) · [Python](docs/integrations/python.md) · [Go](docs/integrations/go.md) · [Node](docs/integrations/node.md) · [SIEM](docs/integrations/siem.md) · [Kubernetes](docs/integrations/kubernetes.md)
 - [API contract](docs/api/openapi.yaml) · [ADR 0001: engine](docs/adr/0001-engine.md) · [Repository settings](docs/repository-settings.md)
 

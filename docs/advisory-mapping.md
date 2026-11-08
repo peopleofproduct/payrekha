@@ -19,7 +19,7 @@ This table covers only the recommended actions that concern **payouts**: money l
 | Deploy deception to detect intruders | Canary beneficiaries, API keys and intents | `canary.tripped` → `HIGH_ALERT` |
 | Treat client applications as untrusted; server-side validation and request signing | Every payout re-validated server-side; an intent is a signed business approval bound to kind, amount, beneficiary, window and use count — replay is structurally dead | `intent.*` rules, payoutId↔intent binding |
 | Alert on token usage from unusual source IPs, user agents or geographies | `identity.fingerprint`: an API key's first edge-asserted `sourceHint` enrols; a changed hint REVIEWs (peer IP on /v1/evaluate, proxy-header mapping on ext_authz — never the body). Geo/ASN enrichment stays SIEM-side | `identity.fingerprint`, `sourceHint` in the decision log |
-| Multi-signature approvals for withdrawals | Single-signer intents today: a payout binds exactly one intent from one issuer ("two keys to move money"). m-of-n co-approval is planned | see exclusions |
+| Multi-signature approvals for withdrawals | m-of-n approvals: an intent can require N approvals from distinct issuers before it binds; approval ids ride on the payout | `approverIssuers`, `intent.approvals-insufficient`, `intent.approvals-not-distinct` |
 | Monitor and log transactions; share with SOC | JSONL/CEF decision log with rule IDs and evidence, Prometheus metrics, signed SOAR webhooks | [SIEM](integrations/siem.md) |
 | Key management and rotation | Per-issuer keys scoped to kinds; rotation and revocation with re-verification | [intents.md](intents.md) |
 | Least privilege and hardening of security tooling | Non-root, read-only container; hashed tokens; separate admin token | [threat-model.md](threat-model.md) |
@@ -45,6 +45,6 @@ PayRekha does not do any of the following. You still need them.
 - **mTLS / signed-request replacement for shared fetcher-pool allow-lists** at vendor endpoints. PayRekha removes IP-based trust from the payout path; it does not itself terminate vendor mTLS connections.
 - Restricted indicators of compromise. PayRekha keys on behaviour and does not use CERT-In's restricted indicators.
 - Incident reporting to **CERT-In/CSIRT-Fin** within the mandated timelines, and bulk fraudulent-transaction reporting to **I4C / CFCFRMS**.
-- **m-of-n multi-approval**: a payout binds exactly one signed intent from one issuer. Multi-approver intents are on the roadmap.
+- **m-of-n multi-approval**: SHIPPED — `approverIssuers` on an intent kind requires N approvals from distinct issuers (see `intents.md`); the crypto kit demonstrates 2-of-2 on `VDA_WITHDRAWAL`.
 - Geographic / ASN anomaly scoring on token usage — `identity.fingerprint` flags a credential used from a new edge-asserted source; enriching that hint with geo reputation stays SIEM-side.
 - Payouts that bypass PayRekha on the network path. Network policy must make it the only route.

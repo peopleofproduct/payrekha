@@ -63,3 +63,16 @@ relationship:
 
 GitHub Sponsors issues receipts automatically. For org sponsorships that
 need an invoice, mention it in your Discussion post — paperwork is fine.
+
+---
+
+## Getting help & advisory response
+
+- **Bugs/questions:** GitHub issues on the repo.
+- **Security reports:** see `SECURITY.md` — do not file public issues.
+- **New advisories:** when CERT-In or a BFSI regulator publishes a
+  relevant advisory, the maintainers run the documented review process
+  (`docs/advisory-review-template.md`): acknowledge within **2 business
+  days**, line-by-line review doc within **5 business days**, gaps go to
+  the roadmap with an implementing release. Sponsors get priority triage;
+  the review itself is public either way.
