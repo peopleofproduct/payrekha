@@ -56,6 +56,8 @@ jobs:
       - run: npm run typecheck
       - name: Tests with coverage gate (85% lines / 75% branches / 80% functions)
         run: npm run test:coverage
+      - name: Fuzz the parser surface (seeded, crash-class = fail)
+        run: node scripts/fuzz.mjs --n 5000
       - name: Zero runtime dependencies in core and rules
         run: npm run check:deps
       - name: OpenAPI documents exactly the routes the server serves

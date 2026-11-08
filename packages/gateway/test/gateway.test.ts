@@ -503,6 +503,40 @@ describe('bootFromEnv state loading', () => {
     assert.equal(await c.gateway.saveState(), false, 'must not overwrite an unreadable snapshot');
   });
 
+  it('store dies mid-save: errors counted, verdicts keep flowing; StaleStateError marks unready', async () => {
+    // Chaos: a state backend that throws. saveState must degrade to a
+    // counted error — never crash, never block the verdict path.
+    const fw = new Payrekha(payrekhaRules({ band: false }).rules, { config: { mode: 'shadow', adminTokenSha256: sha(ADMIN) }, keys: [], now: () => T0 });
+    const keys = [{ id: 'lms', sha256: sha(API), origin: 'prod' as const }];
+    const failing = {
+      save: async () => {
+        throw new Error('disk full');
+      },
+      load: async () => null,
+    };
+    const gw = createGateway({ firewall: fw, apiKeys: keys, stateStore: failing });
+    assert.equal(await gw.saveState(), false);
+    assert.equal(await gw.saveState(), false);
+    assert.equal(gw.stats.stateSaveErrors, 2);
+    assert.equal(gw.stats.ready, true, 'a transient save failure must not drop readiness');
+    const v = fw.evaluate({ payoutId: 'p-chaos', kind: 'VENDOR_PAYOUT', amountPaise: 100, channel: 'IMPS', timestampMs: T0 });
+    assert.ok(['ALLOW', 'REVIEW'].includes(v.verdict), 'verdict path unaffected by save errors');
+
+    // A stale-state (second-writer) failure is different: it must drop readiness.
+    const stale = {
+      save: async () => {
+        const e = new Error('contested');
+        e.name = 'StaleStateError';
+        throw e;
+      },
+      load: async () => null,
+    };
+    const gw2 = createGateway({ firewall: new Payrekha(payrekhaRules({ band: false }).rules, { config: { mode: 'shadow', adminTokenSha256: sha(ADMIN) }, keys: [], now: () => T0 }), apiKeys: keys, stateStore: stale });
+    assert.equal(await gw2.saveState(), false);
+    assert.equal(gw2.stats.ready, false);
+    assert.equal(gw2.stats.notReadyReason, 'state written by another instance');
+  });
+
   it('rejects both state backends at once', async () => {
     const { bootFromEnv } = await import('@payrekha/gateway');
     assert.throws(() => bootFromEnv({ PAYREKHA_API_KEYS: `lms:prod:${API}`, PAYREKHA_STATE_FILE: '/tmp/x', PAYREKHA_STATE_PG_URL: 'postgres://x' }, () => undefined), /not both/);
