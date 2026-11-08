@@ -2,14 +2,29 @@
 
 ## Reporting a vulnerability
 
-Email **security@<domain>** with steps to reproduce. Do not open a public issue. You will get an acknowledgement within 3 working days and a fix plan within 10. We credit reporters who want credit.
+Email **security@<domain>** with steps to reproduce. Do not open a public issue.
+
+**Response SLA**: acknowledgement within **3 working days**, a severity assessment + fix plan within **10 working days**, a shipped fix or a documented mitigation within **30 days** for HIGH+ (CRIT aims for 7 days). We coordinate disclosure with you — you get credited (or stay anonymous, your call) in the advisory. We do not sue researchers acting in good faith.
+
+## How advisories work
+
+Security fixes ship as GitHub Security Advisories on the repo — CVE requested for anything HIGH+ — plus a release-note section naming the affected versions, the fixed version, and the mitigation if you can't upgrade today. The first security release through this pipeline is a required GA gate (E3/G6), not a hope.
 
 ## Supported versions
 
-| Version | Supported |
-|---|---|
-| 0.1.x (alpha) | Yes, security fixes on the latest alpha |
-| < 0.1 | No |
+| Version | Supported | Until |
+|---|---|---|
+| 0.1.x (alpha) | Yes — security fixes on the latest alpha tag | superseded by 0.2/1.0 |
+| 1.x (once GA) | Latest minor + previous minor | previous minor drops 90 days after the next ships |
+| < 0.1 | No | — |
+
+## Semver & deprecation contract (effective at 1.0; alpha already follows it)
+
+- **API**: additive or versioned — a breaking request/response change means a new route version (`/v2/…`), never a silent shape change under `/v1`.
+- **Config keys**: deprecations live ≥ 1 minor — the key keeps working with a boot warning before it errors.
+- **Snapshot format**: `version` bumps ship code migrations (`docs/upgrades.md`) — restoring an older snapshot on a newer binary always works; newer-on-older fails closed.
+- **Data on disk** (decision log, envelope): appended fields only; field removal follows the ≥1-minor rule.
+- **Beta/alpha tags** may break any of the above, loudly, in release notes — GA is the promise not to.
 
 ## No telemetry
 

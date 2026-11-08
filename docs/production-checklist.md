@@ -27,7 +27,7 @@ What must be true before PayRekha sits on a real payout path. Work top to bottom
 - [ ] Prometheus scraping `/metrics` (key with `read` role); the shipped alerts in `deploy/prometheus/alerts.yml` wired to paging: `PayrekhaNotReady`, `PayrekhaStateSaveErrors`, `PayrekhaHighAlert` are critical.
 - [ ] Decision log reaching the SIEM; someone owns the `outcome.denied` and `time.skew` signals.
 - [ ] Runbooks agreed for: HIGH_ALERT reset (who, what evidence, `PUT /v1/state` with reason), issuer-key compromise (revoke + re-register flow), standby promotion after writer fencing.
-- [ ] Drills run at least once with results logged (`docs/drills.md`): `npm run drill:crash` locally; `npm run drill:shared-state` when active-active is enabled; D2–D7 on the real deployment before enforce. Alert on `payrekha_shared_failclosed_total` growth and `payrekha_shared_commit_ms` latency drift when active-active is enabled.
+- [ ] Drills run at least once with results logged (`docs/drills.md`): `npm run drill:crash` locally; `npm run drill:shared-state` when active-active is enabled; D2–D7 on the real deployment before enforce; D10 (upgrade+rollback) rehearsed before the first in-place minor upgrade. Alert on `payrekha_shared_failclosed_total` growth and `payrekha_shared_commit_ms` latency drift when active-active is enabled.
 - [ ] `npm run loadcheck` re-run on production-class hardware; numbers compared against `docs/capacity-envelope.md` (serialization is already sliced off the event loop — watch `exportMs` and `payrekha_state_save_ms_max`; escalate to per-section snapshot sharding only if export alone approaches ~250 ms).
 - [ ] Rollback verified: redeploy previous image, state file still readable by it.
 

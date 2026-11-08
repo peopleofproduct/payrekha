@@ -135,3 +135,20 @@ payoutId retry replays REVIEW (not a double spend), and no
 `payrekha_shared_conflicts_total{conflict="uses"}` spike appears on cutover
 day. A botched import that shows `intent '…' conflicts with the registered
 copy` means the snapshot and the live store disagree — do not proceed.
+
+## D10 — rolling upgrade + verified rollback (manual, quarterly / every minor)
+
+Proves `docs/upgrades.md` is a procedure, not prose. Run on staging with
+a shape close to prod.
+
+1. Copy the pre-upgrade snapshot aside (`cp state.json state-pre-upgrade.json` — or pull `/v1/state`).
+2. Deploy N+1 per the topology path (standby-first for single; rolling for active-active).
+3. Verify: `/readyz` 200, probe evaluate returns a verdict, `decisions.jsonl` appends, `/v1/intents` count matches pre-upgrade.
+4. **Roll back** — same topology path in reverse, restoring `state-pre-upgrade.json` if the format changed.
+5. Re-run the same probes.
+
+**Pass:** upgrade AND rollback both complete with verdicts flowing,
+intent/ledger counts intact across the boundary, and a pre-upgrade
+payoutId retry still dedupes (same decisionId) after the round-trip. A
+rollback that loses state means the pre-upgrade snapshot copy was skipped
+— fix the habit before the next window.
