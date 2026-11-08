@@ -1,4 +1,6 @@
 # AWS API Gateway — REQUEST Lambda authorizer
+> **The full step-by-step trial guide: `docs/integrations/aws-apigw.md`** — this file is the config reference.
+
 
 API Gateway can't call arbitrary ext_authz endpoints — a **REQUEST
 authorizer Lambda** is the integration point. It calls PayRekha's

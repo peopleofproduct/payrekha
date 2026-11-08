@@ -70,9 +70,13 @@ procurement cycles are still printing.
 
 ## The questions you'll want answered
 
-**"What if it breaks?"** — It's designed to fail *open*: if it crashes,
-payouts flow. Shadow mode means even a wrong answer can't stop money. We've
-proven that live in our own CI.
+**"What if it breaks?"** — You choose, per deployment. In **shadow** the
+payout path never blocks — a wrong answer can't stop money. In **enforce**
+the production recipes fail *closed* on purpose — a dead firewall must not
+become an open door; that's the point of a payout firewall. Quickstart
+ships fail-open so a first run never blocks traffic; every production
+guide flips it. The honest table of what-breaks-how is
+[failure-modes.md](failure-modes.md).
 
 **"Is it production-ready?"** — Honestly: it's alpha. The engine is tested
 and hardened; the thresholds haven't met *your* traffic yet — which is why

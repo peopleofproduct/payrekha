@@ -8,9 +8,10 @@
   "types": "./index.d.ts",
   "exports": {
     ".": { "types": "./index.d.ts", "default": "./index.js" },
-    "./kms": { "types": "./kms.d.ts", "default": "./kms.js" }
+    "./kms": { "types": "./kms.d.ts", "default": "./kms.js" },
+    "./express": { "types": "./express.d.ts", "default": "./express.js" }
   },
-  "files": ["index.js", "index.d.ts", "kms.js", "kms.d.ts", "README.md"],
+  "files": ["index.js", "index.d.ts", "kms.js", "kms.d.ts", "express.js", "express.d.ts", "README.md"],
   "engines": { "node": ">=18" },
   "keywords": ["payrekha", "payout", "firewall", "intent", "ed25519"],
   "repository": { "type": "git", "url": "https://github.com/peopleofproduct/payrekha", "directory": "clients/js" },

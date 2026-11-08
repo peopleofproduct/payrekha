@@ -51,8 +51,10 @@ Honestly: very little.
 
 | Tier | Engineering effort | What changes for your product |
 |---|---|---|
+| **Kit demo** | ~0 | `npm run kit:<lender\|pa\|psp\|crypto>` — a segment demo with planted attacks, no setup |
+| **Init + console** | ~0 | `npm run init` → shadow stack + `/console` triage UI — the fastest "see it work" |
 | **Replay** | ~0 | Analyst exports a CSV, runs it on a laptop |
-| **Shadow** | ~1 eng-day | Traffic passes through Envoy; nothing else changes |
+| **Shadow** | ~1 eng-day | Traffic passes through Envoy/NGINX/Kong/Traefik; nothing else changes |
 | **Mint (managed intents)** | 1 API call | LOS calls `POST /v1/intents/mint` at approval time |
 | **SDK-signed intents** | ~10 lines | Your service signs intents itself — strongest posture |
 | **KMS/HSM signing** | same payload, your KMS | Regulated end-state, key never leaves your HSM |
@@ -87,9 +89,11 @@ scores as advisory inputs (`riskScore`/`externalVerdict`), so it layers
 *under* whatever you already own instead of competing with it.
 
 **"What's the catch / maturity?"**
-Alpha (`0.1.0`). Thresholds are defaults until tuned on your data. No UI
-console yet (there's a documented read API + Grafana dashboard). No hosted
-service. It's open source — read the engine before you trust it.
+Alpha (`0.1.0`). Thresholds are defaults until tuned on your data. There's
+a built-in triage console at `GET /console` (HIGH_ALERT panel, HOLD queue,
+verdicts timeline, canary registration) plus the read API + Grafana
+dashboard — no hosted service. It's open source — read the engine before
+you trust it.
 
 ## What you own as PM
 
@@ -109,4 +113,5 @@ service. It's open source — read the engine before you trust it.
 > it in watch-only mode this weekend — zero risk, real evidence by Monday."
 
 Then point at [try-this-weekend.md](try-this-weekend.md) — it's written for
-the team doing the work, not for slides.
+the team doing the work, not for slides. For a structured stack-by-stack
+path, [trials.md](trials.md) picks the right integration per their infra.

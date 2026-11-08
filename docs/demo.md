@@ -65,7 +65,7 @@ Show `out/report.html`. It covers 3,280 synthetic NBFC payouts with three plante
 - **"How fast is it?"** Measured p99 is about 19 µs in-process and 0.7 ms through the gateway (`npm run bench`).
 - **"Does it see our customers' account numbers?"** No. Beneficiaries are converted to keyed HMAC hashes (`hb1_…`) as soon as they arrive, and raw identifiers are rejected.
 - **"What if the attacker owns the LOS too?"** Then they hold the signing key, and the behaviour, canary and calendar rules are the remaining layers. See [threat-model.md](threat-model.md).
-- **"Can it run as several copies?"** Today you get one active gateway with a standby, sharing state through Postgres. A shared store for running several copies at once is on the [roadmap](../ROADMAP.md).
+- **"Can it run as several copies?"** Yes — active-active shipped: replicas share state through Postgres (`gateway.sharedState`, ADR 0004) and the verdict commit is the only linearisable point. Single-node + standby promotion is still the simplest path; scale-out needs the shared backend.
 - **"License?"** Apache-2.0.
 
 ## If something breaks on stage

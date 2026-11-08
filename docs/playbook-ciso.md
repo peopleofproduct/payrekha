@@ -27,7 +27,10 @@ and it's exactly what this product closes.
 ## 2. What PayRekha is in your control stack
 
 A **compensating control at the payout layer** — in-process, in your
-network, fail-open by design. It adds a second authorization factor *the
+network. Failure posture is yours: shadow/quickstart fail-open (nothing
+can block money while you evaluate), production recipes fail-closed
+(`failure_mode_allow: false`, dead shared store → DECLINE) — see
+`docs/failure-modes.md`. It adds a second authorization factor *the
 attacker can't steal with a service credential*: a signed business intent
 from your system of record.
 
@@ -109,7 +112,15 @@ advisory response:
   each observed technique to a rule, so your *"what did we do about
   CIAD-2026-0058"* answer is a document, not a scramble
 - **SIEM shipper** — `deploy/siem/vector.toml` feeds decisions to your
-  existing SOC pipeline
+  existing SOC pipeline (Splunk/Sentinel/Elastic query packs ship in
+  `deploy/siem/queries/`)
+- **Audit pack** — `docs/audit-pack/` is a ready-made bundle: control
+  matrix, decision-log schema, access model, drill-evidence template,
+  CERT-In/I4C evidence-extraction jq — hand it to your auditor verbatim
+- **Compliance mappings** — `docs/compliance/` covers RBI IT/cyber, RBI
+  PA/PG, DPDP (data-minimisation as a control), and PCI-DSS scope framing
+- **Failure-mode matrix** — `docs/failure-modes.md` — every failure →
+  observed behaviour → the metric that fires → the drill that proves it
 
 **DPDP note for compliance reviews:** beneficiary PII is hashed at the edge
 and never persisted raw — the decision log is DPDP-light by construction.

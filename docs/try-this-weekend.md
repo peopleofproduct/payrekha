@@ -23,6 +23,8 @@ canaries planted — and **zero possibility of it touching a customer payout.**
 Nothing leaves your network. Beneficiary identifiers are hashed at the edge.
 No licence agreement, no vendor onboarding — it runs on your iron, today.
 
+> **Faster paths since this doc was written**: `npm run init` builds a complete segment-tuned shadow stack in one command (instead of the manual quickstart below); `npm run kit:<lender|pa|psp|crypto>` runs a ready-made segment demo with planted attacks; and `GET /console` on the gateway is a triage UI — the curls below all still work, they're just not required anymore.
+
 ## The deal you'll make with your team
 
 | You give | ~4 hours total, spread over the weekend |

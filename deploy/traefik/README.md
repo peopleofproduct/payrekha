@@ -1,4 +1,6 @@
 # Traefik — forwardAuth to /ext_authz
+> **The full step-by-step trial guide: `docs/integrations/traefik.md`** — this file is the config reference.
+
 
 Traefik's `forwardAuth` middleware is the integration point. It forwards
 method/URI/headers to PayRekha and either lets the request through (200)

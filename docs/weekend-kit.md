@@ -15,7 +15,9 @@ if PayRekha dies. There is no path by which this kit blocks a customer payout.
 
 ## Prerequisites
 
-A Linux VM with Docker + docker compose, ~1 CPU / 512Mi free. No internet
+A Linux VM with Docker + docker compose, ~1 CPU / 512Mi free. No internet —
+
+> **Shortcut**: `npm run init` generates this whole stack in one step; `GET /console` gives the triage UI instead of the curls below. The manual path still works — it's just not required anymore.
 dependency at runtime once images are pulled; nothing phones home.
 
 ## Step 1 — secrets (2 min)

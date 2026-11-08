@@ -101,6 +101,8 @@ Even untuned, a canary is instant tripwire coverage. Plant a beneficiary that
 test VPA) — the advisory explicitly recommends deception:
 
 ```bash
+> **Tip**: `GET /console` on the gateway is a triage UI — HIGH_ALERT panel, HOLD queue, verdicts timeline, canary registration — the curls below all still work, but most day-1 tasks are faster in the console.
+
 curl -XPOST localhost:8080/v1/canaries -H "authorization: Bearer $ADMIN" \
   -d '{"beneficiaries":[{"account":"<uat-bench-acct>","ifsc":"HDFC0000001"}],"reason":"day-1 tripwire"}'
 ```
