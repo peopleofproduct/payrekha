@@ -1,5 +1,12 @@
 # Getting started
 
+**Fastest path**: `npm run init` — the wizard asks your segment
+(lender/PA/PSP/crypto) and signing tier, then writes a complete shadow
+stack (`payrekha.json` with kit thresholds + your Ed25519 issuer keys,
+docker-compose with Envoy + Prometheus, `.env` secrets, calendar,
+README-NEXT). `docker compose --env-file .env up -d` and you're observing.
+Or follow the four stages below manually.
+
 Four steps, each safer than the next one and each reversible. Most teams spend a week or two on steps 1 and 2.
 
 ```mermaid

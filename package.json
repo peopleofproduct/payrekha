@@ -39,7 +39,8 @@
     "verify:deploy": "node scripts/verify-deploy.mjs",
     "format": "prettier --write .",
     "format:check": "prettier --check .",
-    "playground": "tsc -b && esbuild playground/entry.mjs --bundle --format=esm --target=es2022 --outfile=playground/payrekha-web.js --alias:node:crypto=./playground/shims/node-crypto.mjs --alias:node:fs=./playground/shims/node-fs.mjs --inject:playground/shims/buffer.mjs"
+    "playground": "tsc -b && esbuild playground/entry.mjs --bundle --format=esm --target=es2022 --outfile=playground/payrekha-web.js --alias:node:crypto=./playground/shims/node-crypto.mjs --alias:node:fs=./playground/shims/node-fs.mjs --inject:playground/shims/buffer.mjs",
+    "init": "node bin/payrekha.mjs init"
   },
   "devDependencies": {
     "@eslint/js": "^9.17.0",
@@ -61,5 +62,8 @@
   "bugs": "https://github.com/peopleofproduct/payrekha/issues",
   "overrides": {
     "minimatch": "^11.0.1"
+  },
+  "bin": {
+    "payrekha": "bin/payrekha.mjs"
   }
 }
