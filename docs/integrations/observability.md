@@ -100,3 +100,47 @@ service:
 Log side: `deploy/siem/` ships the Vector shipper + query packs for
 Splunk (`splunk.spl`), Sentinel (`sentinel.kql`), Elastic (`elastic.esql`)
 — `docs/integrations/siem.md` is the companion page.
+
+## CloudWatch
+
+Two paths — the agent's embedded-OpenMetrics scrape (preferred) or
+`amazon-cloudwatch-agent` with the `prometheus` input:
+
+```json
+{ "agent": { "metrics_collection_interval": 15 },
+  "metrics": { "namespace": "PayRekha", "append_dimensions": {},
+    "metrics_collected": { "prometheus": {
+      "prometheus_config_path": "env:PROMETHEUS_CONFIG_CONTENTS",
+      "emf_processor": { "metric_declaration": [{ "source_labels": ["job"], "label_matcher": "payrekha", "metric_selectors": ["^payrekha_"] }] } } } } }
+```
+
+`PROMETHEUS_CONFIG_CONTENTS` = the same scrape block as managed
+Prometheus above. Containerised deployments: use the **CloudWatch agent
+with ECS/Container-Insights Prometheus** auto-discovery instead.
+
+## Loki (logs — `decisions.jsonl` + audit)
+
+The gateway's JSONL ships to Loki via the same Vector shipper as the
+SIEMs — add a sink:
+
+```toml
+[sinks.loki]
+type = "loki"
+inputs = ["payrekha_decisions"]
+endpoint = "http://loki:3100"
+labels.job = "payrekha"
+```
+
+Or Promtail tailing the log file:
+
+```yaml
+scrape_configs:
+  - job_name: payrekha
+    pipeline_stages:
+      - json: { expressions: { verdict: verdict, rules: rules, payoutId: payoutId } }
+      - labels: { verdict: "", payoutId: "" }   # keep label cardinality tiny — rules stay in the line
+    static_configs: [{ targets: [localhost], labels: { job: payrekha, __path__: /var/log/payrekha/decisions.jsonl } }]
+```
+
+Cardinality discipline: label on `verdict`/`sourceKeyId` only — `payoutId`
+as a label explodes Loki's index.

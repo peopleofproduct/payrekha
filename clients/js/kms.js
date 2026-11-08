@@ -141,6 +141,65 @@ export function pkcs11Signer({ sign }) {
   return (payload) => sign(payload);
 }
 
+// ---------------------------------------------------------------------------
+// HashiCorp Vault transit — the key never leaves Vault; we POST the payload.
+// ---------------------------------------------------------------------------
+
+/**
+ *   const signer = vaultTransitSigner({
+ *     addr: 'https://vault.internal:8200', mount: 'transit', key: 'payrekha-issuer',
+ *     token: process.env.VAULT_TOKEN,           // or tokenFn: async () => readToken()
+ *   });
+ * Transit sign returns "vault:v1:<base64-sig>"; Ed25519 signs the raw message.
+ */
+export function vaultTransitSigner({ addr, mount = 'transit', key, token, tokenFn, fetchImpl }) {
+  if (!addr || !key || (token === undefined && tokenFn === undefined)) {
+    throw new TypeError('vaultTransitSigner needs { addr, key, token|tokenFn }');
+  }
+  const fetch_ = fetchImpl ?? globalThis.fetch;
+  return async (payload) => {
+    const tok = token ?? (await tokenFn());
+    const r = await fetch_(`${addr}/v1/${mount}/sign/${key}`, {
+      method: 'POST',
+      headers: { 'x-vault-token': tok, 'content-type': 'application/json' },
+      body: JSON.stringify({ input: Buffer.from(payload).toString('base64') }),
+    });
+    const j = await r.json();
+    if (!r.ok) throw new Error(`vault transit sign: ${r.status} ${JSON.stringify(j.errors ?? j).slice(0, 200)}`);
+    const sig = String(j.data.signature); // "vault:vN:<b64>"
+    return Buffer.from(sig.slice(sig.indexOf(':', sig.indexOf(':') + 1) + 1), 'base64');
+  };
+}
+
+// ---------------------------------------------------------------------------
+// Azure Key Vault — REST sign over a managed-identity or caller token.
+// ---------------------------------------------------------------------------
+
+/**
+ *   const signer = azureKeyVaultSigner({
+ *     vault: 'https://kv-payrekha.vault.azure.net', keyName: 'issuer-1', keyVersion: 'abc123',
+ *     tokenFn: async () => getToken(),          // e.g. DefaultAzureCredential.getToken('https://vault.azure.net/.default')
+ *   });
+ * Azure EdDSA signs the raw message (unlike RSA algs it takes no digest).
+ */
+export function azureKeyVaultSigner({ vault, keyName, keyVersion, tokenFn, fetchImpl }) {
+  if (!vault || !keyName || typeof tokenFn !== 'function') {
+    throw new TypeError('azureKeyVaultSigner needs { vault, keyName, tokenFn }');
+  }
+  const fetch_ = fetchImpl ?? globalThis.fetch;
+  const path = keyVersion !== undefined ? `keys/${keyName}/${keyVersion}` : `keys/${keyName}`;
+  return async (payload) => {
+    const r = await fetch_(`${vault}/${path}/sign?api-version=7.4`, {
+      method: 'POST',
+      headers: { authorization: `Bearer ${await tokenFn()}`, 'content-type': 'application/json' },
+      body: JSON.stringify({ alg: 'EdDSA', value: Buffer.from(payload).toString('base64url') }),
+    });
+    const j = await r.json();
+    if (!r.ok) throw new Error(`azure kv sign: ${r.status} ${JSON.stringify(j.error ?? j).slice(0, 200)}`);
+    return Buffer.from(j.value, 'base64url');
+  };
+}
+
 // Exported for tests — the SigV4 pieces are the error-prone part, so they
 // get their own vector coverage.
 export const _sigv4 = { sha256Hex, hmac };
