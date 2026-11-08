@@ -1,6 +1,9 @@
 <!-- SPDX-License-Identifier: Apache-2.0 -->
 # Drills — evidence the failure modes actually work
 
+For *what* each failure looks like and which metric fires, see
+`docs/failure-modes.md` — every drill below proves a row in that matrix.
+
 Checklists don't catch broken failover; drills do. Run each at least once
 before enforce, then on a schedule (crash/restore monthly, failover and
 issuer-compromise quarterly). Every drill has a **pass criterion** — record

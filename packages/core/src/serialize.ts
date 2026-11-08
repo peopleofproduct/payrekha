@@ -58,7 +58,8 @@ export async function serializeCanonical(value: unknown, yieldEvery = 2048, sink
   };
   let steps = 0;
 
-  const emitValue = async (v: unknown): Promise<void> => {
+  const emitValue = async (v: unknown, depth: number): Promise<void> => {
+    if (depth > 64) throw new TypeError('canonicalJson: value nests deeper than 64');
     if (v === null || typeof v !== 'object') {
       emit(scalarJson(v));
       return;
@@ -72,8 +73,8 @@ export async function serializeCanonical(value: unknown, yieldEvery = 2048, sink
         // is microseconds while a nested array (a reservation pair, a big
         // revoked-keyId list) recurses and keeps pacing.
         const el = v[i];
-        if (Array.isArray(el)) await emitValue(el);
-        else emit(canonicalRecord(el));
+        if (Array.isArray(el)) await emitValue(el, depth + 1);
+        else emit(canonicalRecord(el, depth + 1));
         if (++steps % yieldEvery === 0) await pause();
       }
       emit(']');
@@ -88,25 +89,26 @@ export async function serializeCanonical(value: unknown, yieldEvery = 2048, sink
       if (i > 0) emit(',');
       const k = keys[i]!;
       emit(`${JSON.stringify(k)}:`);
-      await emitValue(o[k]);
+      await emitValue(o[k]!, depth + 1);
       if (++steps % yieldEvery === 0) await pause();
     }
     emit('}');
   };
 
-  await emitValue(value);
+  await emitValue(value, 0);
   return parts.join('');
 }
 
 /** Whole-value canonical serialization — the non-pacing twin, for bounded records. */
-const canonicalRecord = (v: unknown): string => {
+const canonicalRecord = (v: unknown, depth: number): string => {
+  if (depth > 64) throw new TypeError('canonicalJson: value nests deeper than 64');
   if (v === null || typeof v !== 'object') return scalarJson(v);
-  if (Array.isArray(v)) return `[${v.map(canonicalRecord).join(',')}]`;
+  if (Array.isArray(v)) return `[${v.map((e) => canonicalRecord(e, depth + 1)).join(',')}]`;
   const o = v as Record<string, unknown>;
   const keys = Object.keys(o)
     .filter((k) => o[k] !== undefined)
     .sort();
-  return `{${keys.map((k) => `${JSON.stringify(k)}:${canonicalRecord(o[k])}`).join(',')}}`;
+  return `{${keys.map((k) => `${JSON.stringify(k)}:${canonicalRecord(o[k], depth + 1)}`).join(',')}}`;
 };
 
 /**

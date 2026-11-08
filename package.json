@@ -31,6 +31,7 @@
     "loadcheck": "npm run build >/dev/null && node scripts/load-check.mjs",
     "drill:crash": "npm run build >/dev/null && node scripts/drill-crash.mjs",
     "drill:shared-state": "npm run build >/dev/null && node scripts/drill-shared-state.mjs",
+    "fuzz": "npm run build >/dev/null && node scripts/fuzz.mjs",
     "kit:lender": "node kits/lender/gen-data.mjs && npm run replay -- --payouts kits/lender/data/payouts.csv --intents kits/lender/data/intents.csv --config kits/lender/payrekha.json --out kits/lender/out",
     "kit:pa": "node kits/pa/gen-data.mjs && npm run replay -- --payouts kits/pa/data/payouts.csv --intents kits/pa/data/intents.csv --config kits/pa/payrekha.json --out kits/pa/out",
     "kit:psp": "node kits/psp/gen-data.mjs && npm run replay -- --payouts kits/psp/data/payouts.csv --intents kits/psp/data/intents.csv --config kits/psp/payrekha.json --out kits/psp/out",
