@@ -1,0 +1,22 @@
+{
+  "_comment": "VDA-exchange preset. Headline: requiredApprovals — every VDA_WITHDRAWAL needs 2 intents from distinct issuers (trading engine + risk desk), the maker-checker the advisory asks for. CRYPTO channel; longer cooling — new addresses are the takeover vector.",
+  "calendarFile": "config/calendars/india-2026.example.json",
+  "firewall": {
+    "mode": "shadow",
+    "requireIntent": { "LOAN_DISBURSAL": false, "PA_SETTLEMENT": false, "REFUND": false, "VENDOR_PAYOUT": false, "VERIFICATION": false },
+    "requiredApprovals": {
+      "VDA_WITHDRAWAL": { "count": 2, "approverIssuers": ["trading-engine", "risk-desk"] }
+    }
+  },
+  "rules": {
+    "probe": { "windowMs": 86400000, "largePaise": 2000000, "largeMultiple": 5 },
+    "cooling": { "coolingMs": 14400000, "minAmountPaise": 2000000 },
+    "velocity": {
+      "windowMs": 600000,
+      "perSourceKey": { "count": 100, "sumPaise": 5000000000 },
+      "global": { "count": 1000, "sumPaise": 50000000000 }
+    },
+    "origin": { "unknownOrigin": "ignore" },
+    "external": { "reviewScore": 0.6, "blockScore": 0.85 }
+  }
+}

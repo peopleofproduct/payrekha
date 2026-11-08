@@ -1,0 +1,19 @@
+{
+  "name": "@payrekha/client",
+  "version": "0.1.0-alpha.2",
+  "description": "PayRekha payout-firewall client: evaluate payouts, register intents, and sign intents inside your system of record (Ed25519 / HMAC / KMS).",
+  "license": "Apache-2.0",
+  "type": "module",
+  "main": "./index.js",
+  "types": "./index.d.ts",
+  "exports": {
+    ".": { "types": "./index.d.ts", "default": "./index.js" },
+    "./kms": { "types": "./kms.d.ts", "default": "./kms.js" }
+  },
+  "files": ["index.js", "index.d.ts", "kms.js", "kms.d.ts", "README.md"],
+  "engines": { "node": ">=18" },
+  "keywords": ["payrekha", "payout", "firewall", "intent", "ed25519"],
+  "repository": { "type": "git", "url": "https://github.com/peopleofproduct/payrekha", "directory": "clients/js" },
+  "scripts": { "test": "node --test test/" },
+  "publishConfig": { "access": "public" }
+}

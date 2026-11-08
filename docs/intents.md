@@ -31,7 +31,9 @@ When a payout carries an intent, the rules check six things: the signature (`int
 
 ## Signing
 
-The payload is `payrekha-intent-v1\n` followed by the canonical JSON of the intent without `signature`. In canonical JSON the keys are sorted, undefined values are omitted, and numbers must be safe integers, so a float amount cannot be signed. The TypeScript, Java and Python implementations produce byte-identical payloads; `clients/vectors/intent-v1.json` is the shared test.
+The payload is `payrekha-intent-v1\n` followed by the canonical JSON of the intent without `signature`. In canonical JSON the keys are sorted, undefined values are omitted, and numbers must be safe integers, so a float amount cannot be signed. The TypeScript, Java, Go, Python and .NET implementations produce byte-identical payloads; `clients/vectors/intent-v1.json` is the shared test.
+
+Signers by stack: `signIntent`/`signIntentWith` in `@payrekha/client` (npm, zero-dep — `clients/js`), `IntentSigner` in `clients/java` (JDK-only) and the `payrekha-spring-boot-starter` (`clients/java-spring`), `clients/go`, `clients/python`, `clients/dotnet`. To sign without the private key leaving a KMS/HSM, see [kms.md](kms.md).
 
 - **Ed25519 (default).** The issuer holds the private key; PayRekha only holds public keys, so nobody who breaks into PayRekha can mint intents.
 - **HMAC-SHA256.** Supported for systems that cannot do Ed25519. PayRekha warns at boot because anyone holding the secret can mint intents. Use a secret of at least 32 characters.

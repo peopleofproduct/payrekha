@@ -1,0 +1,19 @@
+{
+  "_comment": "PSP/refund-flow preset. Refunds are small-but-many: per-beneficiary patterns matter more than source bursts, so probe + cooling lead; velocity guards the key. UPI channel.",
+  "calendarFile": "config/calendars/india-2026.example.json",
+  "firewall": {
+    "mode": "shadow",
+    "requireIntent": { "LOAN_DISBURSAL": false, "PA_SETTLEMENT": false, "VDA_WITHDRAWAL": false, "VENDOR_PAYOUT": false }
+  },
+  "rules": {
+    "probe": { "windowMs": 43200000, "largePaise": 500000, "largeMultiple": 30 },
+    "cooling": { "coolingMs": 1800000, "minAmountPaise": 1000000 },
+    "velocity": {
+      "windowMs": 600000,
+      "perSourceKey": { "count": 150, "sumPaise": 50000000 },
+      "global": { "count": 3000, "sumPaise": 500000000 }
+    },
+    "origin": { "unknownOrigin": "ignore" },
+    "external": { "reviewScore": 0.7, "blockScore": 0.9 }
+  }
+}

@@ -84,8 +84,8 @@ not a someday.
 
 ## Tier 2 — sign in your system of record
 
-`clients/` has signers for Java, Python and Go (Node: `signIntent` from
-`@payrekha/core`). The pattern everywhere:
+`clients/` has signers for Node (`@payrekha/client` — `npm i`), Java
+(+ Spring Boot starter), Python, Go and .NET. The pattern everywhere:
 
 ```
 unsigned = { intentId: "<your id>", kind, maxAmountPaise,
@@ -101,31 +101,36 @@ never leaves your system.
 
 ## Tier 3 — KMS / HSM
 
-The signature is `Ed25519(domain || canonicalJson(intent))` over
-`intentSigningPayload(...)` — exportable, so a KMS-backed signer is:
+`@payrekha/client/kms` ships ready adapters — `awsKmsSigner` (Ed25519
+`SIGN_VERIFY` key, SigV4 over node:crypto, no AWS SDK dep),
+`gcpKmsSigner` (`EC_SIGN_ED25519` key version, Bearer token), and
+`pkcs11Signer` (any HSM/vendor binding). Full recipes in
+[docs/kms.md](kms.md):
 
 ```ts
-const payload = intentSigningPayload(unsigned);
-const signature = await kms.sign(keyArn, payload);          // your KMS call
-const intent = { ...unsigned, signature: signature.toString('base64url') };
+import { awsKmsSigner } from '@payrekha/client/kms';
+const intent = await signIntentWith(unsigned, awsKmsSigner({ keyId: arn, region, credentials }));
 ```
 
-(GCP Cloud KMS supports Ed25519 natively; elsewhere use an HSM via PKCS#11 or
-a KMS-wrapped seed. The conformance vectors in `clients/vectors` prove any
-signer against the same bytes.)
+(The conformance vectors in `clients/vectors` prove any signer against the
+same bytes — `clients/js/test/kms.test.mjs` asserts the key never enters
+the process.)
 
 ## Zero-code connector
 
-If your LOS emits approval events already, you need no LOS code at all. A
-bridge process maps the event to a mint call:
+If your LOS emits approval events already, you need no LOS code at all.
+`connectors/` productises the bridge: webhook / Kafka / SQS receivers
+sharing one field-map engine, `docker run`-able, with LOS-disbursal and
+PA-settlement reference maps:
 
-```js
-// examples/intent-bridge.mjs — webhook → mint. ~40 lines, no deps.
-// Kafka/SQS variants swap the source; the sink is identical.
+```
+PAYREKHA_URL=… PAYREKHA_MINT_TOKEN=… FIELD_MAP_FILE=fieldmaps/los-disbursal.json \
+  node connectors/webhook.mjs        # or kafka.mjs / sqs.mjs
 ```
 
-Point it at `PAYREKHA_URL` + a `mint`-role key, keep your existing event
-schema, set `fieldMap` in one place. The bridge can equally call
+`examples/intent-bridge.mjs` remains the 40-line teaching version. Point
+the receiver at `PAYREKHA_URL` + a `mint`-role key, keep your existing
+event schema, set `fieldMap` in one place. The bridge can equally call
 `/v1/intents` with its own signer — same wire, one tier up.
 
 ## Graduation checklist (per intent kind)
@@ -134,3 +139,7 @@ schema, set `fieldMap` in one place. The bridge can equally call
 2. Tier 1: `requireIntent` flipped on (still shadow) → intent coverage ≥ 99%.
 3. Tier 2/3: external signing live, `mint` role keys revoked.
 4. `advise` → `enforce` per kind; `failure_mode_allow: false` at Envoy.
+
+## Edge integrations beyond Envoy
+
+Same `/ext_authz` contract, three more fronts: [NGINX auth_request](integrations/nginx.md) (`deploy/nginx/payrekha.conf`), [Kong plugin](integrations/kong.md) (`deploy/kong/plugins/payrekha`), and [Istio `CUSTOM` authorization](integrations/istio.md) — all fail closed, all assert `x-client-id` at the edge.

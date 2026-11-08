@@ -1,0 +1,11 @@
+{
+  "_comment": "LOS 'loan approved' event → LOAN_DISBURSAL intent. Reuse the loan id as intentId so retries collapse. Raw beneficiary fields are hashed at the gateway entry — they never persist.",
+  "intentId": "loan.id",
+  "kind": { "const": "LOAN_DISBURSAL" },
+  "amountPaise": "loan.amount_paise",
+  "account": "beneficiary.account_number",
+  "ifsc": "beneficiary.ifsc",
+  "subjectRef": "loan.id",
+  "maxUses": { "const": 1 },
+  "ttlMs": { "const": 86400000 }
+}

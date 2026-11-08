@@ -1,0 +1,41 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!-- SPDX-License-Identifier: Apache-2.0 -->
+<!-- PayRekha Spring Boot starter: auto-configures PayrekhaClient + IntentSigner
+     beans from application properties, plus a method-level @PayrekhaCheck
+     annotation for "evaluate before this method runs". -->
+<project xmlns="http://maven.apache.org/POM/4.0.0"
+         xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+         xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 https://maven.apache.org/xsd/maven-4.0.0.xsd">
+  <modelVersion>4.0.0</modelVersion>
+  <groupId>city.theproduct.payrekha</groupId>
+  <artifactId>payrekha-spring-boot-starter</artifactId>
+  <version>0.1.0-alpha.2</version>
+  <packaging>jar</packaging>
+  <name>payrekha-spring-boot-starter</name>
+  <description>Spring Boot starter for the PayRekha payout firewall</description>
+  <properties>
+    <maven.compiler.release>17</maven.compiler.release>
+    <spring-boot.version>3.4.1</spring-boot.version>
+    <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
+  </properties>
+  <dependencies>
+    <dependency>
+      <groupId>org.springframework.boot</groupId>
+      <artifactId>spring-boot-autoconfigure</artifactId>
+      <version>${spring-boot.version}</version>
+      <scope>provided</scope>
+    </dependency>
+    <dependency>
+      <groupId>org.springframework.boot</groupId>
+      <artifactId>spring-boot-starter-aop</artifactId>
+      <version>${spring-boot.version}</version>
+      <scope>provided</scope>
+    </dependency>
+    <dependency>
+      <groupId>org.springframework.boot</groupId>
+      <artifactId>spring-boot-configuration-processor</artifactId>
+      <version>${spring-boot.version}</version>
+      <optional>true</optional>
+    </dependency>
+  </dependencies>
+</project>

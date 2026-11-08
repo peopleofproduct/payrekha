@@ -1,0 +1,23 @@
+{
+  "_comment": "Payment-aggregator preset. Settlement batches are high-count per source key (overrides sized ~2x the biggest observed batch); merchant account changes ride the merchantAccount rule via account_changed events.",
+  "calendarFile": "config/calendars/india-2026.example.json",
+  "firewall": {
+    "mode": "shadow",
+    "requireIntent": { "LOAN_DISBURSAL": false, "REFUND": false, "VDA_WITHDRAWAL": false, "VENDOR_PAYOUT": false, "VERIFICATION": false }
+  },
+  "rules": {
+    "probe": { "windowMs": 86400000, "largePaise": 5000000, "largeMultiple": 10 },
+    "cooling": { "coolingMs": 7200000, "minAmountPaise": 10000000 },
+    "merchantAccount": { "settleWindowMs": 86400000 },
+    "velocity": {
+      "windowMs": 600000,
+      "perSourceKey": { "count": 80, "sumPaise": 2000000000 },
+      "global": { "count": 5000, "sumPaise": 50000000000 },
+      "perSourceKeyOverrides": {
+        "settlement-svc": { "count": 500, "sumPaise": 50000000000 }
+      }
+    },
+    "origin": { "unknownOrigin": "ignore" },
+    "external": { "reviewScore": 0.7, "blockScore": 0.9 }
+  }
+}

@@ -1,0 +1,23 @@
+{
+  "_comment": "NBFC/LMS preset. Disbursals are intent-bound (RA9); penny-drops mark verified beneficiaries; refunds run on their own key budget. Shadow first — flip firewall.mode to enforce after the first clean week.",
+  "calendarFile": "config/calendars/india-2026.example.json",
+  "firewall": {
+    "mode": "shadow",
+    "requireIntent": { "REFUND": true, "PA_SETTLEMENT": false, "VDA_WITHDRAWAL": false, "VENDOR_PAYOUT": false }
+  },
+  "rules": {
+    "probe": { "windowMs": 86400000, "largePaise": 1000000, "largeMultiple": 25 },
+    "cooling": { "coolingMs": 3600000, "minAmountPaise": 500000 },
+    "velocity": {
+      "windowMs": 600000,
+      "perSourceKey": { "count": 60, "sumPaise": 500000000 },
+      "global": { "count": 2000, "sumPaise": 5000000000 },
+      "perSourceKeyOverrides": {
+        "lms-prod": { "count": 120, "sumPaise": 5000000000 },
+        "refunds-svc": { "count": 60, "sumPaise": 100000000 }
+      }
+    },
+    "origin": { "unknownOrigin": "ignore" },
+    "external": { "reviewScore": 0.7, "blockScore": 0.9 }
+  }
+}

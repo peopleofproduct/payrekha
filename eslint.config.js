@@ -6,7 +6,7 @@ export default tseslint.config(
   js.configs.recommended,
   ...tseslint.configs.recommended,
   {
-    languageOptions: { globals: { console: 'readonly', process: 'readonly', fetch: 'readonly', performance: 'readonly', setTimeout: 'readonly', setInterval: 'readonly', clearInterval: 'readonly', AbortSignal: 'readonly', Buffer: 'readonly', URL: 'readonly', NodeJS: 'readonly', TextEncoder: 'readonly' } },
+    languageOptions: { globals: { console: 'readonly', process: 'readonly', fetch: 'readonly', performance: 'readonly', setTimeout: 'readonly', setInterval: 'readonly', clearInterval: 'readonly', AbortSignal: 'readonly', Response: 'readonly', Buffer: 'readonly', URL: 'readonly', NodeJS: 'readonly', TextEncoder: 'readonly' } },
     rules: { '@typescript-eslint/no-unused-vars': ['error', { argsIgnorePattern: '^_' }] },
   },
 );

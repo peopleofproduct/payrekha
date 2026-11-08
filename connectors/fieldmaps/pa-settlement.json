@@ -1,0 +1,12 @@
+{
+  "_comment": "PA 'settlement approved / ready to pay merchant' event → PA_SETTLEMENT intent. merchantId rides along so PA rules can bind scope; cycle date namespaces the intent id.",
+  "intentId": { "template": "{settlement.cycle_id}-{merchant.id}" },
+  "kind": { "const": "PA_SETTLEMENT" },
+  "amountPaise": "settlement.net_paise",
+  "account": "merchant.settlement_account",
+  "ifsc": "merchant.settlement_ifsc",
+  "subjectRef": "settlement.cycle_id",
+  "maxUses": { "const": 1 },
+  "ttlMs": { "const": 43200000 },
+  "notBeforeMs": { "coalesce": ["settlement.payable_at", "settlement.cycle_end_ms"] }
+}

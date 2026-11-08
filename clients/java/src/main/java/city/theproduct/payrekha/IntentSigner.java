@@ -130,6 +130,12 @@ public final class IntentSigner {
     return KeyFactory.getInstance("Ed25519").generatePrivate(new PKCS8EncodedKeySpec(Base64.getDecoder().decode(base64)));
   }
 
+  /** PEM ("-----BEGIN PRIVATE KEY-----") — the format openssl/HSM tooling exports. */
+  public static PrivateKey ed25519FromPem(String pem) throws GeneralSecurityException {
+    String b64 = pem.replaceAll("-----BEGIN [^-]+-----", "").replaceAll("-----END [^-]+-----", "").replaceAll("\\s", "");
+    return ed25519FromPkcs8(b64);
+  }
+
   private static String b64url(byte[] b) {
     return Base64.getUrlEncoder().withoutPadding().encodeToString(b);
   }

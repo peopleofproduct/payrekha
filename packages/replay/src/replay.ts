@@ -2,7 +2,7 @@
 // Copyright 2026 Kapil — People of Product™
 
 import { createHash, randomBytes } from 'node:crypto';
-import { generateIssuerKeyPair, hashBeneficiary, looksLikeRawIdentifier, Payrekha, signIntent, type FirewallConfig, type IntentKind, type PayoutRequest, type PayoutVerdict, type RuleHit } from '@payrekha/core';
+import { generateIssuerKeyPair, hashBeneficiary, looksLikeRawIdentifier, Payrekha, signIntent, type FirewallConfig, type IntentKind, type IssuerKeyPair, type PayoutRequest, type PayoutVerdict, type RuleHit } from '@payrekha/core';
 import { payrekhaRules, type RulesConfig } from '@payrekha/rules';
 
 /** Our field → your column. Every key optional; defaults are the snake_case names below. */
@@ -23,6 +23,8 @@ export const DEFAULT_COLUMNS = {
   origin: 'origin',
   merchantId: 'merchant_id',
   intentId: 'intent_id',
+  /** m-of-n approvals (ADR 0003): comma-separated intent ids, e.g. `wd-4-ops,wd-4-risk`. */
+  approvalIds: 'approval_ids',
   event: 'event',
   // intents file
   maxAmountPaise: 'max_amount_paise',
@@ -30,6 +32,9 @@ export const DEFAULT_COLUMNS = {
   maxUses: 'max_uses',
   notBefore: 'not_before',
   expiresAt: 'expires_at',
+  /** intents file: who signed this row — for m-of-n approver issuers. */
+  issuer: 'issuer',
+  issuerKeyId: 'key_id',
 } as const;
 
 export interface ReplayOptions {
@@ -187,9 +192,37 @@ export function runReplay(o: ReplayOptions): ReplayReport {
     ...(intentLess ? { requireIntent: Object.fromEntries(allKinds.map((k) => [k, false])) } : {}),
   };
   let clock = 0;
-  const fw = new Payrekha(rules, { config: cfg, keys: [{ keyId: 'replay', issuer: 'replay', alg: 'ed25519', publicKey: issuer.publicKey, kinds: allKinds }], now: () => clock });
 
-  // Intents from an LOS export are unsigned: sign them with a throwaway key — "as if these had been signed intents".
+  // Intents from an LOS export are unsigned: sign them with throwaway keys —
+  // "as if these had been signed intents". An `issuer`/`key_id` column makes
+  // the row belong to that issuer (its own throwaway keypair + keyring
+  // entry), which is what m-of-n approval requirements verify against.
+  const signers = new Map<string, { keyId: string; issuer: string; pair: IssuerKeyPair }>();
+  signers.set('replay', { keyId: 'replay', issuer: 'replay', pair: issuer });
+  const keyFor = (issuerName: string, keyId: string) => {
+    const id = `${issuerName}/${keyId}`;
+    let s = signers.get(id);
+    if (s === undefined) {
+      s = { keyId, issuer: issuerName, pair: generateIssuerKeyPair() };
+      signers.set(id, s);
+    }
+    return s;
+  };
+  for (const row of o.intents ?? []) {
+    const iss = String(row[c['issuer']!] ?? 'replay');
+    const kid = String(row[c['issuerKeyId']!] ?? 'replay');
+    keyFor(iss === '' ? 'replay' : iss, kid === '' ? 'replay' : kid);
+  }
+  const fw = new Payrekha(rules, {
+    config: cfg,
+    keys: [...signers.values()].map((s) => ({ keyId: s.keyId, issuer: s.issuer, alg: 'ed25519' as const, publicKey: s.pair.publicKey, kinds: allKinds })),
+    now: () => clock,
+  });
+  const signerFor = (row: Record<string, unknown>) => {
+    const iss = String(row[c['issuer']!] ?? 'replay');
+    const kid = String(row[c['issuerKeyId']!] ?? 'replay');
+    return keyFor(iss === '' ? 'replay' : iss, kid === '' ? 'replay' : kid);
+  };
   for (const row of o.intents ?? []) {
     const kind = String(row[c['kind']!] ?? '');
     const b = ref(row);
@@ -200,9 +233,10 @@ export function runReplay(o: ReplayOptions): ReplayReport {
     if (!KINDS.has(kind) || b === undefined || nb === undefined || ex === undefined || !Number.isSafeInteger(max) || id === '') continue;
     const sub = row[c['subjectRef']!];
     const uses = Number(row[c['maxUses']!] || 1);
+    const signer = signerFor(row);
     clock = nb;
     fw.registerIntent(
-      signIntent({ intentId: id, kind: kind as IntentKind, maxAmountPaise: max, beneficiaryRef: b, maxUses: Number.isSafeInteger(uses) ? uses : 1, notBeforeMs: nb, expiresAtMs: ex, issuer: 'replay', keyId: 'replay', ...(sub ? { subjectRef: String(sub) } : {}) }, { alg: 'ed25519', privateKey: issuer.privateKey }),
+      signIntent({ intentId: id, kind: kind as IntentKind, maxAmountPaise: max, beneficiaryRef: b, maxUses: Number.isSafeInteger(uses) ? uses : 1, notBeforeMs: nb, expiresAtMs: ex, issuer: signer.issuer, keyId: signer.keyId, ...(sub ? { subjectRef: String(sub) } : {}) }, { alg: 'ed25519', privateKey: signer.pair.privateKey }),
       nb,
     );
   }
@@ -263,6 +297,8 @@ export function runReplay(o: ReplayOptions): ReplayReport {
       const v = row[c[k]!];
       if (v !== undefined && v !== '') p[k] = String(v);
     }
+    const aids = row[c['approvalIds']!];
+    if (typeof aids === 'string' && aids !== '') p['approvalIds'] = aids.split(',').map((s) => s.trim()).filter(Boolean);
     const kind = String(p['kind']);
     if (intentLess && b !== undefined) {
       if (kind === 'VERIFICATION') {
