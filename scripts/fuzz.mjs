@@ -9,7 +9,12 @@ import { canonicalJson, generateIssuerKeyPair, hashBeneficiary, intentShapeProbl
 import { mapPayout } from '../packages/gateway/dist/index.js';
 import { parseCsv } from '../packages/replay/dist/csv.js';
 
-const args = Object.fromEntries(process.argv.slice(2).map((a) => a.replace(/^--/, '').split('=')));
+// Accepts both --n 5000 and --n=5000.
+const argv = process.argv.slice(2);
+const args = Object.fromEntries(argv.map((a, i) => {
+  const kv = a.replace(/^--/, '').split('=');
+  return [kv[0], kv[1] ?? argv[i + 1]];
+}));
 const N = Number(args['n'] ?? 20000);
 let seed = Number(args['seed'] ?? 1);
 const rand = () => (seed = (seed * 1103515245 + 12345) & 0x7fffffff) / 0x7fffffff;

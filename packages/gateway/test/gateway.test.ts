@@ -49,8 +49,7 @@ function boot(mode: 'shadow' | 'enforce', extra: { intentVerificationsPerMinute?
     decisionLog: log,
     now: () => T0,
     ...(extra.mint !== undefined && extra.mint !== false
-      // gitleaks:allow — LOS2 is a per-run generated keypair, not a committed secret
-      ? { mint: { keyId: 'los-2', key: { alg: 'ed25519' as const, privateKey: LOS2.privateKey }, defaultTtlMs: 60_000, maxTtlMs: 3_600_000, ...(typeof extra.mint === 'object' ? extra.mint : {}) } }
+      ? { mint: { keyId: 'los-2', key: { alg: 'ed25519' as const, privateKey: LOS2.privateKey /* gitleaks:allow — per-run generated keypair, not a committed secret */ }, defaultTtlMs: 60_000, maxTtlMs: 3_600_000, ...(typeof extra.mint === 'object' ? extra.mint : {}) } }
       : {}),
     ...(extra.intentVerificationsPerMinute !== undefined ? { intentVerificationsPerMinute: extra.intentVerificationsPerMinute } : {}),
     extAuthz: {
@@ -509,27 +508,29 @@ describe('bootFromEnv state loading', () => {
     const fw = new Payrekha(payrekhaRules({ band: false }).rules, { config: { mode: 'shadow', adminTokenSha256: sha(ADMIN) }, keys: [], now: () => T0 });
     const keys = [{ id: 'lms', sha256: sha(API), origin: 'prod' as const }];
     const failing = {
+      describe: 'chaos:transient',
       save: async () => {
         throw new Error('disk full');
       },
-      load: async () => null,
+      load: async () => false,
     };
     const gw = createGateway({ firewall: fw, apiKeys: keys, stateStore: failing });
     assert.equal(await gw.saveState(), false);
     assert.equal(await gw.saveState(), false);
     assert.equal(gw.stats.stateSaveErrors, 2);
     assert.equal(gw.stats.ready, true, 'a transient save failure must not drop readiness');
-    const v = fw.evaluate({ payoutId: 'p-chaos', kind: 'VENDOR_PAYOUT', amountPaise: 100, channel: 'IMPS', timestampMs: T0 });
-    assert.ok(['ALLOW', 'REVIEW'].includes(v.verdict), 'verdict path unaffected by save errors');
+    const v = fw.evaluate({ payoutId: 'p-chaos', kind: 'VENDOR_PAYOUT', amountPaise: 100, beneficiaryRef: 'hb1_chaos', channel: 'IMPS', sourceKeyId: 'lms', origin: 'prod' as const, timestampMs: T0 });
+    assert.equal(v.verdict, 'BLOCK', 'verdict path unaffected by save errors — intent-missing still blocks');
 
     // A stale-state (second-writer) failure is different: it must drop readiness.
     const stale = {
+      describe: 'chaos:stale',
       save: async () => {
         const e = new Error('contested');
         e.name = 'StaleStateError';
         throw e;
       },
-      load: async () => null,
+      load: async () => false,
     };
     const gw2 = createGateway({ firewall: new Payrekha(payrekhaRules({ band: false }).rules, { config: { mode: 'shadow', adminTokenSha256: sha(ADMIN) }, keys: [], now: () => T0 }), apiKeys: keys, stateStore: stale });
     assert.equal(await gw2.saveState(), false);

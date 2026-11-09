@@ -12,3 +12,6 @@
 # the rule before they were switched to per-run generated values.
 5adc6fd09330af7e0174d9ea87310ba046853b5b:.github/workflows/ci.yml:generic-api-key:135
 5adc6fd09330af7e0174d9ea87310ba046853b5b:.github/workflows/ci.yml:generic-api-key:141
+# Same per-run generated keypair, relocated to a one-line object when the mint
+# block grew fields — fingerprint moved with the line, secret is still fake.
+f48e20d6f8b125dd0c5670fdb3858420db20ef05:packages/gateway/test/gateway.test.ts:generic-api-key:51

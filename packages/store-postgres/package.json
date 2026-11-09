@@ -25,7 +25,7 @@
     "provenance": true
   },
   "dependencies": {
-    "@payrekha/core": "0.1.0-alpha.0",
+    "@payrekha/core": "0.1.0-alpha.2",
     "pg": "^8.16.3"
   },
   "devDependencies": {
