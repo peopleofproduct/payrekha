@@ -7,3 +7,6 @@ export const existsSync = off('existsSync');
 export const readFileSync = off('readFileSync');
 export const renameSync = off('renameSync');
 export const writeFileSync = off('writeFileSync');
+// node:fs/promises consumers (FileStateStore) — aliased to this same shim.
+export const rename = off('rename');
+export const writeFile = off('writeFile');

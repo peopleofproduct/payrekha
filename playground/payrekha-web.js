@@ -2033,6 +2033,12 @@ var CHANNELS = ["IMPS", "NEFT", "RTGS", "UPI", "INTERNAL", "CRYPTO"];
 // packages/core/dist/canonical.js
 init_buffer();
 function canonicalJson(value) {
+  return emit(value, 0);
+}
+var MAX_DEPTH = 64;
+function emit(value, depth) {
+  if (depth > MAX_DEPTH)
+    throw new TypeError(`canonicalJson: value nests deeper than ${MAX_DEPTH}`);
   if (value === null)
     return "null";
   switch (typeof value) {
@@ -2046,10 +2052,10 @@ function canonicalJson(value) {
       return String(value);
     case "object": {
       if (Array.isArray(value))
-        return `[${value.map(canonicalJson).join(",")}]`;
+        return `[${value.map((v) => emit(v, depth + 1)).join(",")}]`;
       const obj = value;
       const keys = Object.keys(obj).filter((k) => obj[k] !== void 0).sort();
-      return `{${keys.map((k) => `${JSON.stringify(k)}:${canonicalJson(obj[k])}`).join(",")}}`;
+      return `{${keys.map((k) => `${JSON.stringify(k)}:${emit(obj[k], depth + 1)}`).join(",")}}`;
     }
     default:
       throw new TypeError(`canonicalJson: unsupported type ${typeof value}`);
@@ -2517,8 +2523,32 @@ var IntentRegistry = class {
   get(intentId) {
     return this.store.get(intentId);
   }
+  /**
+   * The reservation bound to this payoutId, if any. The gateway reads this
+   * to know `evaluate` consumed intents — that's the trigger for the shared
+   * commit (ADR 0004).
+   */
+  reservationOf(payoutId) {
+    const r = this.reservations.get(payoutId);
+    if (r === void 0)
+      return void 0;
+    return { intentId: r.intentId, approvalIds: r.approvalIds ?? [], amountPaise: r.amountPaise, sourceKeyId: r.sourceKeyId };
+  }
+  /**
+   * Authoritative counters learned from the shared backend (ADR 0004): the
+   * remote value is the truth for committed consumption — including drops
+   * after a cross-replica release. Local reservations not yet committed
+   * correct themselves through the commit conflict path.
+   */
+  syncCounters(intentId, uses, usedPaise) {
+    const rec = this.store.get(intentId);
+    if (rec === void 0)
+      return;
+    rec.uses = uses;
+    rec.usedPaise = usedPaise;
+  }
   /** Bind a payout to its intent. Pure read — consumption happens in `reserve`. */
-  check(p, required) {
+  check(p, required, approval) {
     if (p.intentId === void 0 || p.intentId === "") {
       return required ? { status: "missing", required, detail: "no intentId on payout" } : { status: "not-required", required };
     }
@@ -2556,19 +2586,83 @@ var IntentRegistry = class {
       return { ...base, status: "reused" };
     if (p.amountPaise > base.remainingPaise)
       return { ...base, status: "amount-exceeds" };
-    return { ...base, status: "ok" };
+    return this.checkApprovals(p, base, approval);
+  }
+  /**
+   * m-of-n approvals (ADR 0003). Every cited approval id must resolve to an
+   * intent that verifies, binds this payout's kind/beneficiary/amount and is
+   * inside its window, and must come from an issuer no other cited intent
+   * used — primary included. When `approval.approverIssuers` is set only
+   * those issuers count toward the requirement; a cited intent outside the
+   * list is still validated but does not count.
+   */
+  checkApprovals(p, base, approval) {
+    const cited = p.approvalIds ?? [];
+    if (cited.length === 0 && (approval === void 0 || approval.count <= 1))
+      return { ...base, status: "ok" };
+    const seen = /* @__PURE__ */ new Set([base.issuer ?? ""]);
+    const eligible = [];
+    const held = this.reservations.get(p.payoutId);
+    const accounting = (req) => ({
+      required: req?.count ?? 1,
+      provided: 1 + eligible.length,
+      issuers: [...seen],
+      onInsufficient: req?.onInsufficient ?? "block"
+    });
+    for (const id of cited) {
+      const rec = this.store.get(id);
+      const invalid = (d) => ({ ...base, status: "approvals-invalid", detail: `approval '${id}': ${d}`, approvals: accounting(approval) });
+      if (rec === void 0)
+        return invalid("not registered");
+      if (rec.verifiedGen !== this.keyring.generation) {
+        const v = this.keyring.verify(rec.intent, p.timestampMs);
+        rec.verification = v.ok ? "ok" : v.reason;
+        rec.verifiedGen = this.keyring.generation;
+      }
+      const i = rec.intent;
+      if (rec.verification !== "ok")
+        return invalid(`signature rejected (${rec.verification})`);
+      if (i.kind !== p.kind)
+        return invalid(`kind ${i.kind} \u2260 ${p.kind}`);
+      if (p.timestampMs < i.notBeforeMs || p.timestampMs > i.expiresAtMs)
+        return invalid("expired");
+      if (i.beneficiaryRef !== p.beneficiaryRef)
+        return invalid("beneficiary mismatch");
+      if (p.amountPaise > Math.max(0, i.maxAmountPaise - rec.usedPaise))
+        return invalid("amount exceeds remaining");
+      const ownUse = held !== void 0 && (held.intentId === id || held.approvalIds?.includes(id) === true);
+      if (rec.uses >= i.maxUses && !ownUse)
+        return invalid("already consumed");
+      if (seen.has(i.issuer))
+        return { ...base, status: "approvals-not-distinct", detail: `issuer '${i.issuer}' cited more than once`, approvals: accounting(approval) };
+      seen.add(i.issuer);
+      if (approval?.approverIssuers === void 0 || approval.approverIssuers.includes(i.issuer))
+        eligible.push(i.issuer);
+    }
+    const approvals = accounting(approval);
+    if (approvals.provided < approvals.required) {
+      return { ...base, status: "approvals-insufficient", approvals, detail: `${approvals.provided}/${approvals.required} distinct-issuer approvals` };
+    }
+    return { ...base, status: "ok", approvals };
   }
   /** Consume one use for a payout that is going ahead. Idempotent per payoutId. */
-  reserve(intentId, payoutId, amountPaise, sourceKeyId) {
+  reserve(intentId, payoutId, amountPaise, sourceKeyId, approvalIds) {
     if (this.reservations.has(payoutId))
       return;
-    const rec = this.store.get(intentId);
-    if (rec === void 0)
-      return;
-    rec.uses += 1;
-    rec.usedPaise += amountPaise;
-    this.store.put(rec);
-    this.reservations.set(payoutId, { intentId, amountPaise, ...sourceKeyId !== void 0 ? { sourceKeyId } : {} });
+    for (const id of [intentId, ...approvalIds ?? []]) {
+      const rec = this.store.get(id);
+      if (rec === void 0)
+        continue;
+      rec.uses += 1;
+      rec.usedPaise += amountPaise;
+      this.store.put(rec);
+    }
+    this.reservations.set(payoutId, {
+      intentId,
+      amountPaise,
+      ...sourceKeyId !== void 0 ? { sourceKeyId } : {},
+      ...approvalIds !== void 0 && approvalIds.length > 0 ? { approvalIds: [...approvalIds] } : {}
+    });
   }
   /**
    * A payout failed or was reversed: give the use and amount back.
@@ -2585,12 +2679,14 @@ var IntentRegistry = class {
     if (r.settled === true)
       return "denied";
     this.reservations.delete(payoutId);
-    const rec = this.store.get(r.intentId);
-    if (rec === void 0)
-      return "released";
-    rec.uses = Math.max(0, rec.uses - 1);
-    rec.usedPaise = Math.max(0, rec.usedPaise - r.amountPaise);
-    this.store.put(rec);
+    for (const id of [r.intentId, ...r.approvalIds ?? []]) {
+      const rec = this.store.get(id);
+      if (rec === void 0)
+        continue;
+      rec.uses = Math.max(0, rec.uses - 1);
+      rec.usedPaise = Math.max(0, rec.usedPaise - r.amountPaise);
+      this.store.put(rec);
+    }
     return "released";
   }
   /**
@@ -2848,11 +2944,20 @@ var posInt = (v, name, min = 1) => {
 function validateFirewallConfig(cfg) {
   if (cfg.mode !== void 0 && !MODES.includes(cfg.mode))
     throw new TypeError(`firewall config mode must be shadow, advise or enforce (got ${String(cfg.mode)})`);
-  for (const [table, name] of [[cfg.modeByKind, "modeByKind"], [cfg.requireIntent, "requireIntent"]]) {
+  for (const [table, name] of [[cfg.modeByKind, "modeByKind"], [cfg.requireIntent, "requireIntent"], [cfg.requiredApprovals, "requiredApprovals"]]) {
     for (const k of Object.keys(table ?? {})) {
       if (!INTENT_KINDS.includes(k))
         throw new TypeError(`firewall config ${name}.${k}: not a known IntentKind \u2014 a typo silently disables the rule`);
     }
+  }
+  for (const [k, v] of Object.entries(cfg.requiredApprovals ?? {})) {
+    const r = typeof v === "number" ? { count: v } : v;
+    if (!Number.isSafeInteger(r?.count) || (r?.count ?? 0) < 2)
+      throw new TypeError(`firewall config requiredApprovals.${k} must be an integer \u2265 2 (1 is the primary alone \u2014 leave the kind unset)`);
+    if (r?.onInsufficient !== void 0 && r.onInsufficient !== "block" && r.onInsufficient !== "review")
+      throw new TypeError(`firewall config requiredApprovals.${k}.onInsufficient must be block|review`);
+    if (r?.approverIssuers !== void 0 && (!Array.isArray(r.approverIssuers) || !r.approverIssuers.every((s) => typeof s === "string" && s.length > 0 && s.length <= 64)))
+      throw new TypeError(`firewall config requiredApprovals.${k}.approverIssuers must be non-empty strings`);
   }
   for (const v of Object.values(cfg.modeByKind ?? {})) {
     if (!MODES.includes(v))
@@ -2887,6 +2992,8 @@ function payoutShapeProblem(x) {
     return "kind";
   if (p["intentId"] !== void 0 && typeof p["intentId"] !== "string")
     return "intentId";
+  if (p["approvalIds"] !== void 0 && (!Array.isArray(p["approvalIds"]) || p["approvalIds"].length > 8 || !p["approvalIds"].every((a) => isStr2(a, 128))))
+    return "approvalIds (array of \u22648 intent ids)";
   if (!Number.isSafeInteger(p["amountPaise"]) || p["amountPaise"] <= 0)
     return "amountPaise (positive integer paise)";
   if (!isStr2(p["beneficiaryRef"]))
@@ -2911,11 +3018,17 @@ function payoutShapeProblem(x) {
     return "externalVerdict";
   if (p["externalSource"] !== void 0 && !isStr2(p["externalSource"], 64))
     return "externalSource";
+  if (p["sourceHint"] !== void 0 && !isStr2(p["sourceHint"], 256))
+    return "sourceHint";
   if (!Number.isSafeInteger(p["timestampMs"]) || p["timestampMs"] <= 0)
     return "timestampMs";
   return null;
 }
 var sha256 = (s) => createHash("sha256").update(s).digest();
+var approvalRequirement = (table, kind) => {
+  const v = kind !== void 0 ? table?.[kind] : void 0;
+  return typeof v === "number" ? { count: v } : v;
+};
 var Payrekha = class {
   keyring;
   intents;
@@ -2989,7 +3102,7 @@ ${payout.payoutId}` : void 0;
       alertState,
       multipliers: this.multipliers[alertState],
       calendarWindow,
-      intent: wellFormed ? this.intents.check(evalPayout, required) : { status: "missing", required },
+      intent: wellFormed ? this.intents.check(evalPayout, required, approvalRequirement(this.cfg.requiredApprovals, evalPayout.kind)) : { status: "missing", required },
       beneficiary: wellFormed ? this.beneficiaries.get(evalPayout.beneficiaryRef) : void 0,
       merchant: wellFormed && evalPayout.merchantId !== void 0 ? this.merchants.get(evalPayout.merchantId) : void 0,
       canaries: this.canaries,
@@ -3077,7 +3190,7 @@ ${payout.payoutId}` : void 0;
     if (p.kind === "PA_SETTLEMENT" && p.merchantId !== void 0)
       this.merchants.observe(p.merchantId, p.beneficiaryRef, p.timestampMs);
     if (action !== "DECLINE" && ctx.intent.status === "ok" && p.intentId !== void 0) {
-      this.intents.reserve(p.intentId, p.payoutId, p.amountPaise, p.sourceKeyId);
+      this.intents.reserve(p.intentId, p.payoutId, p.amountPaise, p.sourceKeyId, p.approvalIds);
     }
   }
   countBlock(ts) {
@@ -3222,6 +3335,64 @@ ${payout.payoutId}` : void 0;
   }
   auditTrail() {
     return this.audit.slice();
+  }
+  /**
+   * Roll back this replica's local consumption of a payout — the shared
+   * commit reported the reservation belongs to someone else or lost the
+   * uses race (ADR 0004). Releases the intents and evicts the dedupe verdict
+   * so a re-evaluate sees the truth. Internal use only — not an outcome.
+   */
+  unbind(payoutId, sourceKeyId) {
+    this.intents.release(payoutId, sourceKeyId);
+    this.dedupe.delete(`${String(sourceKeyId ?? "")}
+${payoutId}`);
+  }
+  /**
+   * Reconcile control-plane state learned from the shared backend (ADR 0004).
+   * Not an admin op — the admin already acted on the writer replica; this one
+   * is converging. Fields absent from `s` are left alone; fields present
+   * (including `highAlert: null`) apply. Every transition is audited locally.
+   */
+  applyControl(s, atMs = this.now()) {
+    if (s.highAlert !== void 0) {
+      if (s.highAlert !== null && this.highAlert === null) {
+        this.highAlert = { since: s.highAlert.since, reason: s.highAlert.reason };
+        const e = this.record({ atMs, action: "alert.enter", actor: "shared-control", reason: s.highAlert.reason, from: "NORMAL", to: "HIGH_ALERT" });
+        this.fireAlertChange("NORMAL", "HIGH_ALERT", e);
+      } else if (s.highAlert === null && this.highAlert !== null) {
+        this.highAlert = null;
+        this.recentBlocks.length = 0;
+        const e = this.record({ atMs, action: "alert.reset", actor: "shared-control", reason: "remote reset", from: "HIGH_ALERT", to: "NORMAL" });
+        this.fireAlertChange("HIGH_ALERT", "NORMAL", e);
+      }
+    }
+    if (s.mode !== void 0 && s.mode !== this.mode) {
+      const from = this.mode;
+      this.mode = s.mode;
+      this.record({ atMs, action: "mode.set", actor: "shared-control", reason: "shared control", from, to: s.mode });
+    }
+    if (s.modeByKind !== void 0) {
+      for (const kind of Object.keys(s.modeByKind)) {
+        const next = s.modeByKind[kind];
+        if (next === void 0)
+          continue;
+        const from = this.modeByKind[kind] ?? this.mode;
+        if (next === null) {
+          if (this.modeByKind[kind] !== void 0) {
+            delete this.modeByKind[kind];
+            this.record({ atMs, action: `mode.clear:${kind}`, actor: "shared-control", reason: "shared control", from, to: "inherit" });
+          }
+        } else if (next !== this.modeByKind[kind]) {
+          this.modeByKind[kind] = next;
+          this.record({ atMs, action: `mode.set:${kind}`, actor: "shared-control", reason: "shared control", from, to: next });
+        }
+      }
+    }
+    for (const keyId of s.revokedKeyIds ?? []) {
+      if (this.keyring.revoke(keyId)) {
+        this.record({ atMs, action: "key.revoked", actor: "shared-control", reason: "shared control", to: keyId });
+      }
+    }
   }
   authorize(cred, action) {
     const expected = this.cfg.adminTokenSha256;
@@ -3527,6 +3698,24 @@ function originRule(o = {}) {
     }
   };
 }
+function originMismatchRule(o = {}) {
+  const declared = o.keyOrigins ?? {};
+  return {
+    name: "origin.mismatch",
+    evaluate(p) {
+      if (p.origin !== "prod" && p.origin !== "nonprod")
+        return null;
+      const expected = declared[p.sourceKeyId];
+      if (expected === void 0 || expected === p.origin)
+        return null;
+      return hit("origin.mismatch", Verdict.Review, `Caller '${p.sourceKeyId}' is declared ${expected} but arrived on a ${p.origin} origin \u2014 environment/key drift`, {
+        sourceKeyId: p.sourceKeyId,
+        expected,
+        actual: p.origin
+      });
+    }
+  };
+}
 function canaryRule() {
   return {
     name: "canary.tripped",
@@ -3537,6 +3726,33 @@ function canaryRule() {
         return null;
       return hit("canary.tripped", Verdict.Block, `Canary ${which} touched \u2014 entering HIGH_ALERT`, { canary: which, sourceKeyId: p.sourceKeyId }, "HIGH_ALERT");
     }
+  };
+}
+function fingerprintRule(o = {}) {
+  const onChange = o.onChange ?? "review";
+  const seen = new LruMap(o.maxTrackedKeys ?? 1e5);
+  return {
+    name: "identity.fingerprint",
+    evaluate(p) {
+      if (p.sourceHint === void 0 || typeof p.sourceKeyId !== "string" || p.sourceKeyId === "")
+        return null;
+      const enrolled = seen.get(p.sourceKeyId);
+      if (enrolled === void 0) {
+        seen.set(p.sourceKeyId, p.sourceHint);
+        return hit("identity.fingerprint", Verdict.Allow, "First source hint enrolled for this API key", { sourceKeyId: p.sourceKeyId, enrolled: true });
+      }
+      if (enrolled === p.sourceHint)
+        return null;
+      seen.set(p.sourceKeyId, p.sourceHint);
+      return hit("identity.fingerprint", onChange === "block" ? Verdict.Block : onChange === "evidence" ? Verdict.Allow : Verdict.Review, "This API key is being used from a new source \u2014 token usage from an unusual source (edge-asserted hint changed)", { sourceKeyId: p.sourceKeyId, enrolled: false, previousHint: enrolled.slice(0, 64) });
+    },
+    reset: () => seen.clear(),
+    exportState: () => [...seen.entriesLeastRecentFirst()],
+    restoreState(s) {
+      for (const [k, v] of s)
+        seen.set(k, v);
+    },
+    stats: () => ({ fingerprintedKeys: seen.size })
   };
 }
 function attestationRule(o = {}) {
@@ -3615,8 +3831,8 @@ var FraudFeed = class {
   get loadedAtMs() {
     return this.loadedAt;
   }
-  lookup(mobileRef) {
-    return this.entries.get(mobileRef);
+  lookup(ref2) {
+    return this.entries.get(ref2);
   }
   /** Replace the snapshot atomically. Throws on a malformed file; the previous snapshot stays live. */
   load(snapshot, hashKey, nowMs = Date.now()) {
@@ -3634,14 +3850,20 @@ var FraudFeed = class {
       if (typeof e.band !== "string" || !BANDS.includes(e.band))
         throw new Error(`entries[${i}].band invalid`);
       let ref2;
-      if (typeof e.mobileRef === "string" && e.mobileRef.startsWith("hb1_"))
+      if (typeof e.ref === "string" && e.ref.startsWith("hb1_"))
+        ref2 = e.ref;
+      else if (typeof e.mobileRef === "string" && e.mobileRef.startsWith("hb1_"))
         ref2 = e.mobileRef;
-      else if (typeof e.mobile === "string") {
+      else if (e.beneficiary !== void 0 || typeof e.mobile === "string") {
         if (hashKey === void 0)
-          throw new Error(`entries[${i}] has a raw mobile but no hash key was supplied`);
-        ref2 = hashBeneficiary({ mobile: e.mobile }, hashKey);
+          throw new Error(`entries[${i}] has a raw identifier but no hash key was supplied`);
+        try {
+          ref2 = hashBeneficiary(e.beneficiary !== void 0 ? e.beneficiary : { mobile: e.mobile }, hashKey);
+        } catch (err) {
+          throw new Error(`entries[${i}] invalid identifier: ${err.message}`);
+        }
       } else
-        throw new Error(`entries[${i}] needs mobileRef or mobile`);
+        throw new Error(`entries[${i}] needs ref, beneficiary, mobileRef or mobile`);
       next.set(ref2, { band: e.band, source: typeof e.source === "string" ? e.source : src });
     });
     this.entries = next;
@@ -3655,17 +3877,26 @@ function feedRule(feed, o = {}) {
   return {
     name: "feed.reputation",
     evaluate(p) {
-      if (p.beneficiaryMobileRef === void 0 || feed.size === 0)
+      if (feed.size === 0)
         return null;
-      const e = feed.lookup(p.beneficiaryMobileRef);
+      let e = feed.lookup(p.beneficiaryRef);
+      let matched = "beneficiary";
+      if (p.beneficiaryMobileRef !== void 0 && p.beneficiaryMobileRef !== p.beneficiaryRef) {
+        const m = feed.lookup(p.beneficiaryMobileRef);
+        if (m !== void 0 && (e === void 0 || BANDS.indexOf(m.band) > BANDS.indexOf(e.band))) {
+          e = m;
+          matched = "mobile";
+        }
+      }
       if (e === void 0)
         return null;
       const lvl = BANDS.indexOf(e.band);
       if (lvl < reviewAt)
         return null;
-      return hit("feed.reputation", lvl >= blockAt ? Verdict.Block : Verdict.Review, `Beneficiary mobile is ${e.band} risk on the ${e.source} feed snapshot`, {
+      return hit("feed.reputation", lvl >= blockAt ? Verdict.Block : Verdict.Review, `Beneficiary ${matched === "mobile" ? "mobile " : ""}is ${e.band} risk on the ${e.source} feed snapshot`, {
         band: e.band,
         source: e.source,
+        matched,
         snapshotAgeMinutes: Math.round((p.timestampMs - feed.loadedAtMs) / 6e4)
       });
     },
@@ -3712,6 +3943,17 @@ function intentRule() {
             remainingPaise: c.remainingPaise ?? 0,
             maxAmountPaise: c.maxAmountPaise ?? 0
           });
+        case "approvals-insufficient": {
+          const v = c.approvals?.onInsufficient === "review" ? Verdict.Review : Verdict.Block;
+          return hit("intent.approvals-insufficient", v, `${p.kind} needs ${c.approvals?.required ?? "?"} distinct-issuer approvals \u2014 only ${c.approvals?.provided ?? 1} valid intent(s) cited`, {
+            ...ev,
+            ...c.approvals !== void 0 ? { required: c.approvals.required, provided: c.approvals.provided, issuers: c.approvals.issuers.join(","), onInsufficient: c.approvals.onInsufficient } : {}
+          });
+        }
+        case "approvals-not-distinct":
+          return hit("intent.approvals-not-distinct", Verdict.Block, `Approvals must come from distinct issuers \u2014 ${c.detail ?? "one party cited twice"}`, { ...ev, ...c.approvals !== void 0 ? { issuers: c.approvals.issuers.join(",") } : {} });
+        case "approvals-invalid":
+          return hit("intent.approvals-invalid", Verdict.Block, `Cited approval failed \u2014 ${c.detail ?? "invalid approval"}`, { ...ev, detail: c.detail ?? "invalid", ...c.approvals !== void 0 ? { issuers: c.approvals.issuers.join(",") } : {} });
       }
     }
   };
@@ -3755,6 +3997,8 @@ function payrekhaRules(cfg = {}, feed = new FraudFeed()) {
   const rules = [
     canaryRule(),
     originRule(cfg.origin),
+    originMismatchRule(cfg.origin),
+    fingerprintRule(cfg.fingerprint),
     intentRule(),
     externalRule(cfg.external),
     settlementOverCapturedRule(),
