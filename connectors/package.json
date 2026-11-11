@@ -10,9 +10,9 @@
   },
   "scripts": {
     "test": "node --test test/",
-    "start:webhook": "node webhook.mjs",
-    "start:kafka": "node kafka.mjs",
-    "start:sqs": "node sqs.mjs"
+    "start:webhook": "node init && node webhook.mjs",
+    "start:kafka": "node init && node kafka.mjs",
+    "start:sqs": "node init && node sqs.mjs"
   },
   "dependencies": {
     "kafkajs": "2.2.4"
