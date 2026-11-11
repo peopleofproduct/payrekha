@@ -2,7 +2,7 @@
 
 **Default verdict:** BLOCK — or REVIEW when the kind sets `requiredApprovals.onInsufficient: "review"`
 
-**Fires when:** A kind with `firewall.requiredApprovals` gets fewer distinct-issuer intents than it demands. `VDA_WITHDRAWAL: 2` means the payout must cite its primary `intentId` plus one approval from a *different* issuer in `approvalIds`.
+**Fires when:** A kind with `firewall.requiredApprovals` gets fewer distinct-issuer intents than it demands. `VDA_WITHDRAWAL: 2` means the payout must cite its primary `intentId` plus one approval from a _different_ issuer in `approvalIds`.
 
 **Attack it answers:** One compromised or coerced system-of-record key authorising a payout alone — the crypto-withdrawal scenario CERT-In CIAD-2026-0058 RA19 names. No single party can move the money; the second signature must come from a second trust zone.
 

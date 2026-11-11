@@ -27,14 +27,14 @@ mobile numbers and VDA addresses never enter the system.**
 grep -o '"beneficiaryRef":"[^"]*"' decisions.jsonl | grep -v 'hb1_' || echo PASS
 ```
 
-| DPDP theme | Status |
-|---|---|
-| Minimisation | **Strong** — the product's data model is "hashed refs + amounts + rule ids"; there is no field to hold a name, PAN, address, or raw identifier |
-| Purpose limitation | Verdict + audit only; no profiling export exists in the codebase |
-| Storage limitation | Intent/reservation/snapshot retention is bounded (`reservationRetentionDays`, ring/ledger bounds); raw PII never arrives to retain |
-| Breach impact | A stolen `decisions.jsonl` or snapshot leaks `hb1_` refs + amounts — meaningful exposure requires the HMAC key too. **Keep `PAYREKHA_HASH_KEY` in the secret manager with the signing keys** |
-| Consent/notice/DSR | **Operator** — PayRekha processes refs, not data principals; DSR workflows run against your system of record which holds the key↔identity mapping |
+| DPDP theme         | Status                                                                                                                                                                                       |
+| ------------------ | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Minimisation       | **Strong** — the product's data model is "hashed refs + amounts + rule ids"; there is no field to hold a name, PAN, address, or raw identifier                                               |
+| Purpose limitation | Verdict + audit only; no profiling export exists in the codebase                                                                                                                             |
+| Storage limitation | Intent/reservation/snapshot retention is bounded (`reservationRetentionDays`, ring/ledger bounds); raw PII never arrives to retain                                                           |
+| Breach impact      | A stolen `decisions.jsonl` or snapshot leaks `hb1_` refs + amounts — meaningful exposure requires the HMAC key too. **Keep `PAYREKHA_HASH_KEY` in the secret manager with the signing keys** |
+| Consent/notice/DSR | **Operator** — PayRekha processes refs, not data principals; DSR workflows run against your system of record which holds the key↔identity mapping                                            |
 
-The honest boundary: minimisation makes PayRekha a *small* data surface,
+The honest boundary: minimisation makes PayRekha a _small_ data surface,
 not a zero one — `payoutId`, `merchantId`, `sourceHint` (IPs) are still
 identifiers in your logs; treat them accordingly.

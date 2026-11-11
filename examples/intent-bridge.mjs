@@ -27,8 +27,8 @@ if (TOKEN === '') {
 // Map YOUR event fields → the mint body. Edit this object only.
 // Each value is a dot-path into the incoming JSON (e.g. 'loan.id').
 const fieldMap = {
-  intentId: 'loan.id',                    // reuse your own id → retries collapse
-  kind: { const: 'LOAN_DISBURSAL' },      // fixed, or a path like 'loan.product'
+  intentId: 'loan.id', // reuse your own id → retries collapse
+  kind: { const: 'LOAN_DISBURSAL' }, // fixed, or a path like 'loan.product'
   amountPaise: 'loan.amount_paise',
   account: 'beneficiary.account',
   ifsc: 'beneficiary.ifsc',
@@ -71,7 +71,8 @@ createServer(async (req, res) => {
     subjectRef: resolve(fieldMap.subjectRef, ev),
   };
   const out = await mint(body).catch((e) => ({ status: 502, json: { error: String(e) } }));
-  if (out.json.intentId !== undefined) console.log(JSON.stringify({ at: Date.now(), payoutRef: body.intentId, intentId: out.json.intentId }));
+  if (out.json.intentId !== undefined)
+    console.log(JSON.stringify({ at: Date.now(), payoutRef: body.intentId, intentId: out.json.intentId }));
   res.statusCode = out.status < 300 ? 200 : out.status;
   res.end(JSON.stringify(out.json));
 }).listen(PORT, () => console.error(`intent-bridge on :${PORT} → ${URL_}/v1/intents/mint`));

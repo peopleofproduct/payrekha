@@ -21,10 +21,10 @@ replaying real traffic.
 
 ## Topologies
 
-| `topology` | Writers | HA story |
-|---|---|---|
-| `single` (default) | 1 | PVC/Postgres snapshot + `Recreate` rollout. Optional `standby.enabled` adds a second Deployment **kept at `standby.replicas: 0`** — promote with `kubectl scale deploy/<name>-standby --replicas=1` after fencing the old primary to 0. A live second writer is never allowed: the snapshot CAS makes it permanently unready. |
-| `activeActive` | ≥2 | ADR 0004: every replica commits intent consumption through one Postgres transaction (`PAYREKHA_SHARED_PG_URL` in the secret, `config.gateway.sharedState` in the configmap). Rolling updates with `maxUnavailable: 0` + PDB `minAvailable: 1` — the money path never dips below one serving replica through drains. |
+| `topology`         | Writers | HA story                                                                                                                                                                                                                                                                                                                      |
+| ------------------ | ------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `single` (default) | 1       | PVC/Postgres snapshot + `Recreate` rollout. Optional `standby.enabled` adds a second Deployment **kept at `standby.replicas: 0`** — promote with `kubectl scale deploy/<name>-standby --replicas=1` after fencing the old primary to 0. A live second writer is never allowed: the snapshot CAS makes it permanently unready. |
+| `activeActive`     | ≥2      | ADR 0004: every replica commits intent consumption through one Postgres transaction (`PAYREKHA_SHARED_PG_URL` in the secret, `config.gateway.sharedState` in the configmap). Rolling updates with `maxUnavailable: 0` + PDB `minAvailable: 1` — the money path never dips below one serving replica through drains.           |
 
 Invalid combinations fail at `helm template`/`install` time — e.g.
 `topology=single` with `replicaCount: 2`, or `activeActive` without

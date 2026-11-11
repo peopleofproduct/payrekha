@@ -50,9 +50,7 @@ export class MemoryIntentStore implements IntentStore {
   }
 }
 
-export type RegisterResult =
-  | { readonly accepted: true; readonly intentId: string }
-  | { readonly accepted: false; readonly reason: string };
+export type RegisterResult = { readonly accepted: true; readonly intentId: string } | { readonly accepted: false; readonly reason: string };
 
 export type IntentStatus =
   | 'ok'
@@ -166,7 +164,14 @@ export class IntentRegistry {
    * to know `evaluate` consumed intents — that's the trigger for the shared
    * commit (ADR 0004).
    */
-  reservationOf(payoutId: string): { readonly intentId: string; readonly approvalIds: readonly string[]; readonly amountPaise: number; readonly sourceKeyId: string | undefined } | undefined {
+  reservationOf(payoutId: string):
+    | {
+        readonly intentId: string;
+        readonly approvalIds: readonly string[];
+        readonly amountPaise: number;
+        readonly sourceKeyId: string | undefined;
+      }
+    | undefined {
     const r = this.reservations.get(payoutId);
     if (r === undefined) return undefined;
     return { intentId: r.intentId, approvalIds: r.approvalIds ?? [], amountPaise: r.amountPaise, sourceKeyId: r.sourceKeyId };
@@ -218,7 +223,8 @@ export class IntentRegistry {
     // confusion, and citing a fresh intent under a taken payoutId must not
     // get a free pass — `reserve` would not consume it.
     const held = this.reservations.get(p.payoutId);
-    if (held !== undefined && held.intentId !== p.intentId) return { ...base, status: 'reused', detail: 'payoutId already bound to another intent' };
+    if (held !== undefined && held.intentId !== p.intentId)
+      return { ...base, status: 'reused', detail: 'payoutId already bound to another intent' };
     if (rec.uses >= i.maxUses && held === undefined) return { ...base, status: 'reused' };
     if (p.amountPaise > base.remainingPaise) return { ...base, status: 'amount-exceeds' };
     return this.checkApprovals(p, base, approval);
@@ -246,7 +252,12 @@ export class IntentRegistry {
     });
     for (const id of cited) {
       const rec = this.store.get(id);
-      const invalid = (d: string): IntentCheck => ({ ...base, status: 'approvals-invalid', detail: `approval '${id}': ${d}`, approvals: accounting(approval) });
+      const invalid = (d: string): IntentCheck => ({
+        ...base,
+        status: 'approvals-invalid',
+        detail: `approval '${id}': ${d}`,
+        approvals: accounting(approval),
+      });
       if (rec === undefined) return invalid('not registered');
       if (rec.verifiedGen !== this.keyring.generation) {
         const v = this.keyring.verify(rec.intent, p.timestampMs);
@@ -261,13 +272,24 @@ export class IntentRegistry {
       if (p.amountPaise > Math.max(0, i.maxAmountPaise - rec.usedPaise)) return invalid('amount exceeds remaining');
       const ownUse = held !== undefined && (held.intentId === id || held.approvalIds?.includes(id) === true);
       if (rec.uses >= i.maxUses && !ownUse) return invalid('already consumed');
-      if (seen.has(i.issuer)) return { ...base, status: 'approvals-not-distinct', detail: `issuer '${i.issuer}' cited more than once`, approvals: accounting(approval) };
+      if (seen.has(i.issuer))
+        return {
+          ...base,
+          status: 'approvals-not-distinct',
+          detail: `issuer '${i.issuer}' cited more than once`,
+          approvals: accounting(approval),
+        };
       seen.add(i.issuer);
       if (approval?.approverIssuers === undefined || approval.approverIssuers.includes(i.issuer)) eligible.push(i.issuer);
     }
     const approvals = accounting(approval);
     if (approvals.provided < approvals.required) {
-      return { ...base, status: 'approvals-insufficient', approvals, detail: `${approvals.provided}/${approvals.required} distinct-issuer approvals` };
+      return {
+        ...base,
+        status: 'approvals-insufficient',
+        approvals,
+        detail: `${approvals.provided}/${approvals.required} distinct-issuer approvals`,
+      };
     }
     return { ...base, status: 'ok', approvals };
   }

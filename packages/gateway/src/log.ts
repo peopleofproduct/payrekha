@@ -35,7 +35,13 @@ export interface DecisionRecord {
   readonly elapsedMicros: number;
 }
 
-export function decisionRecord(v: PayoutVerdict, p: Partial<PayoutRequest> | undefined, requestId: string, via: DecisionRecord['via'], nowMs: number): DecisionRecord {
+export function decisionRecord(
+  v: PayoutVerdict,
+  p: Partial<PayoutRequest> | undefined,
+  requestId: string,
+  via: DecisionRecord['via'],
+  nowMs: number,
+): DecisionRecord {
   const safe = (x: unknown) => (typeof x === 'string' && x.startsWith('hb1_') ? x : undefined);
   const r: Record<string, unknown> = {
     type: 'decision',
@@ -61,7 +67,8 @@ export function decisionRecord(v: PayoutVerdict, p: Partial<PayoutRequest> | und
     // Only a hashed ref is ever logged; a raw-looking value is dropped.
     const b = safe(p.beneficiaryRef);
     if (b !== undefined) r['beneficiaryRef'] = b;
-    for (const k of ['intentId', 'sourceKeyId', 'origin', 'merchantId', 'sourceHint'] as const) if (typeof p[k] === 'string') r[k] = (p[k] as string).slice(0, 128);
+    for (const k of ['intentId', 'sourceKeyId', 'origin', 'merchantId', 'sourceHint'] as const)
+      if (typeof p[k] === 'string') r[k] = (p[k] as string).slice(0, 128);
     if (Number.isSafeInteger(p.clientTimestampMs)) r['clientTimestampMs'] = p.clientTimestampMs;
   }
   return r as unknown as DecisionRecord;

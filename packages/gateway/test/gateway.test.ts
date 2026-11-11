@@ -10,7 +10,16 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { after, before, describe, it } from 'node:test';
 import { generateIssuerKeyPair, hashBeneficiary, MemorySharedBackend, Payrekha, signIntent, type IntentKind } from '@payrekha/core';
-import { auditRecord, createGateway, memoryDecisionLog, parseApiKeys, signWebhook, toCef, WebhookSender, type GatewayHandle } from '@payrekha/gateway';
+import {
+  auditRecord,
+  createGateway,
+  memoryDecisionLog,
+  parseApiKeys,
+  signWebhook,
+  toCef,
+  WebhookSender,
+  type GatewayHandle,
+} from '@payrekha/gateway';
 import { payrekhaRules } from '@payrekha/rules';
 
 const sha = (s: string) => createHash('sha256').update(s).digest('hex');
@@ -28,10 +37,21 @@ const LOS = generateIssuerKeyPair();
 const LOS2 = generateIssuerKeyPair();
 const RISK = generateIssuerKeyPair();
 
-function boot(mode: 'shadow' | 'enforce', extra: { intentVerificationsPerMinute?: number; requiredApprovals?: Partial<Record<IntentKind, number>>; mint?: boolean | { maxAmountPaise?: number; mintsPerMinute?: number; modes?: readonly ('shadow' | 'advise' | 'enforce')[] } } = {}) {
+function boot(
+  mode: 'shadow' | 'enforce',
+  extra: {
+    intentVerificationsPerMinute?: number;
+    requiredApprovals?: Partial<Record<IntentKind, number>>;
+    mint?: boolean | { maxAmountPaise?: number; mintsPerMinute?: number; modes?: readonly ('shadow' | 'advise' | 'enforce')[] };
+  } = {},
+) {
   const log = memoryDecisionLog();
   const fw = new Payrekha(payrekhaRules({ band: false }).rules, {
-    config: { mode, adminTokenSha256: sha(ADMIN), ...(extra.requiredApprovals !== undefined ? { requiredApprovals: extra.requiredApprovals } : {}) },
+    config: {
+      mode,
+      adminTokenSha256: sha(ADMIN),
+      ...(extra.requiredApprovals !== undefined ? { requiredApprovals: extra.requiredApprovals } : {}),
+    },
     keys: [
       { keyId: 'los-1', issuer: 'los-prod', alg: 'ed25519', publicKey: LOS.publicKey, kinds: ['LOAN_DISBURSAL', 'VERIFICATION'] },
       { keyId: 'los-2', issuer: 'los-prod', alg: 'ed25519', publicKey: LOS2.publicKey, kinds: ['LOAN_DISBURSAL'] },
@@ -54,7 +74,18 @@ function boot(mode: 'shadow' | 'enforce', extra: { intentVerificationsPerMinute?
     decisionLog: log,
     now: () => T0,
     ...(extra.mint !== undefined && extra.mint !== false
-      ? { mint: { keyId: 'los-2', key: { alg: 'ed25519' as const, privateKey: LOS2.privateKey /* gitleaks:allow — per-run generated keypair, not a committed secret */ }, defaultTtlMs: 60_000, maxTtlMs: 3_600_000, ...(typeof extra.mint === 'object' ? extra.mint : {}) } }
+      ? {
+          mint: {
+            keyId: 'los-2',
+            key: {
+              alg: 'ed25519' as const,
+              privateKey: LOS2.privateKey /* gitleaks:allow — per-run generated keypair, not a committed secret */,
+            },
+            defaultTtlMs: 60_000,
+            maxTtlMs: 3_600_000,
+            ...(typeof extra.mint === 'object' ? extra.mint : {}),
+          },
+        }
       : {}),
     ...(extra.intentVerificationsPerMinute !== undefined ? { intentVerificationsPerMinute: extra.intentVerificationsPerMinute } : {}),
     extAuthz: {
@@ -66,7 +97,12 @@ function boot(mode: 'shadow' | 'enforce', extra: { intentVerificationsPerMinute?
         amountPaise: 'body.amount_in_paise',
         intentId: 'header.x-payrekha-intent',
         approvalIds: 'header.x-payrekha-approvals',
-        beneficiary: { account: 'body.beneficiary.account_number', ifsc: 'body.beneficiary.ifsc', address: 'body.beneficiary.address', network: 'body.beneficiary.network' },
+        beneficiary: {
+          account: 'body.beneficiary.account_number',
+          ifsc: 'body.beneficiary.ifsc',
+          address: 'body.beneficiary.address',
+          network: 'body.beneficiary.network',
+        },
         channel: { const: 'IMPS' },
         sourceKeyId: 'header.x-client-id',
         timestampMs: 'body.claimed_ts',
@@ -87,13 +123,31 @@ const benRef = hashBeneficiary({ account: '000123456789', ifsc: 'HDFC0001234' },
 // Test CA + server/client certs for the TLS listener tests, generated at load
 // with openssl (present on dev machines and CI images). Nothing is committed —
 // the describe below skips where openssl is absent.
-const tlsFixtures = ((): { dir: string; ca: string; srvKey: string; srvCert: string; cliKey: string; cliCert: string; srvKeyPath: string; srvCertPath: string; caPath: string } | undefined => {
+const tlsFixtures = (():
+  | {
+      dir: string;
+      ca: string;
+      srvKey: string;
+      srvCert: string;
+      cliKey: string;
+      cliCert: string;
+      srvKeyPath: string;
+      srvCertPath: string;
+      caPath: string;
+    }
+  | undefined => {
   try {
     const dir = mkdtempSync(join(tmpdir(), 'prk-tls-'));
     // Extensions must be applied at signing time (extfile) — works on both
     // OpenSSL and LibreSSL; CSR-side addext does not survive `x509 -req`.
-    writeFileSync(join(dir, 'ca.cnf'), '[req]\ndistinguished_name=dn\nx509_extensions=v3_ca\n[dn]\n[v3_ca]\nbasicConstraints=critical,CA:true\nkeyUsage=critical,keyCertSign,cRLSign\nsubjectKeyIdentifier=hash\n');
-    writeFileSync(join(dir, 'srv-ext.cnf'), 'basicConstraints=CA:FALSE\nsubjectAltName=DNS:localhost,IP:127.0.0.1\nextendedKeyUsage=serverAuth\n');
+    writeFileSync(
+      join(dir, 'ca.cnf'),
+      '[req]\ndistinguished_name=dn\nx509_extensions=v3_ca\n[dn]\n[v3_ca]\nbasicConstraints=critical,CA:true\nkeyUsage=critical,keyCertSign,cRLSign\nsubjectKeyIdentifier=hash\n',
+    );
+    writeFileSync(
+      join(dir, 'srv-ext.cnf'),
+      'basicConstraints=CA:FALSE\nsubjectAltName=DNS:localhost,IP:127.0.0.1\nextendedKeyUsage=serverAuth\n',
+    );
     writeFileSync(join(dir, 'cli-ext.cnf'), 'basicConstraints=CA:FALSE\nextendedKeyUsage=clientAuth\n');
     const run = (args: string) => execSync(`openssl ${args}`, { cwd: dir, stdio: 'pipe' });
     run('req -x509 -newkey rsa:2048 -nodes -keyout ca-key.pem -out ca.pem -subj /CN=payrekha-test-ca -days 2 -config ca.cnf');
@@ -102,7 +156,17 @@ const tlsFixtures = ((): { dir: string; ca: string; srvKey: string; srvCert: str
     run('req -newkey rsa:2048 -nodes -keyout cli-key.pem -out cli.csr -subj /CN=payrekha-test-client');
     run('x509 -req -in cli.csr -CA ca.pem -CAkey ca-key.pem -CAcreateserial -out cli.pem -days 2 -extfile cli-ext.cnf');
     const read = (f: string) => readFileSync(join(dir, f), 'utf8');
-    return { dir, ca: read('ca.pem'), srvKey: read('srv-key.pem'), srvCert: read('srv.pem'), cliKey: read('cli-key.pem'), cliCert: read('cli.pem'), srvKeyPath: join(dir, 'srv-key.pem'), srvCertPath: join(dir, 'srv.pem'), caPath: join(dir, 'ca.pem') };
+    return {
+      dir,
+      ca: read('ca.pem'),
+      srvKey: read('srv-key.pem'),
+      srvCert: read('srv.pem'),
+      cliKey: read('cli-key.pem'),
+      cliCert: read('cli.pem'),
+      srvKeyPath: join(dir, 'srv-key.pem'),
+      srvCertPath: join(dir, 'srv.pem'),
+      caPath: join(dir, 'ca.pem'),
+    };
   } catch {
     return undefined;
   }
@@ -130,7 +194,17 @@ const httpsPost = (u: string, path: string, body: unknown, opts: { ca?: string; 
   });
 const loanIntent = (id: string, keyId = 'los-1', privateKey: string = LOS.privateKey) =>
   signIntent(
-    { intentId: id, kind: 'LOAN_DISBURSAL', maxAmountPaise: 2_40_000_00, beneficiaryRef: benRef, maxUses: 1, notBeforeMs: T0 - 60_000, expiresAtMs: T0 + 3_600_000, issuer: 'los-prod', keyId },
+    {
+      intentId: id,
+      kind: 'LOAN_DISBURSAL',
+      maxAmountPaise: 2_40_000_00,
+      beneficiaryRef: benRef,
+      maxUses: 1,
+      notBeforeMs: T0 - 60_000,
+      expiresAtMs: T0 + 3_600_000,
+      issuer: 'los-prod',
+      keyId,
+    },
     { alg: 'ed25519', privateKey },
   );
 
@@ -140,7 +214,11 @@ describe('gateway (enforce)', () => {
   before(async () => (url = await listen(gw)));
   after(() => gw.server.close());
   const post = (path: string, body: unknown, token = API, extra: Record<string, string> = {}) =>
-    fetch(url + path, { method: 'POST', headers: { authorization: `Bearer ${token}`, 'content-type': 'application/json', ...extra }, body: JSON.stringify(body) });
+    fetch(url + path, {
+      method: 'POST',
+      headers: { authorization: `Bearer ${token}`, 'content-type': 'application/json', ...extra },
+      body: JSON.stringify(body),
+    });
 
   it('health, readiness, request ids, auth', async () => {
     const h = await fetch(url + '/healthz');
@@ -154,7 +232,14 @@ describe('gateway (enforce)', () => {
 
   it('registers an intent and allows the matching payout; raw beneficiary hashed at entry and never logged', async () => {
     assert.equal((await post('/v1/intents', loanIntent('int-a'))).status, 201);
-    const res = await post('/v1/evaluate', { payoutId: 'p-a', kind: 'LOAN_DISBURSAL', intentId: 'int-a', amountPaise: 2_40_000_00, beneficiary: { account: '000123456789', ifsc: 'HDFC0001234' }, channel: 'IMPS' });
+    const res = await post('/v1/evaluate', {
+      payoutId: 'p-a',
+      kind: 'LOAN_DISBURSAL',
+      intentId: 'int-a',
+      amountPaise: 2_40_000_00,
+      beneficiary: { account: '000123456789', ifsc: 'HDFC0001234' },
+      channel: 'IMPS',
+    });
     const v = (await res.json()) as { verdict: string; effectiveAction: string };
     assert.equal(v.verdict, 'ALLOW', JSON.stringify(v));
     const line = JSON.stringify(log.lines.at(-1));
@@ -164,12 +249,36 @@ describe('gateway (enforce)', () => {
   });
 
   it('origin and sourceKeyId come from the key, not the body', async () => {
-    const v = (await (await post('/v1/evaluate', { payoutId: 'p-u', kind: 'REFUND', amountPaise: 100_00, beneficiaryRef: benRef, channel: 'IMPS', origin: 'prod', sourceKeyId: 'lms-prod' }, UAT)).json()) as { hits: { rule: string }[] };
-    assert.deepEqual(v.hits.map((h) => h.rule), ['origin.nonprod']);
+    const v = (await (
+      await post(
+        '/v1/evaluate',
+        {
+          payoutId: 'p-u',
+          kind: 'REFUND',
+          amountPaise: 100_00,
+          beneficiaryRef: benRef,
+          channel: 'IMPS',
+          origin: 'prod',
+          sourceKeyId: 'lms-prod',
+        },
+        UAT,
+      )
+    ).json()) as { hits: { rule: string }[] };
+    assert.deepEqual(
+      v.hits.map((h) => h.rule),
+      ['origin.nonprod'],
+    );
   });
 
   it('sourceHint: the socket peer is stamped, a body-supplied hint is dropped', async () => {
-    const res = await post('/v1/evaluate', { payoutId: 'p-sh', kind: 'REFUND', amountPaise: 100_00, beneficiaryRef: benRef, channel: 'IMPS', sourceHint: 'attacker-asserted-1.2.3.4' });
+    const res = await post('/v1/evaluate', {
+      payoutId: 'p-sh',
+      kind: 'REFUND',
+      amountPaise: 100_00,
+      beneficiaryRef: benRef,
+      channel: 'IMPS',
+      sourceHint: 'attacker-asserted-1.2.3.4',
+    });
     assert.equal(res.status, 200);
     const line = log.lines.at(-1) as { sourceHint?: string };
     assert.equal(line.sourceHint, '127.0.0.1', 'the peer IP is the only honest hint on /v1/evaluate');
@@ -178,15 +287,21 @@ describe('gateway (enforce)', () => {
   it('ext_authz: sourceHint maps from proxy headers and fingerprints token usage', async () => {
     await post('/v1/intents', loanIntent('int-fp1'));
     await post('/v1/intents', loanIntent('int-fp2'));
-    const first = await post('/ext_authz/payouts',
+    const first = await post(
+      '/ext_authz/payouts',
       { request_id: 'fp-1', amount_in_paise: 24000000, beneficiary: { account_number: '000123456789', ifsc: 'HDFC0001234' } },
-      '', { 'x-payrekha-key': EXT, 'x-payrekha-intent': 'int-fp1', 'x-client-id': 'fp-key', 'x-forwarded-for': '198.51.100.7' });
+      '',
+      { 'x-payrekha-key': EXT, 'x-payrekha-intent': 'int-fp1', 'x-client-id': 'fp-key', 'x-forwarded-for': '198.51.100.7' },
+    );
     assert.equal(first.status, 200, JSON.stringify(await first.clone().json()));
     assert.equal(first.headers.get('x-payrekha-rules'), 'identity.fingerprint', 'first hint enrols as evidence');
     assert.equal((log.lines.at(-1) as { sourceHint?: string }).sourceHint, '198.51.100.7');
-    const moved = await post('/ext_authz/payouts',
+    const moved = await post(
+      '/ext_authz/payouts',
       { request_id: 'fp-2', amount_in_paise: 24000000, beneficiary: { account_number: '000123456789', ifsc: 'HDFC0001234' } },
-      '', { 'x-payrekha-key': EXT, 'x-payrekha-intent': 'int-fp2', 'x-client-id': 'fp-key', 'x-forwarded-for': '203.0.113.9' });
+      '',
+      { 'x-payrekha-key': EXT, 'x-payrekha-intent': 'int-fp2', 'x-client-id': 'fp-key', 'x-forwarded-for': '203.0.113.9' },
+    );
     assert.equal(moved.status, 403, 'a changed hint REVIEWs → HOLD in enforce');
     assert.equal(moved.headers.get('x-payrekha-rules'), 'identity.fingerprint');
   });
@@ -200,10 +315,20 @@ describe('gateway (enforce)', () => {
 
   it('ext_authz: 200 for a bound payout, 403 + headers for an unbound one', async () => {
     await post('/v1/intents', loanIntent('int-x'));
-    const ok = await post('/ext_authz/payouts', { request_id: 'x-1', amount_in_paise: '24000000', beneficiary: { account_number: '000123456789', ifsc: 'HDFC0001234' } }, '', { 'x-payrekha-key': EXT, 'x-payrekha-intent': 'int-x', 'x-client-id': 'lms' });
+    const ok = await post(
+      '/ext_authz/payouts',
+      { request_id: 'x-1', amount_in_paise: '24000000', beneficiary: { account_number: '000123456789', ifsc: 'HDFC0001234' } },
+      '',
+      { 'x-payrekha-key': EXT, 'x-payrekha-intent': 'int-x', 'x-client-id': 'lms' },
+    );
     assert.equal(ok.status, 200, JSON.stringify(await ok.clone().json()));
     assert.equal(ok.headers.get('x-payrekha-verdict'), 'ALLOW');
-    const bad = await post('/ext_authz/payouts', { request_id: 'x-2', amount_in_paise: 24000000, beneficiary: { account_number: '000123456789', ifsc: 'HDFC0001234' } }, '', { 'x-payrekha-key': EXT });
+    const bad = await post(
+      '/ext_authz/payouts',
+      { request_id: 'x-2', amount_in_paise: 24000000, beneficiary: { account_number: '000123456789', ifsc: 'HDFC0001234' } },
+      '',
+      { 'x-payrekha-key': EXT },
+    );
     assert.equal(bad.status, 403);
     assert.equal(bad.headers.get('x-payrekha-verdict'), 'BLOCK');
     assert.equal(bad.headers.get('x-payrekha-rules'), 'intent.missing');
@@ -213,13 +338,26 @@ describe('gateway (enforce)', () => {
   it('ext_authz: crypto beneficiary (address+network) hashes to a vda ref and binds intents', async () => {
     const vdaRef = hashBeneficiary({ address: 'bc1qexample0address0for0tests', network: 'BTC' }, HK);
     const intent = signIntent(
-      { intentId: 'int-crypto', kind: 'LOAN_DISBURSAL', maxAmountPaise: 2_40_000_00, beneficiaryRef: vdaRef, maxUses: 1, notBeforeMs: T0 - 60_000, expiresAtMs: T0 + 3_600_000, issuer: 'los-prod', keyId: 'los-1' },
+      {
+        intentId: 'int-crypto',
+        kind: 'LOAN_DISBURSAL',
+        maxAmountPaise: 2_40_000_00,
+        beneficiaryRef: vdaRef,
+        maxUses: 1,
+        notBeforeMs: T0 - 60_000,
+        expiresAtMs: T0 + 3_600_000,
+        issuer: 'los-prod',
+        keyId: 'los-1',
+      },
       { alg: 'ed25519', privateKey: LOS.privateKey },
     );
     await post('/v1/intents', intent);
-    const res = await post('/ext_authz/payouts',
+    const res = await post(
+      '/ext_authz/payouts',
       { request_id: 'c-1', amount_in_paise: '5000', beneficiary: { address: 'bc1qexample0address0for0tests', network: 'BTC' } },
-      '', { 'x-payrekha-key': EXT, 'x-payrekha-intent': 'int-crypto', 'x-client-id': 'lms' });
+      '',
+      { 'x-payrekha-key': EXT, 'x-payrekha-intent': 'int-crypto', 'x-client-id': 'lms' },
+    );
     assert.equal(res.status, 200, JSON.stringify(await res.clone().json()));
     assert.equal(res.headers.get('x-payrekha-verdict'), 'ALLOW');
   });
@@ -227,18 +365,33 @@ describe('gateway (enforce)', () => {
   it('state: GET with api key, PUT needs admin + reason; HIGH_ALERT raise/reset audited', async () => {
     const g = (await (await fetch(url + '/v1/state', { headers: { authorization: `Bearer ${API}` } })).json()) as { mode: string };
     assert.equal(g.mode, 'enforce');
-    const put = (body: unknown, token: string) => fetch(url + '/v1/state', { method: 'PUT', headers: { authorization: `Bearer ${token}` }, body: JSON.stringify(body) });
+    const put = (body: unknown, token: string) =>
+      fetch(url + '/v1/state', { method: 'PUT', headers: { authorization: `Bearer ${token}` }, body: JSON.stringify(body) });
     assert.equal((await put({ highAlert: 'raise', reason: 'x' }, API)).status, 401);
     assert.equal((await put({ highAlert: 'raise' }, ADMIN)).status, 400);
-    assert.equal(((await (await put({ highAlert: 'raise', reason: 'drill', actor: 'soc' }, ADMIN)).json()) as { alertState: string }).alertState, 'HIGH_ALERT');
-    assert.equal(((await (await put({ highAlert: 'reset', reason: 'drill over', actor: 'soc' }, ADMIN)).json()) as { alertState: string }).alertState, 'NORMAL');
+    assert.equal(
+      ((await (await put({ highAlert: 'raise', reason: 'drill', actor: 'soc' }, ADMIN)).json()) as { alertState: string }).alertState,
+      'HIGH_ALERT',
+    );
+    assert.equal(
+      ((await (await put({ highAlert: 'reset', reason: 'drill over', actor: 'soc' }, ADMIN)).json()) as { alertState: string }).alertState,
+      'NORMAL',
+    );
     assert.ok(fw.auditTrail().some((e) => e.action === 'alert.reset'));
   });
 
   it('canaries (admin) and outcomes', async () => {
-    const c = await fetch(url + '/v1/canaries', { method: 'POST', headers: { authorization: `Bearer ${ADMIN}` }, body: JSON.stringify({ beneficiaries: [{ vpa: 'canary@okbank' }], reason: 'apk canary' }) });
+    const c = await fetch(url + '/v1/canaries', {
+      method: 'POST',
+      headers: { authorization: `Bearer ${ADMIN}` },
+      body: JSON.stringify({ beneficiaries: [{ vpa: 'canary@okbank' }], reason: 'apk canary' }),
+    });
     assert.equal(c.status, 201);
-    const raw = await fetch(url + '/v1/canaries', { method: 'POST', headers: { authorization: `Bearer ${ADMIN}` }, body: JSON.stringify({ beneficiaryRefs: ['canary@okbank'] }) });
+    const raw = await fetch(url + '/v1/canaries', {
+      method: 'POST',
+      headers: { authorization: `Bearer ${ADMIN}` },
+      body: JSON.stringify({ beneficiaryRefs: ['canary@okbank'] }),
+    });
     assert.equal(raw.status, 400);
     const o = (await (await post('/v1/outcomes', { payoutId: 'p-a', outcome: 'settled' })).json()) as { known: boolean };
     assert.equal(o.known, true);
@@ -248,18 +401,51 @@ describe('gateway (enforce)', () => {
     assert.equal((await post('/v1/intents', loanIntent('int-r1'), EVALTOK)).status, 403);
     assert.equal((await fetch(url + '/metrics', { headers: { authorization: `Bearer ${EVALTOK}` } })).status, 403);
     assert.equal((await fetch(url + '/v1/state', { headers: { authorization: `Bearer ${EVALTOK}` } })).status, 403);
-    assert.equal((await post('/v1/evaluate', { payoutId: 'p-r1', kind: 'REFUND', amountPaise: 100_00, beneficiaryRef: benRef, channel: 'IMPS' }, REGTOK)).status, 403);
+    assert.equal(
+      (
+        await post(
+          '/v1/evaluate',
+          { payoutId: 'p-r1', kind: 'REFUND', amountPaise: 100_00, beneficiaryRef: benRef, channel: 'IMPS' },
+          REGTOK,
+        )
+      ).status,
+      403,
+    );
     assert.equal((await post('/v1/intents', loanIntent('int-r2'), REGTOK)).status, 201);
-    assert.equal((await post('/v1/evaluate', { payoutId: 'p-r2', kind: 'REFUND', amountPaise: 100_00, beneficiaryRef: benRef, channel: 'IMPS' }, EVALTOK)).status, 200);
+    assert.equal(
+      (
+        await post(
+          '/v1/evaluate',
+          { payoutId: 'p-r2', kind: 'REFUND', amountPaise: 100_00, beneficiaryRef: benRef, channel: 'IMPS' },
+          EVALTOK,
+        )
+      ).status,
+      200,
+    );
   });
 
   it('merchant scope: a scoped key cannot mint or impersonate merchants', async () => {
     const settle = (mid?: string, token = PATOK, payoutId = 'p-ms1') =>
-      post('/v1/evaluate', { payoutId, kind: 'PA_SETTLEMENT', amountPaise: 100_00, beneficiaryRef: benRef, channel: 'IMPS', ...(mid !== undefined ? { merchantId: mid } : {}) }, token);
+      post(
+        '/v1/evaluate',
+        {
+          payoutId,
+          kind: 'PA_SETTLEMENT',
+          amountPaise: 100_00,
+          beneficiaryRef: benRef,
+          channel: 'IMPS',
+          ...(mid !== undefined ? { merchantId: mid } : {}),
+        },
+        token,
+      );
     assert.equal((await settle('merch-b')).status, 403, 'out-of-scope merchantId refused');
     assert.equal((await settle(undefined, PATOK, 'p-ms2')).status, 403, 'PA_SETTLEMENT without merchantId refuses under a scoped key');
     assert.equal((await settle('merch-a', PATOK, 'p-ms3')).status, 200, 'in-scope merchantId allowed');
-    const refund = await post('/v1/evaluate', { payoutId: 'p-ms4', kind: 'REFUND', amountPaise: 100_00, beneficiaryRef: benRef, channel: 'IMPS' }, PATOK);
+    const refund = await post(
+      '/v1/evaluate',
+      { payoutId: 'p-ms4', kind: 'REFUND', amountPaise: 100_00, beneficiaryRef: benRef, channel: 'IMPS' },
+      PATOK,
+    );
     assert.equal(refund.status, 200, 'non-settlement kinds need no merchantId');
     // An unscoped key is unaffected.
     assert.equal((await settle('merch-b', API, 'p-ms5')).status, 200);
@@ -267,48 +453,129 @@ describe('gateway (enforce)', () => {
 
   it('DELETE /v1/issuers/:keyId revokes a signing key at runtime (admin + reason, audited)', async () => {
     assert.equal((await post('/v1/intents', loanIntent('int-rev', 'los-2', LOS2.privateKey))).status, 201);
-    const alive = (await (await post('/v1/evaluate', { payoutId: 'p-rev', kind: 'LOAN_DISBURSAL', intentId: 'int-rev', amountPaise: 2_40_000_00, beneficiary: { account: '000123456789', ifsc: 'HDFC0001234' }, channel: 'IMPS' })).json()) as { verdict: string };
+    const alive = (await (
+      await post('/v1/evaluate', {
+        payoutId: 'p-rev',
+        kind: 'LOAN_DISBURSAL',
+        intentId: 'int-rev',
+        amountPaise: 2_40_000_00,
+        beneficiary: { account: '000123456789', ifsc: 'HDFC0001234' },
+        channel: 'IMPS',
+      })
+    ).json()) as { verdict: string };
     assert.equal(alive.verdict, 'ALLOW');
-    const del = (body: unknown, token = ADMIN) => fetch(url + '/v1/issuers/los-2', { method: 'DELETE', headers: { authorization: `Bearer ${token}` }, body: JSON.stringify(body) });
+    const del = (body: unknown, token = ADMIN) =>
+      fetch(url + '/v1/issuers/los-2', { method: 'DELETE', headers: { authorization: `Bearer ${token}` }, body: JSON.stringify(body) });
     assert.equal((await del({ reason: 'x' }, API)).status, 401);
     assert.equal((await del({})).status, 400);
     const gone = (await (await del({ actor: 'soc', reason: 'los-2 private key leaked' })).json()) as { revoked: boolean };
     assert.equal(gone.revoked, true);
-    const bad = await fetch(url + '/v1/issuers/%e0%a4%a', { method: 'DELETE', headers: { authorization: `Bearer ${ADMIN}` }, body: JSON.stringify({ reason: 'bad encoding' }) });
+    const bad = await fetch(url + '/v1/issuers/%e0%a4%a', {
+      method: 'DELETE',
+      headers: { authorization: `Bearer ${ADMIN}` },
+      body: JSON.stringify({ reason: 'bad encoding' }),
+    });
     assert.equal(bad.status, 400, 'malformed percent-encoding must be a 400, not a 500');
-    const miss = await fetch(url + '/v1/issuers/no-such-key', { method: 'DELETE', headers: { authorization: `Bearer ${ADMIN}` }, body: JSON.stringify({ reason: 'typo check' }) });
+    const miss = await fetch(url + '/v1/issuers/no-such-key', {
+      method: 'DELETE',
+      headers: { authorization: `Bearer ${ADMIN}` },
+      body: JSON.stringify({ reason: 'typo check' }),
+    });
     assert.equal(miss.status, 404, 'revoking an unknown key is a miss');
-    const dead = (await (await post('/v1/evaluate', { payoutId: 'p-rev-2', kind: 'LOAN_DISBURSAL', intentId: 'int-rev', amountPaise: 2_40_000_00, beneficiaryRef: benRef, channel: 'IMPS' })).json()) as { verdict: string; hits: { rule: string }[] };
+    const dead = (await (
+      await post('/v1/evaluate', {
+        payoutId: 'p-rev-2',
+        kind: 'LOAN_DISBURSAL',
+        intentId: 'int-rev',
+        amountPaise: 2_40_000_00,
+        beneficiaryRef: benRef,
+        channel: 'IMPS',
+      })
+    ).json()) as { verdict: string; hits: { rule: string }[] };
     assert.equal(dead.verdict, 'BLOCK');
-    assert.ok(dead.hits.some((h) => h.rule === 'intent.bad-signature'), JSON.stringify(dead.hits));
+    assert.ok(
+      dead.hits.some((h) => h.rule === 'intent.bad-signature'),
+      JSON.stringify(dead.hits),
+    );
     assert.ok(fw.auditTrail().some((e) => e.action === 'key.revoked' && e.actor === 'soc'));
   });
 
   it('caller timestamps are evidence, not the decision clock (gateway stamps server time)', async () => {
     // Intent valid only 1-2h after T0; the caller claims a time inside that window.
     const future = signIntent(
-      { intentId: 'int-future', kind: 'LOAN_DISBURSAL', maxAmountPaise: 2_40_000_00, beneficiaryRef: benRef, maxUses: 1, notBeforeMs: T0 + 3_600_000, expiresAtMs: T0 + 7_200_000, issuer: 'los-prod', keyId: 'los-1' },
+      {
+        intentId: 'int-future',
+        kind: 'LOAN_DISBURSAL',
+        maxAmountPaise: 2_40_000_00,
+        beneficiaryRef: benRef,
+        maxUses: 1,
+        notBeforeMs: T0 + 3_600_000,
+        expiresAtMs: T0 + 7_200_000,
+        issuer: 'los-prod',
+        keyId: 'los-1',
+      },
       { alg: 'ed25519', privateKey: LOS.privateKey },
     );
     assert.equal((await post('/v1/intents', future)).status, 201);
-    const res = await post('/v1/evaluate', { payoutId: 'p-ts', kind: 'LOAN_DISBURSAL', intentId: 'int-future', amountPaise: 2_40_000_00, beneficiary: { account: '000123456789', ifsc: 'HDFC0001234' }, channel: 'IMPS', timestampMs: T0 + 5_400_000 });
+    const res = await post('/v1/evaluate', {
+      payoutId: 'p-ts',
+      kind: 'LOAN_DISBURSAL',
+      intentId: 'int-future',
+      amountPaise: 2_40_000_00,
+      beneficiary: { account: '000123456789', ifsc: 'HDFC0001234' },
+      channel: 'IMPS',
+      timestampMs: T0 + 5_400_000,
+    });
     const v = (await res.json()) as { verdict: string; hits: { rule: string }[] };
     assert.equal(v.verdict, 'BLOCK');
-    assert.ok(v.hits.some((h) => h.rule === 'intent.expired'), JSON.stringify(v.hits));
+    assert.ok(
+      v.hits.some((h) => h.rule === 'intent.expired'),
+      JSON.stringify(v.hits),
+    );
     assert.equal((log.lines.at(-1) as { clientTimestampMs?: number }).clientTimestampMs, T0 + 5_400_000);
   });
 
   it('outcomes bind to the evaluating key: another key cannot free its intent', async () => {
     assert.equal((await post('/v1/intents', loanIntent('int-bind'))).status, 201);
-    const first = (await (await post('/v1/evaluate', { payoutId: 'p-bind', kind: 'LOAN_DISBURSAL', intentId: 'int-bind', amountPaise: 2_40_000_00, beneficiary: { account: '000123456789', ifsc: 'HDFC0001234' }, channel: 'IMPS' })).json()) as { verdict: string };
+    const first = (await (
+      await post('/v1/evaluate', {
+        payoutId: 'p-bind',
+        kind: 'LOAN_DISBURSAL',
+        intentId: 'int-bind',
+        amountPaise: 2_40_000_00,
+        beneficiary: { account: '000123456789', ifsc: 'HDFC0001234' },
+        channel: 'IMPS',
+      })
+    ).json()) as { verdict: string };
     assert.equal(first.verdict, 'ALLOW');
     const denied = (await (await post('/v1/outcomes', { payoutId: 'p-bind', outcome: 'failed' }, UAT)).json()) as { known: boolean };
     assert.equal(denied.known, false);
-    const replay = (await (await post('/v1/evaluate', { payoutId: 'p-bind-2', kind: 'LOAN_DISBURSAL', intentId: 'int-bind', amountPaise: 2_40_000_00, beneficiaryRef: benRef, channel: 'IMPS' })).json()) as { hits: { rule: string }[] };
-    assert.ok(replay.hits.some((h) => h.rule === 'intent.reused'), JSON.stringify(replay.hits));
+    const replay = (await (
+      await post('/v1/evaluate', {
+        payoutId: 'p-bind-2',
+        kind: 'LOAN_DISBURSAL',
+        intentId: 'int-bind',
+        amountPaise: 2_40_000_00,
+        beneficiaryRef: benRef,
+        channel: 'IMPS',
+      })
+    ).json()) as { hits: { rule: string }[] };
+    assert.ok(
+      replay.hits.some((h) => h.rule === 'intent.reused'),
+      JSON.stringify(replay.hits),
+    );
     const released = (await (await post('/v1/outcomes', { payoutId: 'p-bind', outcome: 'failed' })).json()) as { known: boolean };
     assert.equal(released.known, true);
-    const third = (await (await post('/v1/evaluate', { payoutId: 'p-bind-3', kind: 'LOAN_DISBURSAL', intentId: 'int-bind', amountPaise: 2_40_000_00, beneficiaryRef: benRef, channel: 'IMPS' })).json()) as { verdict: string };
+    const third = (await (
+      await post('/v1/evaluate', {
+        payoutId: 'p-bind-3',
+        kind: 'LOAN_DISBURSAL',
+        intentId: 'int-bind',
+        amountPaise: 2_40_000_00,
+        beneficiaryRef: benRef,
+        channel: 'IMPS',
+      })
+    ).json()) as { verdict: string };
     assert.equal(third.verdict, 'ALLOW');
     assert.ok(fw.auditTrail().some((e) => e.action === 'outcome.denied'));
   });
@@ -316,7 +583,17 @@ describe('gateway (enforce)', () => {
   it('ext_authz: a claimed_ts in the body is kept as clientTimestampMs evidence, not honoured', async () => {
     assert.equal((await post('/v1/intents', loanIntent('int-ts'))).status, 201);
     // int-ts is valid at T0 but expired by T0+2.5h — trusting claimed_ts would flip this to BLOCK.
-    const res = await post('/ext_authz/payouts', { request_id: 'x-ts', amount_in_paise: 24000000, beneficiary: { account_number: '000123456789', ifsc: 'HDFC0001234' }, claimed_ts: T0 + 9_000_000 }, '', { 'x-payrekha-key': EXT, 'x-payrekha-intent': 'int-ts', 'x-client-id': 'lms' });
+    const res = await post(
+      '/ext_authz/payouts',
+      {
+        request_id: 'x-ts',
+        amount_in_paise: 24000000,
+        beneficiary: { account_number: '000123456789', ifsc: 'HDFC0001234' },
+        claimed_ts: T0 + 9_000_000,
+      },
+      '',
+      { 'x-payrekha-key': EXT, 'x-payrekha-intent': 'int-ts', 'x-client-id': 'lms' },
+    );
     assert.equal(res.status, 200, JSON.stringify(await res.clone().json()));
     assert.equal((log.lines.at(-1) as { clientTimestampMs?: number }).clientTimestampMs, T0 + 9_000_000);
   });
@@ -337,9 +614,27 @@ describe('gateway (enforce): analyst read surface', () => {
   const get = (p: string, tok = API) => fetch(url + p, { headers: { authorization: `Bearer ${tok}` } });
   it('decisions ring, intent lookup and audit entries serve consoles — read role only', async () => {
     // Register + evaluate so the ring has a BLOCK and an ALLOW to filter on.
-    await fetch(url + '/v1/intents', { method: 'POST', headers: { authorization: `Bearer ${REGTOK}`, 'content-type': 'application/json' }, body: JSON.stringify(loanIntent('an-1')) });
-    const post = (b: unknown) => fetch(url + '/v1/evaluate', { method: 'POST', headers: { authorization: `Bearer ${API}`, 'content-type': 'application/json' }, body: JSON.stringify(b) });
-    const v1 = (await (await post({ payoutId: 'an-p1', kind: 'LOAN_DISBURSAL', amountPaise: 2_40_000_00, beneficiaryRef: benRef, channel: 'IMPS', intentId: 'an-1' })).json()) as { verdict: string; riskScore: number };
+    await fetch(url + '/v1/intents', {
+      method: 'POST',
+      headers: { authorization: `Bearer ${REGTOK}`, 'content-type': 'application/json' },
+      body: JSON.stringify(loanIntent('an-1')),
+    });
+    const post = (b: unknown) =>
+      fetch(url + '/v1/evaluate', {
+        method: 'POST',
+        headers: { authorization: `Bearer ${API}`, 'content-type': 'application/json' },
+        body: JSON.stringify(b),
+      });
+    const v1 = (await (
+      await post({
+        payoutId: 'an-p1',
+        kind: 'LOAN_DISBURSAL',
+        amountPaise: 2_40_000_00,
+        beneficiaryRef: benRef,
+        channel: 'IMPS',
+        intentId: 'an-1',
+      })
+    ).json()) as { verdict: string; riskScore: number };
     assert.equal(v1.verdict, 'ALLOW');
     assert.equal(typeof v1.riskScore, 'number', 'verdicts carry the deterministic risk score');
     await post({ payoutId: 'an-p2', kind: 'LOAN_DISBURSAL', amountPaise: 2_40_000_00, beneficiaryRef: benRef, channel: 'IMPS' });
@@ -351,7 +646,11 @@ describe('gateway (enforce): analyst read surface', () => {
     const byPid = (await (await get('/v1/decisions?payoutId=an-p1')).json()) as { decisions: { payoutId: string }[] };
     assert.equal(byPid.decisions.length, 1);
 
-    const it1 = (await (await get('/v1/intents/an-1')).json()) as { intent: { intentId: string; signature?: string }; uses: number; verification: string };
+    const it1 = (await (await get('/v1/intents/an-1')).json()) as {
+      intent: { intentId: string; signature?: string };
+      uses: number;
+      verification: string;
+    };
     assert.equal(it1.intent.intentId, 'an-1');
     assert.equal(it1.uses, 1, 'the evaluate consumed the intent');
     assert.equal(it1.verification, 'ok');
@@ -372,11 +671,21 @@ describe('gateway (enforce): managed intents', () => {
   let url = '';
   before(async () => (url = await listen(gw)));
   after(() => gw.server.close());
-  const mint = (body: unknown, tok = MINTTOK) => fetch(url + '/v1/intents/mint', { method: 'POST', headers: { authorization: `Bearer ${tok}`, 'content-type': 'application/json' }, body: JSON.stringify(body) });
+  const mint = (body: unknown, tok = MINTTOK) =>
+    fetch(url + '/v1/intents/mint', {
+      method: 'POST',
+      headers: { authorization: `Bearer ${tok}`, 'content-type': 'application/json' },
+      body: JSON.stringify(body),
+    });
   it('mint → evaluate round-trip; retries are idempotent; scope and roles hold', async () => {
     // The LOS sends payout-shaped JSON — raw beneficiary fields get hashed at
     // entry. los-2 may only mint LOAN_DISBURSAL.
-    const body = { kind: 'LOAN_DISBURSAL', amountPaise: 2_40_000_00, beneficiary: { account: '000123456789', ifsc: 'HDFC0001234' }, subjectRef: 'loan-007' };
+    const body = {
+      kind: 'LOAN_DISBURSAL',
+      amountPaise: 2_40_000_00,
+      beneficiary: { account: '000123456789', ifsc: 'HDFC0001234' },
+      subjectRef: 'loan-007',
+    };
     const r1 = await mint(body);
     assert.equal(r1.status, 201);
     const m1 = (await r1.json()) as { accepted: boolean; intentId: string };
@@ -385,24 +694,48 @@ describe('gateway (enforce): managed intents', () => {
     const m2 = (await (await mint(body)).json()) as { intentId: string };
     assert.equal(m2.intentId, m1.intentId, 'identical fields derive the same intentId');
     // The minted intent actually authorises the payout it describes.
-    const v = (await (await fetch(url + '/v1/evaluate', {
-      method: 'POST',
-      headers: { authorization: `Bearer ${API}`, 'content-type': 'application/json' },
-      body: JSON.stringify({ payoutId: 'mint-p1', kind: 'LOAN_DISBURSAL', amountPaise: 2_40_000_00, beneficiaryRef: benRef, channel: 'IMPS', intentId: m1.intentId }),
-    })).json()) as { verdict: string };
+    const v = (await (
+      await fetch(url + '/v1/evaluate', {
+        method: 'POST',
+        headers: { authorization: `Bearer ${API}`, 'content-type': 'application/json' },
+        body: JSON.stringify({
+          payoutId: 'mint-p1',
+          kind: 'LOAN_DISBURSAL',
+          amountPaise: 2_40_000_00,
+          beneficiaryRef: benRef,
+          channel: 'IMPS',
+          intentId: m1.intentId,
+        }),
+      })
+    ).json()) as { verdict: string };
     assert.equal(v.verdict, 'ALLOW');
     // Negative paths.
     assert.equal((await mint({ ...body, kind: 'VDA_WITHDRAWAL' })).status, 422, 'mint key kind scope is enforced');
     assert.equal((await mint({ ...body, ttlMs: 99_999_999 })).status, 400, 'ttl above maxTtlMs refused');
     assert.equal((await mint({ kind: 'LOAN_DISBURSAL' })).status, 400, 'missing amount/ref');
     assert.equal((await mint(body, EVALTOK)).status, 403, 'evaluate role cannot mint');
-    assert.equal((await fetch(url + '/v1/intents', { method: 'POST', headers: { authorization: `Bearer ${MINTTOK}`, 'content-type': 'application/json' }, body: JSON.stringify(loanIntent('m-x')) })).status, 403, 'mint role cannot register foreign-signed intents');
+    assert.equal(
+      (
+        await fetch(url + '/v1/intents', {
+          method: 'POST',
+          headers: { authorization: `Bearer ${MINTTOK}`, 'content-type': 'application/json' },
+          body: JSON.stringify(loanIntent('m-x')),
+        })
+      ).status,
+      403,
+      'mint role cannot register foreign-signed intents',
+    );
     assert.equal(fw.intents.get(m1.intentId)?.intent.issuer, 'los-prod');
   });
 });
 describe('gateway (enforce): mint guardrails', () => {
   const mintBody = { kind: 'LOAN_DISBURSAL', amountPaise: 2_40_000_00, beneficiaryRef: benRef };
-  const call = (base: string, body: unknown = mintBody) => fetch(`${base}/v1/intents/mint`, { method: 'POST', headers: { authorization: `Bearer ${MINTTOK}`, 'content-type': 'application/json' }, body: JSON.stringify(body) });
+  const call = (base: string, body: unknown = mintBody) =>
+    fetch(`${base}/v1/intents/mint`, {
+      method: 'POST',
+      headers: { authorization: `Bearer ${MINTTOK}`, 'content-type': 'application/json' },
+      body: JSON.stringify(body),
+    });
   it('amount ceiling refuses, per-key rate limits, mode allowlist blocks enforce mints', async () => {
     const { gw } = boot('enforce', { mint: { maxAmountPaise: 3_00_000_00, mintsPerMinute: 3 } });
     const u1 = await listen(gw);
@@ -438,27 +771,69 @@ describe('gateway (enforce): multi-approval payouts', () => {
   before(async () => (url = await listen(gw)));
   after(() => gw.server.close());
   const post = (path: string, body: unknown, tok = API, extra: Record<string, string> = {}) =>
-    fetch(url + path, { method: 'POST', headers: { authorization: `Bearer ${tok}`, 'content-type': 'application/json', ...extra }, body: JSON.stringify(body) });
+    fetch(url + path, {
+      method: 'POST',
+      headers: { authorization: `Bearer ${tok}`, 'content-type': 'application/json', ...extra },
+      body: JSON.stringify(body),
+    });
   const approvalIntent = (id: string) =>
-    signIntent({ intentId: id, kind: 'LOAN_DISBURSAL', maxAmountPaise: 2_40_000_00, beneficiaryRef: benRef, maxUses: 1, notBeforeMs: T0 - 60_000, expiresAtMs: T0 + 3_600_000, issuer: 'risk-desk', keyId: 'risk-1' }, { alg: 'ed25519', privateKey: RISK.privateKey });
-  const evalBody = (payoutId: string, extra: Record<string, unknown> = {}) => ({ payoutId, kind: 'LOAN_DISBURSAL', amountPaise: 2_40_000_00, beneficiaryRef: benRef, channel: 'IMPS', ...extra });
+    signIntent(
+      {
+        intentId: id,
+        kind: 'LOAN_DISBURSAL',
+        maxAmountPaise: 2_40_000_00,
+        beneficiaryRef: benRef,
+        maxUses: 1,
+        notBeforeMs: T0 - 60_000,
+        expiresAtMs: T0 + 3_600_000,
+        issuer: 'risk-desk',
+        keyId: 'risk-1',
+      },
+      { alg: 'ed25519', privateKey: RISK.privateKey },
+    );
+  const evalBody = (payoutId: string, extra: Record<string, unknown> = {}) => ({
+    payoutId,
+    kind: 'LOAN_DISBURSAL',
+    amountPaise: 2_40_000_00,
+    beneficiaryRef: benRef,
+    channel: 'IMPS',
+    ...extra,
+  });
 
   it('primary alone declines; citing a distinct-issuer approval allows', async () => {
     assert.equal((await post('/v1/intents', loanIntent('ma-p1'), REGTOK)).status, 201);
     assert.equal((await post('/v1/intents', approvalIntent('ma-a1'), REGTOK)).status, 201);
-    const v1 = (await (await post('/v1/evaluate', evalBody('ma-x1', { intentId: 'ma-p1' }))).json()) as { verdict: string; hits: { rule: string }[] };
+    const v1 = (await (await post('/v1/evaluate', evalBody('ma-x1', { intentId: 'ma-p1' }))).json()) as {
+      verdict: string;
+      hits: { rule: string }[];
+    };
     assert.equal(v1.verdict, 'BLOCK');
-    assert.ok(v1.hits.some((h) => h.rule === 'intent.approvals-insufficient'), JSON.stringify(v1.hits));
-    const v2 = (await (await post('/v1/evaluate', evalBody('ma-x2', { intentId: 'ma-p1', approvalIds: ['ma-a1'] }))).json()) as { verdict: string };
+    assert.ok(
+      v1.hits.some((h) => h.rule === 'intent.approvals-insufficient'),
+      JSON.stringify(v1.hits),
+    );
+    const v2 = (await (await post('/v1/evaluate', evalBody('ma-x2', { intentId: 'ma-p1', approvalIds: ['ma-a1'] }))).json()) as {
+      verdict: string;
+    };
     assert.equal(v2.verdict, 'ALLOW', 'the declined first attempt consumed nothing — retry with the approval works');
   });
   it('ext_authz maps a comma-joined approvals header', async () => {
     assert.equal((await post('/v1/intents', loanIntent('ma-p2'), REGTOK)).status, 201);
     assert.equal((await post('/v1/intents', approvalIntent('ma-a2'), REGTOK)).status, 201);
-    const res = await post('/ext_authz/payouts', { request_id: 'ma-x3', amount_in_paise: 24000000, beneficiary: { account_number: '000123456789', ifsc: 'HDFC0001234' } }, '', { 'x-payrekha-key': EXT, 'x-payrekha-intent': 'ma-p2', 'x-payrekha-approvals': 'ma-a2', 'x-client-id': 'lms' });
+    const res = await post(
+      '/ext_authz/payouts',
+      { request_id: 'ma-x3', amount_in_paise: 24000000, beneficiary: { account_number: '000123456789', ifsc: 'HDFC0001234' } },
+      '',
+      { 'x-payrekha-key': EXT, 'x-payrekha-intent': 'ma-p2', 'x-payrekha-approvals': 'ma-a2', 'x-client-id': 'lms' },
+    );
     assert.equal(res.status, 200, JSON.stringify(await res.clone().json()));
     assert.equal((log.lines.at(-1) as { verdict?: string }).verdict, 'ALLOW', 'both ids mapped through and satisfied the requirement');
-    const res2 = await post('/ext_authz/payouts', { request_id: 'ma-x4', amount_in_paise: 24000000, beneficiary: { account_number: '000123456789', ifsc: 'HDFC0001234' } }, '', { 'x-payrekha-key': EXT, 'x-payrekha-intent': 'ma-p2', 'x-client-id': 'lms' });
+    const res2 = await post(
+      '/ext_authz/payouts',
+      { request_id: 'ma-x4', amount_in_paise: 24000000, beneficiary: { account_number: '000123456789', ifsc: 'HDFC0001234' } },
+      '',
+      { 'x-payrekha-key': EXT, 'x-payrekha-intent': 'ma-p2', 'x-client-id': 'lms' },
+    );
     assert.equal(res2.status, 403, 'primary alone is insufficient — and already consumed anyway');
     assert.equal((log.lines.at(-1) as { verdict?: string }).verdict, 'BLOCK');
   });
@@ -469,7 +844,12 @@ describe('gateway (enforce): intent verification budget', () => {
   before(async () => (url = await listen(gw)));
   after(() => gw.server.close());
   it('429 when a key spends its per-minute verification budget', async () => {
-    const post = (body: unknown) => fetch(url + '/v1/intents', { method: 'POST', headers: { authorization: `Bearer ${API}`, 'content-type': 'application/json' }, body: JSON.stringify(body) });
+    const post = (body: unknown) =>
+      fetch(url + '/v1/intents', {
+        method: 'POST',
+        headers: { authorization: `Bearer ${API}`, 'content-type': 'application/json' },
+        body: JSON.stringify(body),
+      });
     assert.equal((await post(loanIntent('int-b1'))).status, 201);
     assert.equal((await post(loanIntent('int-b2'))).status, 201);
     assert.equal((await post([loanIntent('int-b3'), loanIntent('int-b4')])).status, 429, 'would exceed the budget — no partial processing');
@@ -482,7 +862,15 @@ describe('gateway (shadow)', () => {
   it('ext_authz always returns 200 but logs the calculated BLOCK', async () => {
     const { gw, log } = boot('shadow');
     const url = await listen(gw);
-    const res = await fetch(url + '/ext_authz/payouts', { method: 'POST', headers: { 'x-payrekha-key': EXT }, body: JSON.stringify({ request_id: 's-1', amount_in_paise: 100, beneficiary: { account_number: '000123456789', ifsc: 'HDFC0001234' } }) });
+    const res = await fetch(url + '/ext_authz/payouts', {
+      method: 'POST',
+      headers: { 'x-payrekha-key': EXT },
+      body: JSON.stringify({
+        request_id: 's-1',
+        amount_in_paise: 100,
+        beneficiary: { account_number: '000123456789', ifsc: 'HDFC0001234' },
+      }),
+    });
     assert.equal(res.status, 200);
     assert.equal(res.headers.get('x-payrekha-verdict'), 'BLOCK');
     assert.equal(log.lines.at(-1)!.verdict, 'BLOCK');
@@ -505,7 +893,10 @@ describe('webhooks and CEF', () => {
       });
     });
     await new Promise<void>((r) => srv.listen(0, '127.0.0.1', r));
-    const w = new WebhookSender({ url: `http://127.0.0.1:${(srv.address() as AddressInfo).port}/hook`, secret: 'webhook-secret-0123456789' });
+    const w = new WebhookSender({
+      url: `http://127.0.0.1:${(srv.address() as AddressInfo).port}/hook`,
+      secret: 'webhook-secret-0123456789',
+    });
     const t = performance.now();
     w.send({ type: 'alert.entered', atMs: T0, actor: 'rule:canary.tripped', reason: 'x' });
     assert.ok(performance.now() - t < 5);
@@ -513,10 +904,30 @@ describe('webhooks and CEF', () => {
     srv.close();
     assert.equal(got.length, 1);
     assert.equal(got[0]!.sig, signWebhook('webhook-secret-0123456789', got[0]!.ts, got[0]!.body));
-    assert.equal(got[0]!.sig, `sha256=${createHmac('sha256', 'webhook-secret-0123456789').update(`${got[0]!.ts}.${got[0]!.body}`).digest('hex')}`);
+    assert.equal(
+      got[0]!.sig,
+      `sha256=${createHmac('sha256', 'webhook-secret-0123456789').update(`${got[0]!.ts}.${got[0]!.body}`).digest('hex')}`,
+    );
   });
   it('CEF escapes header and extension fields', () => {
-    const line = toCef({ type: 'decision' as const, ts: new Date(T0).toISOString(), requestId: 'r', decisionId: 'd', payoutId: 'p=1|x', via: 'evaluate', mode: 'enforce', alertState: 'NORMAL', verdict: 'BLOCK', effectiveAction: 'DECLINE', degraded: false, deduped: false, rules: ['intent.missing'], hits: [{ rule: 'intent.missing', verdict: 'BLOCK', reason: 'a|b', evidence: {} }], ruleErrors: [], elapsedMicros: 3 });
+    const line = toCef({
+      type: 'decision' as const,
+      ts: new Date(T0).toISOString(),
+      requestId: 'r',
+      decisionId: 'd',
+      payoutId: 'p=1|x',
+      via: 'evaluate',
+      mode: 'enforce',
+      alertState: 'NORMAL',
+      verdict: 'BLOCK',
+      effectiveAction: 'DECLINE',
+      degraded: false,
+      deduped: false,
+      rules: ['intent.missing'],
+      hits: [{ rule: 'intent.missing', verdict: 'BLOCK', reason: 'a|b', evidence: {} }],
+      ruleErrors: [],
+      elapsedMicros: 3,
+    });
     assert.match(line, /^CEF:0\|People of Product\|Payrekha\|0\.1\.0\|intent\.missing\|a\\\|b\|9\|/);
     assert.ok(line.includes('cs1=p\\=1|x'));
   });
@@ -530,7 +941,12 @@ describe('bootFromEnv state loading', () => {
     const { bootFromEnv } = await import('@payrekha/gateway');
     const dir = mkdtempSync(join(tmpdir(), 'prk-'));
     const file = join(dir, 'state.json');
-    const env = { PAYREKHA_API_KEYS: `lms:prod:${API}`, PAYREKHA_ADMIN_KEY: ADMIN, PAYREKHA_STATE_FILE: file, PAYREKHA_STATE_RETRY_MS: '60000' };
+    const env = {
+      PAYREKHA_API_KEYS: `lms:prod:${API}`,
+      PAYREKHA_ADMIN_KEY: ADMIN,
+      PAYREKHA_STATE_FILE: file,
+      PAYREKHA_STATE_RETRY_MS: '60000',
+    };
     const quiet = () => undefined;
 
     const a = bootFromEnv(env, quiet);
@@ -555,7 +971,11 @@ describe('bootFromEnv state loading', () => {
   it('store dies mid-save: errors counted, verdicts keep flowing; StaleStateError marks unready', async () => {
     // Chaos: a state backend that throws. saveState must degrade to a
     // counted error — never crash, never block the verdict path.
-    const fw = new Payrekha(payrekhaRules({ band: false }).rules, { config: { mode: 'shadow', adminTokenSha256: sha(ADMIN) }, keys: [], now: () => T0 });
+    const fw = new Payrekha(payrekhaRules({ band: false }).rules, {
+      config: { mode: 'shadow', adminTokenSha256: sha(ADMIN) },
+      keys: [],
+      now: () => T0,
+    });
     const keys = [{ id: 'lms', sha256: sha(API), origin: 'prod' as const }];
     const failing = {
       describe: 'chaos:transient',
@@ -569,7 +989,16 @@ describe('bootFromEnv state loading', () => {
     assert.equal(await gw.saveState(), false);
     assert.equal(gw.stats.stateSaveErrors, 2);
     assert.equal(gw.stats.ready, true, 'a transient save failure must not drop readiness');
-    const v = fw.evaluate({ payoutId: 'p-chaos', kind: 'VENDOR_PAYOUT', amountPaise: 100, beneficiaryRef: 'hb1_chaos', channel: 'IMPS', sourceKeyId: 'lms', origin: 'prod' as const, timestampMs: T0 });
+    const v = fw.evaluate({
+      payoutId: 'p-chaos',
+      kind: 'VENDOR_PAYOUT',
+      amountPaise: 100,
+      beneficiaryRef: 'hb1_chaos',
+      channel: 'IMPS',
+      sourceKeyId: 'lms',
+      origin: 'prod' as const,
+      timestampMs: T0,
+    });
     assert.equal(v.verdict, 'BLOCK', 'verdict path unaffected by save errors — intent-missing still blocks');
 
     // A stale-state (second-writer) failure is different: it must drop readiness.
@@ -582,7 +1011,15 @@ describe('bootFromEnv state loading', () => {
       },
       load: async () => false,
     };
-    const gw2 = createGateway({ firewall: new Payrekha(payrekhaRules({ band: false }).rules, { config: { mode: 'shadow', adminTokenSha256: sha(ADMIN) }, keys: [], now: () => T0 }), apiKeys: keys, stateStore: stale });
+    const gw2 = createGateway({
+      firewall: new Payrekha(payrekhaRules({ band: false }).rules, {
+        config: { mode: 'shadow', adminTokenSha256: sha(ADMIN) },
+        keys: [],
+        now: () => T0,
+      }),
+      apiKeys: keys,
+      stateStore: stale,
+    });
     assert.equal(await gw2.saveState(), false);
     assert.equal(gw2.stats.ready, false);
     assert.equal(gw2.stats.notReadyReason, 'state written by another instance');
@@ -590,7 +1027,14 @@ describe('bootFromEnv state loading', () => {
 
   it('rejects both state backends at once', async () => {
     const { bootFromEnv } = await import('@payrekha/gateway');
-    assert.throws(() => bootFromEnv({ PAYREKHA_API_KEYS: `lms:prod:${API}`, PAYREKHA_STATE_FILE: '/tmp/x', PAYREKHA_STATE_PG_URL: 'postgres://x' }, () => undefined), /not both/);
+    assert.throws(
+      () =>
+        bootFromEnv(
+          { PAYREKHA_API_KEYS: `lms:prod:${API}`, PAYREKHA_STATE_FILE: '/tmp/x', PAYREKHA_STATE_PG_URL: 'postgres://x' },
+          () => undefined,
+        ),
+      /not both/,
+    );
   });
 });
 
@@ -621,7 +1065,13 @@ describe('shared state (ADR 0004 active-active)', () => {
   // commit-driven, except the fail-closed test which needs poll recovery.
   const backend = new MemorySharedBackend();
   const issuerKeys = [
-    { keyId: 'los-1', issuer: 'los-prod', alg: 'ed25519' as const, publicKey: LOS.publicKey, kinds: ['LOAN_DISBURSAL' as const, 'VERIFICATION' as const] },
+    {
+      keyId: 'los-1',
+      issuer: 'los-prod',
+      alg: 'ed25519' as const,
+      publicKey: LOS.publicKey,
+      kinds: ['LOAN_DISBURSAL' as const, 'VERIFICATION' as const],
+    },
     { keyId: 'los-2', issuer: 'los-prod', alg: 'ed25519' as const, publicKey: LOS2.publicKey, kinds: ['LOAN_DISBURSAL' as const] },
     { keyId: 'risk-1', issuer: 'risk-desk', alg: 'ed25519' as const, publicKey: RISK.publicKey, kinds: ['LOAN_DISBURSAL' as const] },
   ];
@@ -656,7 +1106,11 @@ describe('shared state (ADR 0004 active-active)', () => {
     await pair.b.closeShared();
   });
   const call = (side: 'a' | 'b', path: string, body: unknown, token = API, method = 'POST') =>
-    fetch(urls[side]! + path, { method, headers: { authorization: `Bearer ${token}`, 'content-type': 'application/json' }, body: JSON.stringify(body) });
+    fetch(urls[side]! + path, {
+      method,
+      headers: { authorization: `Bearer ${token}`, 'content-type': 'application/json' },
+      body: JSON.stringify(body),
+    });
   const loan = { kind: 'LOAN_DISBURSAL', amountPaise: 2_40_000_00, beneficiaryRef: benRef, channel: 'IMPS' };
 
   it('an intent registered on replica A is consumable on replica B (miss-fetch)', async () => {
@@ -667,18 +1121,30 @@ describe('shared state (ADR 0004 active-active)', () => {
 
   it('two replicas cannot spend the same intent use', async () => {
     await call('a', '/v1/intents', loanIntent('int-s2'), REGTOK);
-    const first = (await (await call('a', '/v1/evaluate', { payoutId: 'p-s2a', intentId: 'int-s2', ...loan })).json()) as { verdict: string };
+    const first = (await (await call('a', '/v1/evaluate', { payoutId: 'p-s2a', intentId: 'int-s2', ...loan })).json()) as {
+      verdict: string;
+    };
     assert.equal(first.verdict, 'ALLOW');
-    const second = (await (await call('b', '/v1/evaluate', { payoutId: 'p-s2b', intentId: 'int-s2', ...loan })).json()) as { verdict: string; hits: { rule: string }[] };
+    const second = (await (await call('b', '/v1/evaluate', { payoutId: 'p-s2b', intentId: 'int-s2', ...loan })).json()) as {
+      verdict: string;
+      hits: { rule: string }[];
+    };
     assert.equal(second.verdict, 'BLOCK', JSON.stringify(second));
     assert.ok(second.hits.some((h) => h.rule === 'intent.reused'));
   });
 
   it('a payoutId duplicated across replicas replays the stored verdict', async () => {
     await call('a', '/v1/intents', loanIntent('int-s3'), REGTOK);
-    const first = (await (await call('a', '/v1/evaluate', { payoutId: 'p-dup', intentId: 'int-s3', ...loan })).json()) as { decisionId: string; verdict: string };
+    const first = (await (await call('a', '/v1/evaluate', { payoutId: 'p-dup', intentId: 'int-s3', ...loan })).json()) as {
+      decisionId: string;
+      verdict: string;
+    };
     assert.equal(first.verdict, 'ALLOW');
-    const second = (await (await call('b', '/v1/evaluate', { payoutId: 'p-dup', intentId: 'int-s3', ...loan })).json()) as { decisionId: string; verdict: string; deduped: boolean };
+    const second = (await (await call('b', '/v1/evaluate', { payoutId: 'p-dup', intentId: 'int-s3', ...loan })).json()) as {
+      decisionId: string;
+      verdict: string;
+      deduped: boolean;
+    };
     assert.equal(second.verdict, 'ALLOW');
     assert.equal(second.deduped, true);
     assert.equal(second.decisionId, first.decisionId, 'the cross-replica retry gets the original decision');
@@ -689,23 +1155,39 @@ describe('shared state (ADR 0004 active-active)', () => {
     assert.equal((await call('a', '/v1/intents', loanIntent('int-s5', 'los-2', LOS2.privateKey), REGTOK)).status, 201);
     const del = await call('a', '/v1/issuers/los-2', { actor: 'soc', reason: 'los-2 leaked' }, ADMIN, 'DELETE');
     assert.equal(del.status, 200);
-    const v = (await (await call('b', '/v1/evaluate', { payoutId: 'p-s5', intentId: 'int-s5', ...loan })).json()) as { verdict: string; hits: { rule: string }[] };
+    const v = (await (await call('b', '/v1/evaluate', { payoutId: 'p-s5', intentId: 'int-s5', ...loan })).json()) as {
+      verdict: string;
+      hits: { rule: string }[];
+    };
     assert.equal(v.verdict, 'BLOCK', 'the revocation must reach the authorize path, not just the poll');
-    assert.ok(v.hits.some((h) => h.rule === 'intent.bad-signature'), JSON.stringify(v.hits));
+    assert.ok(
+      v.hits.some((h) => h.rule === 'intent.bad-signature'),
+      JSON.stringify(v.hits),
+    );
   });
 
   it('a failed outcome reported on replica B frees the intent committed by replica A', async () => {
     await call('a', '/v1/intents', loanIntent('int-s7'), REGTOK);
-    const first = (await (await call('a', '/v1/evaluate', { payoutId: 'p-rel', intentId: 'int-s7', ...loan })).json()) as { verdict: string };
+    const first = (await (await call('a', '/v1/evaluate', { payoutId: 'p-rel', intentId: 'int-s7', ...loan })).json()) as {
+      verdict: string;
+    };
     assert.equal(first.verdict, 'ALLOW');
     const o = (await (await call('b', '/v1/outcomes', { payoutId: 'p-rel', outcome: 'failed' })).json()) as { known: boolean };
     assert.equal(o.known, true, 'replica B never held it — the shared row did');
-    const next = (await (await call('b', '/v1/evaluate', { payoutId: 'p-rel2', intentId: 'int-s7', ...loan })).json()) as { verdict: string };
+    const next = (await (await call('b', '/v1/evaluate', { payoutId: 'p-rel2', intentId: 'int-s7', ...loan })).json()) as {
+      verdict: string;
+    };
     assert.equal(next.verdict, 'ALLOW', 'the released use is spendable on another replica');
     // And replica A converges: its stale counter syncs on the intent.* block.
-    const third = (await (await call('a', '/v1/evaluate', { payoutId: 'p-rel3', intentId: 'int-s7', ...loan })).json()) as { verdict: string; hits: { rule: string }[] };
+    const third = (await (await call('a', '/v1/evaluate', { payoutId: 'p-rel3', intentId: 'int-s7', ...loan })).json()) as {
+      verdict: string;
+      hits: { rule: string }[];
+    };
     assert.equal(third.verdict, 'BLOCK');
-    assert.ok(third.hits.some((h) => h.rule === 'intent.reused'), JSON.stringify(third.hits));
+    assert.ok(
+      third.hits.some((h) => h.rule === 'intent.reused'),
+      JSON.stringify(third.hits),
+    );
   });
 
   it('a failed registration write-through refuses the call', async () => {
@@ -720,13 +1202,34 @@ describe('shared state (ADR 0004 active-active)', () => {
     try {
       // Register on THIS replica so the local registry knows the intent —
       // only the commit path should fail below.
-      assert.equal((await fetch(fastUrl + '/v1/intents', { method: 'POST', headers: { authorization: `Bearer ${REGTOK}`, 'content-type': 'application/json' }, body: JSON.stringify(loanIntent('int-s9')) })).status, 201);
-      const post = (p: unknown) => fetch(fastUrl + '/v1/evaluate', { method: 'POST', headers: { authorization: `Bearer ${API}`, 'content-type': 'application/json' }, body: JSON.stringify(p) });
+      assert.equal(
+        (
+          await fetch(fastUrl + '/v1/intents', {
+            method: 'POST',
+            headers: { authorization: `Bearer ${REGTOK}`, 'content-type': 'application/json' },
+            body: JSON.stringify(loanIntent('int-s9')),
+          })
+        ).status,
+        201,
+      );
+      const post = (p: unknown) =>
+        fetch(fastUrl + '/v1/evaluate', {
+          method: 'POST',
+          headers: { authorization: `Bearer ${API}`, 'content-type': 'application/json' },
+          body: JSON.stringify(p),
+        });
       backend.failNext = true;
-      const v = (await (await post({ payoutId: 'p-down', intentId: 'int-s9', ...loan })).json()) as { verdict: string; effectiveAction: string; hits: { rule: string }[] };
+      const v = (await (await post({ payoutId: 'p-down', intentId: 'int-s9', ...loan })).json()) as {
+        verdict: string;
+        effectiveAction: string;
+        hits: { rule: string }[];
+      };
       assert.equal(v.verdict, 'BLOCK');
       assert.equal(v.effectiveAction, 'DECLINE');
-      assert.ok(v.hits.some((h) => h.rule === 'store.commit-failed'), JSON.stringify(v.hits));
+      assert.ok(
+        v.hits.some((h) => h.rule === 'store.commit-failed'),
+        JSON.stringify(v.hits),
+      );
       await sleep(60);
       assert.equal(fast.stats.ready, false, 'the impaired money path is not ready');
       backend.failNext = false;
@@ -746,7 +1249,15 @@ describe('shared state (ADR 0004 active-active)', () => {
     // An already-settled tombstone seeded before the gateway starts — the
     // first refresh tick runs the (hourly-throttled) purge. The sleep ages
     // the row past the millisecond cutoff — real Date.now() has ~1ms grain.
-    await be.importReservation({ payoutId: 'p-old', sourceKeyId: 'k', intentId: 'int-old', approvalIds: [], amountPaise: 1, verdict: { verdict: 'ALLOW' }, settled: true });
+    await be.importReservation({
+      payoutId: 'p-old',
+      sourceKeyId: 'k',
+      intentId: 'int-old',
+      approvalIds: [],
+      amountPaise: 1,
+      verdict: { verdict: 'ALLOW' },
+      settled: true,
+    });
     await sleep(10);
     const fw = new Payrekha(payrekhaRules({ band: false }).rules, {
       config: { mode: 'enforce', adminTokenSha256: sha(ADMIN) },
@@ -769,7 +1280,12 @@ describe('shared state (ADR 0004 active-active)', () => {
     try {
       await sleep(80);
       assert.deepEqual(await be.reservationStats(), { pending: 0, settled: 0 }, 'the seeded tombstone must be purged');
-      const post = (path: string, body: unknown, tok = API) => fetch(u + path, { method: 'POST', headers: { authorization: `Bearer ${tok}`, 'content-type': 'application/json' }, body: JSON.stringify(body) });
+      const post = (path: string, body: unknown, tok = API) =>
+        fetch(u + path, {
+          method: 'POST',
+          headers: { authorization: `Bearer ${tok}`, 'content-type': 'application/json' },
+          body: JSON.stringify(body),
+        });
       assert.equal((await post('/v1/intents', loanIntent('int-met'), REGTOK)).status, 201);
       const v = (await (await post('/v1/evaluate', { payoutId: 'p-met', intentId: 'int-met', ...loan })).json()) as { verdict: string };
       assert.equal(v.verdict, 'ALLOW');
@@ -789,7 +1305,11 @@ describe('TLS listener (PAYREKHA_TLS_*)', { skip: tlsFixtures === undefined ? 'o
   const fx = tlsFixtures!;
   const tlsGw = (extra: { clientAuth?: 'optional' | 'required' } = {}) =>
     createGateway({
-      firewall: new Payrekha(payrekhaRules({ band: false }).rules, { config: { mode: 'enforce', adminTokenSha256: sha(ADMIN) }, keys: [{ keyId: 'los-1', issuer: 'los-prod', alg: 'ed25519', publicKey: LOS.publicKey, kinds: ['LOAN_DISBURSAL'] }], now: () => T0 }),
+      firewall: new Payrekha(payrekhaRules({ band: false }).rules, {
+        config: { mode: 'enforce', adminTokenSha256: sha(ADMIN) },
+        keys: [{ keyId: 'los-1', issuer: 'los-prod', alg: 'ed25519', publicKey: LOS.publicKey, kinds: ['LOAN_DISBURSAL'] }],
+        now: () => T0,
+      }),
       apiKeys: [{ id: 'lms', sha256: sha(API), origin: 'prod' }],
       hashKey: HK,
       now: () => T0,
@@ -805,7 +1325,12 @@ describe('TLS listener (PAYREKHA_TLS_*)', { skip: tlsFixtures === undefined ? 'o
     const url = await listenTls(gw);
     try {
       assert.equal((await httpsPost(url, '/v1/evaluate', {}, { ca: fx.ca })).status, 401);
-      const res = await httpsPost(url, '/v1/evaluate', { payoutId: 'p-tls', kind: 'REFUND', amountPaise: 100_00, beneficiaryRef: benRef, channel: 'IMPS' }, { ca: fx.ca, token: API });
+      const res = await httpsPost(
+        url,
+        '/v1/evaluate',
+        { payoutId: 'p-tls', kind: 'REFUND', amountPaise: 100_00, beneficiaryRef: benRef, channel: 'IMPS' },
+        { ca: fx.ca, token: API },
+      );
       assert.equal(res.status, 200, JSON.stringify(res.json()));
       await assert.rejects(fetch(url.replace('https://', 'http://') + '/healthz'), 'an http client must not speak to the TLS listener');
     } finally {
@@ -817,8 +1342,16 @@ describe('TLS listener (PAYREKHA_TLS_*)', { skip: tlsFixtures === undefined ? 'o
     const gw = tlsGw({ clientAuth: 'required' });
     const url = await listenTls(gw);
     try {
-      await assert.rejects(httpsPost(url, '/v1/evaluate', {}, { ca: fx.ca, token: API }), 'handshake must abort without a client certificate');
-      const res = await httpsPost(url, '/v1/evaluate', { payoutId: 'p-mtls', kind: 'REFUND', amountPaise: 100_00, beneficiaryRef: benRef, channel: 'IMPS' }, { ca: fx.ca, cert: fx.cliCert, key: fx.cliKey, token: API });
+      await assert.rejects(
+        httpsPost(url, '/v1/evaluate', {}, { ca: fx.ca, token: API }),
+        'handshake must abort without a client certificate',
+      );
+      const res = await httpsPost(
+        url,
+        '/v1/evaluate',
+        { payoutId: 'p-mtls', kind: 'REFUND', amountPaise: 100_00, beneficiaryRef: benRef, channel: 'IMPS' },
+        { ca: fx.ca, cert: fx.cliCert, key: fx.cliKey, token: API },
+      );
       assert.equal(res.status, 200, JSON.stringify(res.json()));
     } finally {
       gw.server.close();
@@ -829,7 +1362,11 @@ describe('TLS listener (PAYREKHA_TLS_*)', { skip: tlsFixtures === undefined ? 'o
     assert.throws(
       () =>
         createGateway({
-          firewall: new Payrekha(payrekhaRules({ band: false }).rules, { config: { mode: 'shadow', adminTokenSha256: sha(ADMIN) }, keys: [], now: () => T0 }),
+          firewall: new Payrekha(payrekhaRules({ band: false }).rules, {
+            config: { mode: 'shadow', adminTokenSha256: sha(ADMIN) },
+            keys: [],
+            now: () => T0,
+          }),
           apiKeys: [{ id: 'lms', sha256: sha(API), origin: 'prod' }],
           hashKey: HK,
           tls: { key: fx.srvKey, cert: fx.srvCert, clientAuth: 'required' },
@@ -843,8 +1380,22 @@ describe('TLS listener (PAYREKHA_TLS_*)', { skip: tlsFixtures === undefined ? 'o
       const quiet = () => undefined;
       const base = { PAYREKHA_API_KEYS: `lms:prod:${API}` };
       assert.throws(() => bootFromEnv({ ...base, PAYREKHA_TLS_KEY_FILE: fx.srvKeyPath }, quiet), /must be set together/);
-      assert.throws(() => bootFromEnv({ ...base, PAYREKHA_TLS_KEY_FILE: fx.srvKeyPath, PAYREKHA_TLS_CERT_FILE: fx.srvCertPath, PAYREKHA_TLS_CLIENT_AUTH: 'required' }, quiet), /PAYREKHA_TLS_CA_FILE/);
-      assert.throws(() => bootFromEnv({ ...base, PAYREKHA_TLS_KEY_FILE: fx.srvKeyPath, PAYREKHA_TLS_CERT_FILE: fx.srvCertPath, PAYREKHA_TLS_MIN_VERSION: 'TLSv1.1' }, quiet), /TLSv1\.2 or TLSv1\.3/);
+      assert.throws(
+        () =>
+          bootFromEnv(
+            { ...base, PAYREKHA_TLS_KEY_FILE: fx.srvKeyPath, PAYREKHA_TLS_CERT_FILE: fx.srvCertPath, PAYREKHA_TLS_CLIENT_AUTH: 'required' },
+            quiet,
+          ),
+        /PAYREKHA_TLS_CA_FILE/,
+      );
+      assert.throws(
+        () =>
+          bootFromEnv(
+            { ...base, PAYREKHA_TLS_KEY_FILE: fx.srvKeyPath, PAYREKHA_TLS_CERT_FILE: fx.srvCertPath, PAYREKHA_TLS_MIN_VERSION: 'TLSv1.1' },
+            quiet,
+          ),
+        /TLSv1\.2 or TLSv1\.3/,
+      );
       const booted = bootFromEnv({ ...base, PAYREKHA_TLS_KEY_FILE: fx.srvKeyPath, PAYREKHA_TLS_CERT_FILE: fx.srvCertPath }, quiet);
       booted.gateway.server.close();
     });

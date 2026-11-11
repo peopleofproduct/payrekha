@@ -19,11 +19,29 @@ const backend = () => {
 };
 const intent = (id: string, maxUses = 1) =>
   signIntent(
-    { intentId: id, kind: 'LOAN_DISBURSAL', maxAmountPaise: 2_40_000_00, beneficiaryRef: benRef, maxUses, notBeforeMs: T0 - 60_000, expiresAtMs: T0 + 3_600_000, issuer: 'los-prod', keyId: 'los-1' },
+    {
+      intentId: id,
+      kind: 'LOAN_DISBURSAL',
+      maxAmountPaise: 2_40_000_00,
+      beneficiaryRef: benRef,
+      maxUses,
+      notBeforeMs: T0 - 60_000,
+      expiresAtMs: T0 + 3_600_000,
+      issuer: 'los-prod',
+      keyId: 'los-1',
+    },
     { alg: 'ed25519', privateKey: LOS.privateKey },
   );
-const commitBody = (payoutId: string, i: ReturnType<typeof intent>, gen = 0) =>
-  ({ payoutId, sourceKeyId: 'lms', intentId: i.intentId, approvalIds: [] as string[], intents: [i], amountPaise: 1_000_00, verdict: { verdict: 'ALLOW' }, controlGen: gen });
+const commitBody = (payoutId: string, i: ReturnType<typeof intent>, gen = 0) => ({
+  payoutId,
+  sourceKeyId: 'lms',
+  intentId: i.intentId,
+  approvalIds: [] as string[],
+  intents: [i],
+  amountPaise: 1_000_00,
+  verdict: { verdict: 'ALLOW' },
+  controlGen: gen,
+});
 
 describe('PostgresSharedBackend', { skip: url === undefined ? 'set PAYREKHA_TEST_PG_URL to run' : false }, () => {
   after(async () => {
@@ -35,7 +53,11 @@ describe('PostgresSharedBackend', { skip: url === undefined ? 'set PAYREKHA_TEST
     const b = backend();
     const i = intent(`${prefix}-i1`);
     await a.putIntent(i);
-    assert.deepEqual(await a.commit(commitBody(`${prefix}-p1`, i)), { committed: true, gen: 0, counters: { [i.intentId]: { uses: 1, usedPaise: 1_000_00 } } });
+    assert.deepEqual(await a.commit(commitBody(`${prefix}-p1`, i)), {
+      committed: true,
+      gen: 0,
+      counters: { [i.intentId]: { uses: 1, usedPaise: 1_000_00 } },
+    });
     // Same payoutId on the other replica → the stored verdict replays.
     const dup = await b.commit(commitBody(`${prefix}-p1`, i));
     assert.ok('conflict' in dup && dup.conflict === 'payoutId');
@@ -75,7 +97,10 @@ describe('PostgresSharedBackend', { skip: url === undefined ? 'set PAYREKHA_TEST
 
 describe('PostgresSharedBackend without a database', () => {
   it('rejects an unsafe table prefix and keeps credentials out of describe', () => {
-    assert.throws(() => new PostgresSharedBackend({ connectionString: 'postgres://u@h/db', tablePrefix: 'x; drop y' }), /invalid table prefix/);
+    assert.throws(
+      () => new PostgresSharedBackend({ connectionString: 'postgres://u@h/db', tablePrefix: 'x; drop y' }),
+      /invalid table prefix/,
+    );
     const b = new PostgresSharedBackend({ connectionString: 'postgres://u:secret@h/db' });
     assert.equal(b.describe.includes('secret'), false);
   });
@@ -92,7 +117,16 @@ describe('PostgresSharedBackend without a database', () => {
     const client = { query: behaviour, release: () => undefined };
     const pool = { query: behaviour, connect: async () => client, end: async () => undefined };
     const b = new PostgresSharedBackend({ pool: pool as never });
-    const r = await b.commit({ payoutId: 'p', sourceKeyId: 'k', intentId: 'i', approvalIds: [], intents: [], amountPaise: 1, verdict: {}, controlGen: 0 });
+    const r = await b.commit({
+      payoutId: 'p',
+      sourceKeyId: 'k',
+      intentId: 'i',
+      approvalIds: [],
+      intents: [],
+      amountPaise: 1,
+      verdict: {},
+      controlGen: 0,
+    });
     assert.ok(!('conflict' in r));
     assert.ok(
       sql.findIndex((s) => s.startsWith('SELECT gen FROM')) < sql.findIndex((s) => s.startsWith('INSERT INTO payrekha_sa_reservations')),
@@ -111,7 +145,16 @@ describe('PostgresSharedBackend without a database', () => {
     const client = { query: behaviour, release: () => undefined };
     const pool = { query: behaviour, connect: async () => client, end: async () => undefined };
     const b = new PostgresSharedBackend({ pool: pool as never });
-    const r = await b.commit({ payoutId: 'p', sourceKeyId: 'k', intentId: 'i', approvalIds: [], intents: [], amountPaise: 1, verdict: {}, controlGen: 0 });
+    const r = await b.commit({
+      payoutId: 'p',
+      sourceKeyId: 'k',
+      intentId: 'i',
+      approvalIds: [],
+      intents: [],
+      amountPaise: 1,
+      verdict: {},
+      controlGen: 0,
+    });
     assert.ok('conflict' in r && r.conflict === 'payoutId');
     assert.deepEqual(r.verdict, { verdict: 'ALLOW', decisionId: 'pd_x' });
   });
@@ -122,15 +165,43 @@ describe('PostgresSharedBackend without a database', () => {
       sql.push(q);
       return { rows: [], rowCount: 0 };
     };
-    const b = new PostgresSharedBackend({ pool: { query: behaviour, connect: async () => ({ query: behaviour, release: () => undefined }), end: async () => undefined } as never });
-    const intent = { intentId: 'i', kind: 'REFUND', maxAmountPaise: 1, beneficiaryRef: 'r', maxUses: 1, notBeforeMs: 0, expiresAtMs: 1, issuer: 'x', keyId: 'k', signature: 's' };
+    const b = new PostgresSharedBackend({
+      pool: {
+        query: behaviour,
+        connect: async () => ({ query: behaviour, release: () => undefined }),
+        end: async () => undefined,
+      } as never,
+    });
+    const intent = {
+      intentId: 'i',
+      kind: 'REFUND',
+      maxAmountPaise: 1,
+      beneficiaryRef: 'r',
+      maxUses: 1,
+      notBeforeMs: 0,
+      expiresAtMs: 1,
+      issuer: 'x',
+      keyId: 'k',
+      signature: 's',
+    };
     await b.importIntent({ intent: intent as never, uses: 3, usedPaise: 400 });
-    await b.importReservation({ payoutId: 'p', sourceKeyId: 'k', intentId: 'i', approvalIds: [], amountPaise: 1, verdict: {}, settled: false });
+    await b.importReservation({
+      payoutId: 'p',
+      sourceKeyId: 'k',
+      intentId: 'i',
+      approvalIds: [],
+      amountPaise: 1,
+      verdict: {},
+      settled: false,
+    });
     const imp = sql.find((q) => q.includes('GREATEST'));
     assert.ok(imp !== undefined, 'importIntent must GREATEST-merge so a live replica is never walked backwards');
     assert.ok(imp.includes('ON CONFLICT (intent_id) DO UPDATE'), 'intent import must be an upsert');
     const res = sql.find((q) => q.includes('INSERT INTO payrekha_sa_reservations'));
-    assert.ok(res !== undefined && res.includes('ON CONFLICT (payout_id) DO NOTHING'), 'reservation import must keep the existing binding (first write wins)');
+    assert.ok(
+      res !== undefined && res.includes('ON CONFLICT (payout_id) DO NOTHING'),
+      'reservation import must keep the existing binding (first write wins)',
+    );
   });
 
   it('purge deletes only settled tombstones and keeps the clock in the database', async () => {
@@ -139,11 +210,20 @@ describe('PostgresSharedBackend without a database', () => {
       sql.push(q);
       return { rows: [], rowCount: 7 };
     };
-    const b = new PostgresSharedBackend({ pool: { query: behaviour, connect: async () => ({ query: behaviour, release: () => undefined }), end: async () => undefined } as never });
+    const b = new PostgresSharedBackend({
+      pool: {
+        query: behaviour,
+        connect: async () => ({ query: behaviour, release: () => undefined }),
+        end: async () => undefined,
+      } as never,
+    });
     const n = await b.purgeReservations(90 * 86_400_000);
     assert.equal(n, 7);
     const del = sql.find((q) => q.startsWith('DELETE'));
-    assert.ok(del !== undefined && del.includes('settled = true'), 'purge must only touch settled tombstones — pending reservations hold live intents');
+    assert.ok(
+      del !== undefined && del.includes('settled = true'),
+      'purge must only touch settled tombstones — pending reservations hold live intents',
+    );
     assert.ok(del.includes('now()'), 'retention cutoff must be computed on the database clock — replicas skew');
   });
 });

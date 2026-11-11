@@ -7,11 +7,11 @@ sender side.**
 
 Three transports, one shared field-map engine:
 
-| Receiver | Run | Event arrives via |
-|---|---|---|
+| Receiver      | Run                     | Event arrives via                                        |
+| ------------- | ----------------------- | -------------------------------------------------------- |
 | `webhook.mjs` | `npm run start:webhook` | HTTP POST (point your LOS/settlement webhook at `:8090`) |
-| `kafka.mjs` | `npm run start:kafka` | consumer group; offset commits only after mint |
-| `sqs.mjs` | `npm run start:sqs` | long-poll; delete only after mint |
+| `kafka.mjs`   | `npm run start:kafka`   | consumer group; offset commits only after mint           |
+| `sqs.mjs`     | `npm run start:sqs`     | long-poll; delete only after mint                        |
 
 ## Config
 
@@ -31,16 +31,16 @@ Each leaf resolves against the incoming event:
 
 ```json
 {
-  "intentId": "loan.id",                             // dot-path; reuse your own id → retries collapse
-  "kind":     { "const": "LOAN_DISBURSAL" },
+  "intentId": "loan.id", // dot-path; reuse your own id → retries collapse
+  "kind": { "const": "LOAN_DISBURSAL" },
   "amountPaise": "loan.amount_paise",
-  "account":  "beneficiary.account_number",          // raw beneficiary is hashed at gateway entry
-  "ifsc":     "beneficiary.ifsc",
+  "account": "beneficiary.account_number", // raw beneficiary is hashed at gateway entry
+  "ifsc": "beneficiary.ifsc",
   "subjectRef": "loan.id",
-  "maxUses":  { "const": 1 },
-  "ttlMs":    { "const": 86400000 },
+  "maxUses": { "const": 1 },
+  "ttlMs": { "const": 86400000 },
   "notBeforeMs": { "coalesce": ["loan.payable_at", "loan.cooling_end_ms"] },
-  "channel":  { "map": { "imps": "IMPS" }, "from": "loan.rail", "default": "INTERNAL" }
+  "channel": { "map": { "imps": "IMPS" }, "from": "loan.rail", "default": "INTERNAL" }
 }
 ```
 

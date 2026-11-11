@@ -15,9 +15,15 @@ const fw = new Payrekha(rules, {
 
 fw.registerIntent(signedIntentFromLos);
 const v = fw.evaluate({
-  payoutId: 'po-1', kind: 'LOAN_DISBURSAL', intentId: 'loan-88213', amountPaise: 24_000_000,
+  payoutId: 'po-1',
+  kind: 'LOAN_DISBURSAL',
+  intentId: 'loan-88213',
+  amountPaise: 24_000_000,
   beneficiaryRef: hashBeneficiary({ account: '000123456789', ifsc: 'HDFC0001234' }, HASH_KEY),
-  channel: 'IMPS', sourceKeyId: 'lms', origin: 'prod', timestampMs: Date.now(),
+  channel: 'IMPS',
+  sourceKeyId: 'lms',
+  origin: 'prod',
+  timestampMs: Date.now(),
 });
 if (v.effectiveAction !== 'ALLOW') return hold(v);
 ```

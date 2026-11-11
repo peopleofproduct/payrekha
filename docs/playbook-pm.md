@@ -1,8 +1,8 @@
 # PayRekha for product teams — the PM playbook
 
-*For product managers at NBFCs, lenders, payment aggregators and banks who
+_For product managers at NBFCs, lenders, payment aggregators and banks who
 need to answer "why does this thing exist, what does it touch, and what do I
-have to do about it?" — in plain language.*
+have to do about it?" — in plain language._
 
 ---
 
@@ -20,23 +20,23 @@ payouts — no matching intent, no payout."**
 
 ## Why this exists (the product problem, not the security jargon)
 
-Your payout stack is built on a single assumption: *if a call carries a
-valid API key, it must be legitimate.* That assumption fails the day a
+Your payout stack is built on a single assumption: _if a call carries a
+valid API key, it must be legitimate._ That assumption fails the day a
 credential leaks, a vendor laptop is compromised, or a script goes rogue —
-because every downstream system trusts the *caller*, never asks whether the
-*payout itself* was ever decided.
+because every downstream system trusts the _caller_, never asks whether the
+_payout itself_ was ever decided.
 
 The CERT-In advisory for this week describes that exact failure mode: not
 fancy exploits — **attackers inside, using your own APIs correctly**. Your
-API gateway, WAF and IAM all see a valid call. Nobody asks *"was this
-disbursal ever sanctioned?"*
+API gateway, WAF and IAM all see a valid call. Nobody asks _"was this
+disbursal ever sanctioned?"_
 
 PayRekha asks that question. Two keys instead of one:
 
 1. **The intent key** — your LOS / recon engine / withdrawal approver signs
-   a small cryptographic promise: *this loan, this ceiling, this
-   beneficiary, valid until this time.*
-2. **The payout key** — whatever moves the money must *show* a matching
+   a small cryptographic promise: _this loan, this ceiling, this
+   beneficiary, valid until this time._
+2. **The payout key** — whatever moves the money must _show_ a matching
    intent. Stolen key without intent → the payout doesn't pass. Even an
    insider with real production credentials can't move un-sanctioned money.
 
@@ -49,17 +49,17 @@ beneficiaries that make "someone is inside" visible the moment it happens.
 
 Honestly: very little.
 
-| Tier | Engineering effort | What changes for your product |
-|---|---|---|
-| **Kit demo** | ~0 | `npm run kit:<lender\|pa\|psp\|crypto>` — a segment demo with planted attacks, no setup |
-| **Init + console** | ~0 | `npm run init` → shadow stack + `/console` triage UI — the fastest "see it work" |
-| **Replay** | ~0 | Analyst exports a CSV, runs it on a laptop |
-| **Shadow** | ~1 eng-day | Traffic passes through Envoy/NGINX/Kong/Traefik; nothing else changes |
-| **Mint (managed intents)** | 1 API call | LOS calls `POST /v1/intents/mint` at approval time |
-| **SDK-signed intents** | ~10 lines | Your service signs intents itself — strongest posture |
-| **KMS/HSM signing** | same payload, your KMS | Regulated end-state, key never leaves your HSM |
+| Tier                       | Engineering effort     | What changes for your product                                                           |
+| -------------------------- | ---------------------- | --------------------------------------------------------------------------------------- |
+| **Kit demo**               | ~0                     | `npm run kit:<lender\|pa\|psp\|crypto>` — a segment demo with planted attacks, no setup |
+| **Init + console**         | ~0                     | `npm run init` → shadow stack + `/console` triage UI — the fastest "see it work"        |
+| **Replay**                 | ~0                     | Analyst exports a CSV, runs it on a laptop                                              |
+| **Shadow**                 | ~1 eng-day             | Traffic passes through Envoy/NGINX/Kong/Traefik; nothing else changes                   |
+| **Mint (managed intents)** | 1 API call             | LOS calls `POST /v1/intents/mint` at approval time                                      |
+| **SDK-signed intents**     | ~10 lines              | Your service signs intents itself — strongest posture                                   |
+| **KMS/HSM signing**        | same payload, your KMS | Regulated end-state, key never leaves your HSM                                          |
 
-Nothing customer-facing changes until *you* turn on enforcement per payout
+Nothing customer-facing changes until _you_ turn on enforcement per payout
 type. Shadow mode is observability, not a product feature — your users will
 never know it's there until you want them to.
 
@@ -72,7 +72,7 @@ round trip.
 
 **"What about false positives blocking real payouts?"**
 Shadow mode exists precisely for this: it **cannot block** — it only logs
-what it *would* have done. You run it for a week, replay-tune thresholds on
+what it _would_ have done. You run it for a week, replay-tune thresholds on
 your own data, then enforce per payout kind when the false-positive list is
 short enough for your risk appetite.
 
@@ -84,9 +84,9 @@ phones home.
 
 **"Is this a fraud platform?"**
 No — and that's deliberate positioning, not a gap. Feedzai/SEON/Sardine
-*score* transactions; PayRekha *authorizes* them. It accepts upstream risk
+_score_ transactions; PayRekha _authorizes_ them. It accepts upstream risk
 scores as advisory inputs (`riskScore`/`externalVerdict`), so it layers
-*under* whatever you already own instead of competing with it.
+_under_ whatever you already own instead of competing with it.
 
 **"What's the catch / maturity?"**
 Alpha (`0.1.0`). Thresholds are defaults until tuned on your data. There's
@@ -103,7 +103,7 @@ you trust it.
   to enforcement readiness)
 - **False-positive list** — from replay reports; your tuning backlog
 - **Adoption milestone** — which tier you're on this quarter; enforce is a
-  *decision you make*, not a date we set
+  _decision you make_, not a date we set
 
 ## How to brief your leadership in 3 lines
 

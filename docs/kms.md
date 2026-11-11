@@ -2,7 +2,7 @@
 
 The strongest answer to "who can authorise a payout" is: **nobody who
 doesn't hold the issuer key — and the key lives in a KMS.** PayRekha only
-ever stores the *public* key, so a compromised gateway, payout service, or
+ever stores the _public_ key, so a compromised gateway, payout service, or
 connector can never mint intents.
 
 `@payrekha/client/kms` ships zero-dependency adapters; every one plugs
@@ -16,7 +16,7 @@ import { awsKmsSigner } from '@payrekha/client/kms';
 const signer = awsKmsSigner({
   keyId: 'arn:aws:kms:ap-south-1:111122223333:key/…',
   region: 'ap-south-1',
-  credentials: { accessKeyId, secretAccessKey, sessionToken },  // IRSA/env
+  credentials: { accessKeyId, secretAccessKey, sessionToken }, // IRSA/env
 });
 const intent = await signIntentWith(unsignedIntent, signer);
 await client.registerIntent(intent);
@@ -45,7 +45,7 @@ await client.registerIntent(intent);
   the request takes `data` (raw message base64), **not** `digest`.
 - **Auth**: a Bearer token with `cloudkms.asymmetricSign` — from the GCE
   metadata server, Workload Identity, or `gcloud auth application-default
-  print-access-token`. The adapter never handles key material.
+print-access-token`. The adapter never handles key material.
 
 ## PKCS#11 / HSM
 
@@ -86,5 +86,5 @@ local key only in the test.
 - Mint (`/v1/intents/mint`) signs server-side — fine for pilots; the KMS
   path is strictly stronger because the key never touches the gateway.
 - HSM custody/separation-of-duties (CIO approval for key ceremony) is an
-  organisational control — `kits/crypto` shows the m-of-n *technical*
+  organisational control — `kits/crypto` shows the m-of-n _technical_
   maker-checker that complements it.

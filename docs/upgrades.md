@@ -10,7 +10,7 @@ contract, stated before the first bump so it's a commitment not a retrofit:
   are never a manual runbook step; an operator running N+1 on a v1 file
   gets a clean import or a loud boot failure, never silent mis-state.
 - `restoreState` rejects unknown versions with a clear error — a snapshot
-  from a *newer* release fails closed (downgrade path is the rollback
+  from a _newer_ release fails closed (downgrade path is the rollback
   drill below, not blind restore).
 - Signed snapshots verify **before** migration — HMAC over stored bytes;
   a tampered file fails `verifyAndUnwrap` regardless of version.
@@ -23,11 +23,11 @@ contract, stated before the first bump so it's a commitment not a retrofit:
 
 ## RPO / RTO per state backend
 
-| Backend | RPO (state loss on crash) | RTO (back to serving) | Notes |
-|---|---|---|---|
-| `config`-only / memory | Snapshot interval (`PAYREKHA_STATE_INTERVAL_MS`, default 5 s) — reservations/intent-uses since last save re-evaluate; intents themselves restore | Process restart + snapshot load (seconds for ≤ ~50 MB) | Reservations lost post-save are safe — a retry re-evaluates rather than replaying a stale verdict |
-| File snapshot + standby | Same as above + the file must be reachable by the standby (shared volume or object-store copy is your infra) | D2 promotion drill ≈ `kubectl scale` + boot + load — tens of seconds | Standby at replicas 0 by design — a live second writer CAS-fences |
-| Postgres shared (active-active) | Reservations/intent-uses: **≈ commit-time** (they're written at verdict, not at snapshot); heuristic/feed state: snapshot interval; Postgres itself: your PITR/replication | Surviving replicas keep serving — a PG outage fails closed, not down (failure-modes.md) | Commit metrics expose write latency; `commit_ms` drift is the leading indicator |
+| Backend                         | RPO (state loss on crash)                                                                                                                                                  | RTO (back to serving)                                                                   | Notes                                                                                             |
+| ------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------- |
+| `config`-only / memory          | Snapshot interval (`PAYREKHA_STATE_INTERVAL_MS`, default 5 s) — reservations/intent-uses since last save re-evaluate; intents themselves restore                           | Process restart + snapshot load (seconds for ≤ ~50 MB)                                  | Reservations lost post-save are safe — a retry re-evaluates rather than replaying a stale verdict |
+| File snapshot + standby         | Same as above + the file must be reachable by the standby (shared volume or object-store copy is your infra)                                                               | D2 promotion drill ≈ `kubectl scale` + boot + load — tens of seconds                    | Standby at replicas 0 by design — a live second writer CAS-fences                                 |
+| Postgres shared (active-active) | Reservations/intent-uses: **≈ commit-time** (they're written at verdict, not at snapshot); heuristic/feed state: snapshot interval; Postgres itself: your PITR/replication | Surviving replicas keep serving — a PG outage fails closed, not down (failure-modes.md) | Commit metrics expose write latency; `commit_ms` drift is the leading indicator                   |
 
 ## Rolling upgrade + verified rollback — procedure
 
@@ -36,9 +36,10 @@ set — an unsigned snapshot is a weaker restore); decision log shipped to
 SIEM; a known-good payoutId you can re-send as a canary check.
 
 **Upgrade**:
+
 1. Single/standby: upgrade the standby image first, run it against the
    existing snapshot, verify `/readyz` and a shadow evaluate, then
-   promote — then swap the primary. The standby *is* the canary.
+   promote — then swap the primary. The standby _is_ the canary.
 2. Active-active: `RollingUpdate{maxSurge:1, maxUnavailable:0}` — new
    replicas join behind the shared store; the PDB guarantees ≥1 serving
    replica throughout. Watch `payrekha_shared_commits_total` continue
@@ -47,9 +48,10 @@ SIEM; a known-good payoutId you can re-send as a canary check.
    appending, intents intact (`/v1/intents` count vs pre-upgrade).
 
 **Rollback** (the part most DR plans never test):
+
 1. Pin back to the previous image — for single/standby, demote then swap;
    for active-active, `kubectl rollout undo`.
-2. If the new version wrote a *newer-format* snapshot, restore from the
+2. If the new version wrote a _newer-format_ snapshot, restore from the
    **pre-upgrade snapshot copy** (keep one per upgrade — the drill below
    makes this a habit, not a hope).
 3. Verify the same probes; diff `/v1/intents` count and

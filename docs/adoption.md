@@ -1,4 +1,5 @@
 <!-- SPDX-License-Identifier: Apache-2.0 -->
+
 # Adoption ladder — from one API call to HSM-signed intents
 
 PayRekha's guarantee ("no matching intent, no payout") is strongest when the
@@ -8,13 +9,13 @@ verdicts, dedupe and audit trail; what changes between tiers is **who vouches
 for an intent's authenticity**. Move up a tier when the one below proves itself
 on your traffic — never sideways.
 
-| Tier | Integration effort | Who can mint intents | Use for |
-|---|---|---|---|
-| **0 · Observe** | One `POST /v1/evaluate` call or the Envoy `ext_authz` filter. No intents. | — (intent rules off or shadow) | Day one: behavioural rules on real traffic |
-| **1 · Managed** | One extra call: `POST /v1/intents/mint` before each payout. | The PayRekha gateway (holds a mint key) | First enforce-able tier; pilots; low-risk kinds |
-| **2 · SDK-signed** | ~10 lines in Java/Python/Go: hold an Ed25519 key, sign, register. | Your system of record | Most production deployments |
-| **3 · KMS/HSM-signed** | Tier 2 + key never leaves the KMS/HSM. | Your HSM/KMS | Regulated lenders, banking rails |
-| **0-code · Connector** | None on the LOS: it already emits "approved" events. A bridge turns them into mint/register calls. | Connector's key or the gateway mint key | Event-driven stacks (Kafka/SQS/webhooks) |
+| Tier                   | Integration effort                                                                                 | Who can mint intents                    | Use for                                         |
+| ---------------------- | -------------------------------------------------------------------------------------------------- | --------------------------------------- | ----------------------------------------------- |
+| **0 · Observe**        | One `POST /v1/evaluate` call or the Envoy `ext_authz` filter. No intents.                          | — (intent rules off or shadow)          | Day one: behavioural rules on real traffic      |
+| **1 · Managed**        | One extra call: `POST /v1/intents/mint` before each payout.                                        | The PayRekha gateway (holds a mint key) | First enforce-able tier; pilots; low-risk kinds |
+| **2 · SDK-signed**     | ~10 lines in Java/Python/Go: hold an Ed25519 key, sign, register.                                  | Your system of record                   | Most production deployments                     |
+| **3 · KMS/HSM-signed** | Tier 2 + key never leaves the KMS/HSM.                                                             | Your HSM/KMS                            | Regulated lenders, banking rails                |
+| **0-code · Connector** | None on the LOS: it already emits "approved" events. A bridge turns them into mint/register calls. | Connector's key or the gateway mint key | Event-driven stacks (Kafka/SQS/webhooks)        |
 
 ## Tier 1 — managed intents (`/v1/intents/mint`)
 
@@ -58,15 +59,15 @@ POST /v1/evaluate              Authorization: Bearer <evaluate-role key>
 ### When the mint tier is acceptable — and when it isn't
 
 The guarantee "even if they're inside, the money doesn't leave" rests on the
-signing key living in a *different* trust zone from the payout caller. Mint
+signing key living in a _different_ trust zone from the payout caller. Mint
 moves the signing key onto the PayRekha host — the storey collapses to "one
 host must hold" instead of "two keys must collude". Price that honestly:
 
-| Acceptable | Not acceptable |
-|---|---|
-| Shadow/advise ramps and pilots | `enforce` on high-value kinds at scale |
-| Low-value or rate-capped kinds | `VDA_WITHDRAWAL` / crypto withdrawals |
-| Proving the verdict machinery before the LOS team can schedule signing work | Long-running production with no date for Tier 2 |
+| Acceptable                                                                     | Not acceptable                                                |
+| ------------------------------------------------------------------------------ | ------------------------------------------------------------- |
+| Shadow/advise ramps and pilots                                                 | `enforce` on high-value kinds at scale                        |
+| Low-value or rate-capped kinds                                                 | `VDA_WITHDRAWAL` / crypto withdrawals                         |
+| Proving the verdict machinery before the LOS team can schedule signing work    | Long-running production with no date for Tier 2               |
 | Environments where the gateway is better isolated than the LOS (rare — verify) | Anywhere a mint-role key could sit next to an evaluate caller |
 
 If you do run mint, contain it: `mint` on a dedicated role key (never bundled

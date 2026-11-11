@@ -47,7 +47,7 @@ for a shape that is already an intent.
   do not require approvals: a submitted bad approval is evidence, never a
   free pass.
 - `FirewallConfig.requiredApprovals?: Partial<Record<IntentKind, number |
-  ApprovalRequirement>>` — the minimum number of intents the kind must cite,
+ApprovalRequirement>>` — the minimum number of intents the kind must cite,
   **including** the primary. `requiredApprovals: { VDA_WITHDRAWAL: 2 }` = the
   primary intent plus one approval, from two distinct issuers. A bare count
   is sugar for strict enforcement; `ApprovalRequirement` is the stakeholder
@@ -55,10 +55,10 @@ for a shape that is already an intent.
 
   ```ts
   interface ApprovalRequirement {
-    count: number;                          // ≥ 2, primary included
-    onInsufficient?: 'block' | 'review';    // 'review' holds (HOLD) instead
-                                          // of declining — the ramp mode
-    approverIssuers?: readonly string[];    // only these issuers count
+    count: number; // ≥ 2, primary included
+    onInsufficient?: 'block' | 'review'; // 'review' holds (HOLD) instead
+    // of declining — the ramp mode
+    approverIssuers?: readonly string[]; // only these issuers count
   }
   ```
 
@@ -66,21 +66,22 @@ for a shape that is already an intent.
   jamming business flow while approver systems onboard: the safeguard is on,
   insufficiency routes to the maker-checker hold queue instead of a decline.
   `approverIssuers` stops a caller satisfying the count with any registered
-  intent — pin it to the risk desk's keyring so approval means a *separate
-  organisation unit* signed, not just a second signature.
+  intent — pin it to the risk desk's keyring so approval means a _separate
+  organisation unit_ signed, not just a second signature.
+
 - An approval must satisfy the same binding as the primary: signature `ok`,
   `kind` equal, `beneficiaryRef` equal, `maxAmountPaise ≥ amountPaise`,
   inside its validity window — **and** its `issuer` must differ from the
   primary's and from every other cited approval's. Distinct keyIds under one
   issuer is one entity signing twice; the check is on issuer.
 - New `IntentStatus` values on the check result: `approvals-insufficient`
-  (fewer than required — verdict follows `onInsufficient`), 
+  (fewer than required — verdict follows `onInsufficient`),
   `approvals-not-distinct` (repeated issuer — always BLOCK: that is an
   attempted bypass, not a shortfall), and `approvals-invalid` (bad
   signature, kind/beneficiary mismatch, expired, amount-short, consumed or
   unregistered id — always BLOCK: a cited bad approval is evidence).
 - `IntentCheck` gains `approvals: { required, provided, issuers }` for the
-  decision record — auditors can see *who* approved, not just that someone did.
+  decision record — auditors can see _who_ approved, not just that someone did.
 - Reservations bind `payoutId → all cited intentIds`. `reserve` consumes a
   use on each; `release`/`settle` restore all of them. Snapshot rows gain an
   optional `approvalIds` field — snapshots written before this feature load

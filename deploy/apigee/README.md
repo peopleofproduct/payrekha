@@ -1,6 +1,6 @@
 # Apigee — ServiceCallout to /ext_authz
-> **The full step-by-step trial guide: `docs/integrations/apigee.md`** — this file is the config reference.
 
+> **The full step-by-step trial guide: `docs/integrations/apigee.md`** — this file is the config reference.
 
 Apigee has no external-authz primitive; the integration is a
 **ServiceCallout** in the PreFlow that POSTs the request to PayRekha's

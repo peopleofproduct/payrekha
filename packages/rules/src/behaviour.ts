@@ -34,14 +34,25 @@ export function probeRule(o: ProbeOptions = {}): PayoutRule {
       // Same exemption as cooling: the beneficiary was verified for this
       // subject by an earlier VERIFICATION intent, even if the tagged
       // micro itself wasn't the one still in the ledger window.
-      if (ctx.intent.status === 'ok' && ctx.intent.subjectRef !== undefined && ctx.beneficiary?.verifiedSubjects?.includes(ctx.intent.subjectRef) === true) return null;
+      if (
+        ctx.intent.status === 'ok' &&
+        ctx.intent.subjectRef !== undefined &&
+        ctx.beneficiary?.verifiedSubjects?.includes(ctx.intent.subjectRef) === true
+      )
+        return null;
       const high = ctx.alertState === 'HIGH_ALERT';
       return hit(
         'probe.micro-then-large',
         high ? Verdict.Block : Verdict.Review,
         `${rupees(micro.amountPaise)} test transfer ${Math.max(1, Math.round(age / 60_000))} min ago, now ${rupees(p.amountPaise)} to the same account` +
           (micro.verifiedSubject === undefined ? ' (the micro was not a VERIFICATION intent)' : ' (verified for a different subject)'),
-        { microPaise: micro.amountPaise, amountPaise: p.amountPaise, minutesSinceMicro: Math.round(age / 60_000), multiple: Math.round(p.amountPaise / micro.amountPaise), alertState: ctx.alertState },
+        {
+          microPaise: micro.amountPaise,
+          amountPaise: p.amountPaise,
+          minutesSinceMicro: Math.round(age / 60_000),
+          multiple: Math.round(p.amountPaise / micro.amountPaise),
+          alertState: ctx.alertState,
+        },
       );
     },
   };
@@ -80,7 +91,13 @@ export function coolingRule(o: CoolingOptions = {}): PayoutRule {
         'beneficiary.cooling',
         Verdict.Review,
         `Beneficiary first seen ${Math.round(age / 60_000)} min ago; ${rupees(p.amountPaise)} is above the ${rupees(threshold)} cooling threshold`,
-        { minutesSinceFirstSeen: Math.round(age / 60_000), coolingMinutes: Math.round(coolingMs / 60_000), thresholdPaise: threshold, amountPaise: p.amountPaise, alertState: ctx.alertState },
+        {
+          minutesSinceFirstSeen: Math.round(age / 60_000),
+          coolingMinutes: Math.round(coolingMs / 60_000),
+          thresholdPaise: threshold,
+          amountPaise: p.amountPaise,
+          alertState: ctx.alertState,
+        },
       );
     },
   };
@@ -157,8 +174,17 @@ export function velocityRule(o: VelocityOptions = {}): PayoutRule {
         'velocity.outflow',
         block ? Verdict.Block : Verdict.Review,
         `${worst.count} payouts / ${rupees(worst.sum)} from this ${worst.scope} in ${Math.round(windowMs / 60_000)} min; budget ${worst.budgetCount} / ${rupees(worst.budgetSum)}` +
-          (m !== 1 ? ` (${ctx.alertState}: ×${m})` : '') + (block ? ' — above hard cap' : ''),
-        { scope: worst.scope, count: worst.count, sumPaise: worst.sum, budgetCount: worst.budgetCount, budgetSumPaise: worst.budgetSum, multiplier: m, alertState: ctx.alertState },
+          (m !== 1 ? ` (${ctx.alertState}: ×${m})` : '') +
+          (block ? ' — above hard cap' : ''),
+        {
+          scope: worst.scope,
+          count: worst.count,
+          sumPaise: worst.sum,
+          budgetCount: worst.budgetCount,
+          budgetSumPaise: worst.budgetSum,
+          multiplier: m,
+          alertState: ctx.alertState,
+        },
       );
     },
     reset() {
@@ -183,7 +209,11 @@ export function velocityRule(o: VelocityOptions = {}): PayoutRule {
       }
       for (const [k, rows] of st.merchants ?? []) merchantRings.set(k, TimeRing.from(cap(perMerchant), rows));
     },
-    stats: () => ({ trackedKeys: keyRings.size, trackedMerchants: merchantRings.size, evictedKeys: keyRings.evictedCount + merchantRings.evictedCount }),
+    stats: () => ({
+      trackedKeys: keyRings.size,
+      trackedMerchants: merchantRings.size,
+      evictedKeys: keyRings.evictedCount + merchantRings.evictedCount,
+    }),
   };
 }
 
@@ -233,7 +263,13 @@ export function bandRule(o: BandOptions = {}): PayoutRule {
             'amount.band-anomaly',
             Verdict.Review,
             `${rupees(p.amountPaise)} is far above the usual ${p.kind} ${p.channel} band (median ${rupees(Math.round(b.med))})`,
-            { amountPaise: p.amountPaise, medianPaise: Math.round(b.med), madPaise: Math.round(b.mad), robustZ: Math.round(z * 10) / 10, samples: b.ring.length },
+            {
+              amountPaise: p.amountPaise,
+              medianPaise: Math.round(b.med),
+              madPaise: Math.round(b.mad),
+              robustZ: Math.round(z * 10) / 10,
+              samples: b.ring.length,
+            },
           );
         }
       }
@@ -244,7 +280,8 @@ export function bandRule(o: BandOptions = {}): PayoutRule {
     reset: () => bands.clear(),
     exportState: () => [...bands].map(([k, b]) => [k, b.ring.toJSON()]),
     restoreState(s) {
-      for (const [k, rows] of s as [string, [number, number][]][]) bands.set(k, { ring: TimeRing.from(size, rows), med: 0, mad: 0, stale: Number.MAX_SAFE_INTEGER });
+      for (const [k, rows] of s as [string, [number, number][]][])
+        bands.set(k, { ring: TimeRing.from(size, rows), med: 0, mad: 0, stale: Number.MAX_SAFE_INTEGER });
     },
     stats: () => ({ bands: bands.size }),
   };

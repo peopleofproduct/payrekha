@@ -38,10 +38,33 @@ const total = N + WARM;
 const intents = Math.min(total, 50_000);
 for (let i = 0; i < intents; i++)
   fw.registerIntent(
-    signIntent({ intentId: `i-${i}`, kind: 'LOAN_DISBURSAL', maxAmountPaise: 5_00_000_00, beneficiaryRef: refs[i % B], maxUses: 1, notBeforeMs: T0 - 1, expiresAtMs: T0 + 86_400_000 * 30, issuer: 'los', keyId: 'los' }, { alg: 'ed25519', privateKey: los.privateKey }),
+    signIntent(
+      {
+        intentId: `i-${i}`,
+        kind: 'LOAN_DISBURSAL',
+        maxAmountPaise: 5_00_000_00,
+        beneficiaryRef: refs[i % B],
+        maxUses: 1,
+        notBeforeMs: T0 - 1,
+        expiresAtMs: T0 + 86_400_000 * 30,
+        issuer: 'los',
+        keyId: 'los',
+      },
+      { alg: 'ed25519', privateKey: los.privateKey },
+    ),
     T0,
   );
-const p = { payoutId: '', kind: 'LOAN_DISBURSAL', amountPaise: 0, beneficiaryRef: '', intentId: '', channel: 'IMPS', sourceKeyId: 'lms', origin: 'prod', timestampMs: T0 };
+const p = {
+  payoutId: '',
+  kind: 'LOAN_DISBURSAL',
+  amountPaise: 0,
+  beneficiaryRef: '',
+  intentId: '',
+  channel: 'IMPS',
+  sourceKeyId: 'lms',
+  origin: 'prod',
+  timestampMs: T0,
+};
 const lat = new Float64Array(N);
 for (let i = 0; i < total; i++) {
   p.payoutId = `po-${i}`;
@@ -63,14 +86,25 @@ console.log(`  p50 ${r.p50.toFixed(1)} µs   p99 ${r.p99.toFixed(1)} µs   p99.9
 
 if (HTTP > 0) {
   const token = 'bench-api-token-0123456789';
-  const gw = createGateway({ firewall: fw, apiKeys: [{ id: 'lms', origin: 'prod', sha256: createHash('sha256').update(token).digest('hex') }] });
+  const gw = createGateway({
+    firewall: fw,
+    apiKeys: [{ id: 'lms', origin: 'prod', sha256: createHash('sha256').update(token).digest('hex') }],
+  });
   await new Promise((res) => gw.server.listen(0, '127.0.0.1', res));
   const url = `http://127.0.0.1:${gw.server.address().port}/v1/evaluate`;
   const h = new Float64Array(HTTP);
   for (let i = 0; i < HTTP + 200; i++) {
-    const body = JSON.stringify({ payoutId: `h-${i}`, kind: 'REFUND', amountPaise: 1_000_00, beneficiaryRef: refs[i % B], channel: 'IMPS' });
+    const body = JSON.stringify({
+      payoutId: `h-${i}`,
+      kind: 'REFUND',
+      amountPaise: 1_000_00,
+      beneficiaryRef: refs[i % B],
+      channel: 'IMPS',
+    });
     const t = performance.now();
-    await (await fetch(url, { method: 'POST', headers: { authorization: `Bearer ${token}`, 'content-type': 'application/json' }, body })).arrayBuffer();
+    await (
+      await fetch(url, { method: 'POST', headers: { authorization: `Bearer ${token}`, 'content-type': 'application/json' }, body })
+    ).arrayBuffer();
     if (i >= 200) h[i - 200] = performance.now() - t;
   }
   gw.server.close();

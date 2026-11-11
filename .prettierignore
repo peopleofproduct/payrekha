@@ -7,3 +7,6 @@ docs/assets/
 playground/payrekha-web.js
 package-lock.json
 CHANGELOG.md
+
+# Helm chart templates are Go templates, not parseable YAML
+deploy/helm/**/templates/

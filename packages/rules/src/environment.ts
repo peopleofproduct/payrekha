@@ -32,14 +32,23 @@ export function originRule(o: OriginOptions = {}): PayoutRule {
     evaluate(p) {
       const keyHit = keys.has(p.sourceKeyId) || prefixes.some((pre) => p.sourceKeyId.toLowerCase().startsWith(pre));
       if (p.origin === 'nonprod' || keyHit) {
-        return hit('origin.nonprod', Verdict.Block, `Payout came from a non-production ${p.origin === 'nonprod' ? 'network origin' : 'API key'} — UAT/staging can never move real money`, {
-          origin: p.origin,
-          sourceKeyId: p.sourceKeyId,
-          matchedKeyList: keyHit,
-        });
+        return hit(
+          'origin.nonprod',
+          Verdict.Block,
+          `Payout came from a non-production ${p.origin === 'nonprod' ? 'network origin' : 'API key'} — UAT/staging can never move real money`,
+          {
+            origin: p.origin,
+            sourceKeyId: p.sourceKeyId,
+            matchedKeyList: keyHit,
+          },
+        );
       }
       if (p.origin === 'unknown' && o.unknownOrigin === 'review')
-        return hit('origin.nonprod', Verdict.Review, 'Network origin was not tagged by the gateway', { origin: p.origin, sourceKeyId: p.sourceKeyId, matchedKeyList: false });
+        return hit('origin.nonprod', Verdict.Review, 'Network origin was not tagged by the gateway', {
+          origin: p.origin,
+          sourceKeyId: p.sourceKeyId,
+          matchedKeyList: false,
+        });
       return null;
     },
   };
@@ -61,11 +70,16 @@ export function originMismatchRule(o: OriginOptions = {}): PayoutRule {
       if (p.origin !== 'prod' && p.origin !== 'nonprod') return null;
       const expected = declared[p.sourceKeyId];
       if (expected === undefined || expected === p.origin) return null;
-      return hit('origin.mismatch', Verdict.Review, `Caller '${p.sourceKeyId}' is declared ${expected} but arrived on a ${p.origin} origin — environment/key drift`, {
-        sourceKeyId: p.sourceKeyId,
-        expected,
-        actual: p.origin,
-      });
+      return hit(
+        'origin.mismatch',
+        Verdict.Review,
+        `Caller '${p.sourceKeyId}' is declared ${expected} but arrived on a ${p.origin} origin — environment/key drift`,
+        {
+          sourceKeyId: p.sourceKeyId,
+          expected,
+          actual: p.origin,
+        },
+      );
     },
   };
 }
@@ -84,7 +98,13 @@ export function canaryRule(): PayoutRule {
             ? 'intent'
             : null;
       if (which === null) return null;
-      return hit('canary.tripped', Verdict.Block, `Canary ${which} touched — entering HIGH_ALERT`, { canary: which, sourceKeyId: p.sourceKeyId }, 'HIGH_ALERT');
+      return hit(
+        'canary.tripped',
+        Verdict.Block,
+        `Canary ${which} touched — entering HIGH_ALERT`,
+        { canary: which, sourceKeyId: p.sourceKeyId },
+        'HIGH_ALERT',
+      );
     },
   };
 }
@@ -119,7 +139,10 @@ export function fingerprintRule(o: FingerprintOptions = {}): PayoutRule {
       const enrolled = seen.get(p.sourceKeyId);
       if (enrolled === undefined) {
         seen.set(p.sourceKeyId, p.sourceHint);
-        return hit('identity.fingerprint', Verdict.Allow, 'First source hint enrolled for this API key', { sourceKeyId: p.sourceKeyId, enrolled: true });
+        return hit('identity.fingerprint', Verdict.Allow, 'First source hint enrolled for this API key', {
+          sourceKeyId: p.sourceKeyId,
+          enrolled: true,
+        });
       }
       if (enrolled === p.sourceHint) return null;
       seen.set(p.sourceKeyId, p.sourceHint);
@@ -146,10 +169,15 @@ export function attestationRule(o: { readonly requireAttestation?: readonly Inte
     name: 'client.unattested',
     evaluate(p) {
       if (!kinds.has(p.kind) || p.clientAttested === true) return null;
-      return hit('client.unattested', Verdict.Review, `${p.kind} needs an attested client; this call ${p.clientAttested === false ? 'failed' : 'carried no'} attestation`, {
-        kind: p.kind,
-        clientAttested: p.clientAttested === undefined ? 'absent' : String(p.clientAttested),
-      });
+      return hit(
+        'client.unattested',
+        Verdict.Review,
+        `${p.kind} needs an attested client; this call ${p.clientAttested === false ? 'failed' : 'carried no'} attestation`,
+        {
+          kind: p.kind,
+          clientAttested: p.clientAttested === undefined ? 'absent' : String(p.clientAttested),
+        },
+      );
     },
   };
 }
@@ -164,13 +192,18 @@ export function calendarRule(): PayoutRule {
     evaluate(_p, ctx) {
       const w = ctx.calendarWindow;
       if (w === null || ctx.alertState === 'HIGH_ALERT') return null;
-      return hit('calendar.window', Verdict.Allow, `${w.kind === 'holiday' ? w.label : w.kind === 'weekend' ? `Weekend (${w.label})` : `Low-coverage hours (${w.label})`}: thresholds tightened`, {
-        window: w.kind,
-        label: w.label,
-        istDate: w.istDate,
-        velocityMultiplier: ctx.multipliers.velocity,
-        coolingMultiplier: ctx.multipliers.coolingAmount,
-      });
+      return hit(
+        'calendar.window',
+        Verdict.Allow,
+        `${w.kind === 'holiday' ? w.label : w.kind === 'weekend' ? `Weekend (${w.label})` : `Low-coverage hours (${w.label})`}: thresholds tightened`,
+        {
+          window: w.kind,
+          label: w.label,
+          istDate: w.istDate,
+          velocityMultiplier: ctx.multipliers.velocity,
+          coolingMultiplier: ctx.multipliers.coolingAmount,
+        },
+      );
     },
   };
 }

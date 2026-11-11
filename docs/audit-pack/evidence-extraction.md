@@ -57,6 +57,6 @@ jq -r 'select(.type=="audit" and (.action|startswith("alert"))) | [.ts,.action,.
 ```
 
 CERT-In wants the format in their incident-reporting guidelines — this
-produces the *content*; `docs/runbook.md` covers the filing steps and
+produces the _content_; `docs/runbook.md` covers the filing steps and
 timelines. Always extract from the SIEM copy too and diff counts: two
 independent log copies is a materially stronger attestation.

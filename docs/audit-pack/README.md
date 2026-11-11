@@ -8,19 +8,19 @@ an audit than a stretched claim.
 
 ## The checklist
 
-| Auditor asks | Answer lives in |
-|---|---|
-| What does this system do, what is its threat model? | `../threat-model.md` — assumptions, attacker capabilities, hardening |
-| Which external obligations does it address? | `control-matrix.md` — CERT-In CIAD-2026-0058 rows → control → code → test |
-| What fails how? | `../failure-modes.md` — every failure mode → metric → drill |
-| Who can call what? | `access-model.md` — API-key roles, admin auth, origin pinning |
-| What does the audit trail look like, and can it be tampered with? | `decision-log-schema.md` — record schema, integrity story, retention guidance |
-| Prove failover/incident controls actually work | `../drills.md` + `drill-evidence-template.md` — run each drill, attach results |
-| How is the software itself built/released? | `../repository-settings.md` — signed commits, pinned CI, provenance, cosign/SBOM |
-| Where do keys live? | `../kms.md` — HSM/KMS signing options; issuer key model |
-| Capacity/scale evidence? | `../capacity-envelope.md` — measured envelope, sharding trigger |
-| What must WE (the deployer) still do? | `control-matrix.md` §"operator responsibilities" — the declared exclusion list |
-| How do we extract evidence for a CERT-In/I4C report? | `../runbook.md` incident section + `evidence-extraction.md` — copy-paste jq |
+| Auditor asks                                                      | Answer lives in                                                                  |
+| ----------------------------------------------------------------- | -------------------------------------------------------------------------------- |
+| What does this system do, what is its threat model?               | `../threat-model.md` — assumptions, attacker capabilities, hardening             |
+| Which external obligations does it address?                       | `control-matrix.md` — CERT-In CIAD-2026-0058 rows → control → code → test        |
+| What fails how?                                                   | `../failure-modes.md` — every failure mode → metric → drill                      |
+| Who can call what?                                                | `access-model.md` — API-key roles, admin auth, origin pinning                    |
+| What does the audit trail look like, and can it be tampered with? | `decision-log-schema.md` — record schema, integrity story, retention guidance    |
+| Prove failover/incident controls actually work                    | `../drills.md` + `drill-evidence-template.md` — run each drill, attach results   |
+| How is the software itself built/released?                        | `../repository-settings.md` — signed commits, pinned CI, provenance, cosign/SBOM |
+| Where do keys live?                                               | `../kms.md` — HSM/KMS signing options; issuer key model                          |
+| Capacity/scale evidence?                                          | `../capacity-envelope.md` — measured envelope, sharding trigger                  |
+| What must WE (the deployer) still do?                             | `control-matrix.md` §"operator responsibilities" — the declared exclusion list   |
+| How do we extract evidence for a CERT-In/I4C report?              | `../runbook.md` incident section + `evidence-extraction.md` — copy-paste jq      |
 
 ## The two-minute orientation for an auditor
 

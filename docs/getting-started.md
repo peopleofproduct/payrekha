@@ -27,8 +27,15 @@ npm run replay -- --payouts ledger.csv --map map.json --out out/
 `map.json` maps PayRekha fields to your columns:
 
 ```json
-{ "payoutId": "txn_ref", "kind": "product", "amountRupees": "amount", "timestamp": "created_at",
-  "account": "bene_acct", "ifsc": "bene_ifsc", "sourceKeyId": "api_client" }
+{
+  "payoutId": "txn_ref",
+  "kind": "product",
+  "amountRupees": "amount",
+  "timestamp": "created_at",
+  "account": "bene_acct",
+  "ifsc": "bene_ifsc",
+  "sourceKeyId": "api_client"
+}
 ```
 
 Bare timestamps such as `2026-10-12 02:10:00` are read as IST. Amounts in rupees with up to two decimals are converted to paise exactly. Each run hashes the beneficiaries with a throwaway key, so the report never shows a raw account number.
@@ -43,7 +50,7 @@ npm run replay -- --payouts examples/data/payouts.csv --intents examples/data/in
 
 ## 2. Shadow behind Envoy (no code change)
 
-Put Envoy's `ext_authz` filter in front of your payout API and point it at PayRekha. In `shadow` (the default), PayRekha always answers 200 and the payout goes through unchanged. Every verdict it *would* have given is logged. See [integrations/envoy.md](integrations/envoy.md).
+Put Envoy's `ext_authz` filter in front of your payout API and point it at PayRekha. In `shadow` (the default), PayRekha always answers 200 and the payout goes through unchanged. Every verdict it _would_ have given is logged. See [integrations/envoy.md](integrations/envoy.md).
 
 ```bash
 docker compose -f deploy/docker-compose.yml up --build

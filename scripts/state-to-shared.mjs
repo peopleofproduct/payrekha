@@ -56,39 +56,57 @@ try {
 } catch (e) {
   die(`snapshot signature rejected: ${e instanceof Error ? e.message : String(e)}`);
 }
-if (snap === null || typeof snap !== 'object' || snap.intents === null || typeof snap.intents !== 'object') die('snapshot is missing the intents block — not a FirewallSnapshot?');
+if (snap === null || typeof snap !== 'object' || snap.intents === null || typeof snap.intents !== 'object')
+  die('snapshot is missing the intents block — not a FirewallSnapshot?');
 
 const intents = Array.isArray(snap.intents.intents) ? snap.intents.intents : [];
 const reservations = Array.isArray(snap.intents.reservations) ? snap.intents.reservations : [];
 const settled = reservations.filter(([, r]) => r?.settled === true).length;
 
 console.log(`snapshot ${file}: ${intents.length} intents, ${reservations.length} reservations (${settled} settled tombstones)`);
-console.log(`control: mode=${String(snap.mode)} highAlert=${snap.highAlert === null || snap.highAlert === undefined ? 'none' : 'ACTIVE'} revoked=${(snap.issuers?.revoked ?? []).length} keyIds modeByKind=${Object.keys(snap.modeByKind ?? {}).length} kinds`);
+console.log(
+  `control: mode=${String(snap.mode)} highAlert=${snap.highAlert === null || snap.highAlert === undefined ? 'none' : 'ACTIVE'} revoked=${(snap.issuers?.revoked ?? []).length} keyIds modeByKind=${Object.keys(snap.modeByKind ?? {}).length} kinds`,
+);
 if (dryRun) {
   console.log('dry run — nothing written.');
   process.exit(0);
 }
 
-const backend = flag('--memory') ? new MemorySharedBackend() : new PostgresSharedBackend({ connectionString: pgUrl, tablePrefix: process.env['PAYREKHA_SHARED_PG_PREFIX'] });
+const backend = flag('--memory')
+  ? new MemorySharedBackend()
+  : new PostgresSharedBackend({ connectionString: pgUrl, tablePrefix: process.env['PAYREKHA_SHARED_PG_PREFIX'] });
 
 // Imported tombstones carry REVIEW, not the original verdict: a retry holds
 // for review instead of replaying a synthesized ALLOW into a second payout.
-const importedVerdict = { verdict: 'REVIEW', reasons: [{ rule: 'cutover-import', message: 'reservation imported at active-active cutover — original verdict was not retained in the snapshot' }], imported: true };
+const importedVerdict = {
+  verdict: 'REVIEW',
+  reasons: [
+    {
+      rule: 'cutover-import',
+      message: 'reservation imported at active-active cutover — original verdict was not retained in the snapshot',
+    },
+  ],
+  imported: true,
+};
 
 let done = 0;
 try {
   for (const rec of intents) {
-    if (rec === null || typeof rec !== 'object' || typeof rec.intent !== 'object' || rec.intent === null) die('malformed intent record in snapshot');
-    if (typeof rec.uses !== 'number' || typeof rec.usedPaise !== 'number') die(`intent '${String(rec.intent.intentId)}' has malformed counters`);
+    if (rec === null || typeof rec !== 'object' || typeof rec.intent !== 'object' || rec.intent === null)
+      die('malformed intent record in snapshot');
+    if (typeof rec.uses !== 'number' || typeof rec.usedPaise !== 'number')
+      die(`intent '${String(rec.intent.intentId)}' has malformed counters`);
     await backend.importIntent({ intent: rec.intent, uses: rec.uses, usedPaise: rec.usedPaise });
     done += 1;
   }
   console.log(`imported ${done}/${intents.length} intents`);
   done = 0;
   for (const pair of reservations) {
-    if (!Array.isArray(pair) || pair.length !== 2 || typeof pair[0] !== 'string' || pair[1] === null || typeof pair[1] !== 'object') die('malformed reservation row in snapshot');
+    if (!Array.isArray(pair) || pair.length !== 2 || typeof pair[0] !== 'string' || pair[1] === null || typeof pair[1] !== 'object')
+      die('malformed reservation row in snapshot');
     const [payoutId, r] = pair;
-    if (typeof r.intentId !== 'string' || typeof r.amountPaise !== 'number') die(`reservation '${payoutId.slice(0, 12)}…' is missing intentId/amountPaise`);
+    if (typeof r.intentId !== 'string' || typeof r.amountPaise !== 'number')
+      die(`reservation '${payoutId.slice(0, 12)}…' is missing intentId/amountPaise`);
     await backend.importReservation({
       payoutId,
       sourceKeyId: typeof r.sourceKeyId === 'string' ? r.sourceKeyId : '',

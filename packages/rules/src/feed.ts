@@ -96,12 +96,17 @@ export function feedRule(feed: FraudFeed, o: FeedRuleOptions = {}): PayoutRule {
       if (e === undefined) return null;
       const lvl = BANDS.indexOf(e.band);
       if (lvl < reviewAt) return null;
-      return hit('feed.reputation', lvl >= blockAt ? Verdict.Block : Verdict.Review, `Beneficiary ${matched === 'mobile' ? 'mobile ' : ''}is ${e.band} risk on the ${e.source} feed snapshot`, {
-        band: e.band,
-        source: e.source,
-        matched,
-        snapshotAgeMinutes: Math.round((p.timestampMs - feed.loadedAtMs) / 60_000),
-      });
+      return hit(
+        'feed.reputation',
+        lvl >= blockAt ? Verdict.Block : Verdict.Review,
+        `Beneficiary ${matched === 'mobile' ? 'mobile ' : ''}is ${e.band} risk on the ${e.source} feed snapshot`,
+        {
+          band: e.band,
+          source: e.source,
+          matched,
+          snapshotAgeMinutes: Math.round((p.timestampMs - feed.loadedAtMs) / 60_000),
+        },
+      );
     },
     stats: () => ({ feedEntries: feed.size }),
   };

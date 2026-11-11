@@ -50,7 +50,9 @@ async function payout({ amountPaise, beneficiary, intentId, attack, shadow, kind
   }
   const v = verdict ?? upstream?.payrekha ?? '?';
   const vc = v === 'ALLOW' ? green : v === 'BLOCK' ? red : yellow;
-  console.log(`   POST /payouts → ${r.status === 200 ? green('200') : red(String(r.status))}  ${sent ? (attack || shadow ? red(shadow ? 'money SENT (shadow lets it through, verdict logged)' : 'money SENT') : green('money SENT')) : green('money held')}`);
+  console.log(
+    `   POST /payouts → ${r.status === 200 ? green('200') : red(String(r.status))}  ${sent ? (attack || shadow ? red(shadow ? 'money SENT (shadow lets it through, verdict logged)' : 'money SENT') : green('money SENT')) : green('money held')}`,
+  );
   console.log(`   PayRekha verdict ${vc(bold(v))}${rules && rules !== '-' ? `  rules: ${rules}` : ''}`);
 }
 
@@ -83,7 +85,10 @@ await admin({ mode: 'shadow', reason: 'demo start' });
 console.log(bold('\nPayRekha live — Envoy guarding a payout API, no code change in the API'));
 console.log(dim(`   envoy ${ENVOY} · payrekha ${PR} · run ${run}`));
 
-await step('Shadow mode: attacker with the stolen LMS credential, no intent', 'Day 1 posture. Nothing is stopped; every would-be verdict is logged.');
+await step(
+  'Shadow mode: attacker with the stolen LMS credential, no intent',
+  'Day 1 posture. Nothing is stopped; every would-be verdict is logged.',
+);
 await payout({ amountPaise: 4_80_000_00, beneficiary: mule, shadow: true });
 
 await step('Security flips the gateway to enforce', 'One authenticated admin call, recorded in the audit trail.');
@@ -93,18 +98,34 @@ console.log(`   mode → ${bold(s.mode)}`);
 await step('Same attacker, same stolen credential, ₹4,80,000 to a mule', 'The credential is valid. The intent is missing.');
 await payout({ amountPaise: 4_80_000_00, beneficiary: mule, attack: true });
 
-await step('The LOS signs a business intent for a real ₹2,40,000 loan', 'Ed25519 key held by the system of record — the attacker does not have it.');
+await step(
+  'The LOS signs a business intent for a real ₹2,40,000 loan',
+  'Ed25519 key held by the system of record — the attacker does not have it.',
+);
 const now = Date.now();
 const intent = signIntent(
   {
-    intentId: `disb-${run}`, kind: 'LOAN_DISBURSAL', maxAmountPaise: 2_40_000_00, maxUses: 1,
+    intentId: `disb-${run}`,
+    kind: 'LOAN_DISBURSAL',
+    maxAmountPaise: 2_40_000_00,
+    maxUses: 1,
     beneficiaryRef: hashBeneficiary({ account: borrower.account_number, ifsc: borrower.ifsc }, HASH_KEY),
-    subjectRef: `loan-${run}`, issuer: 'los-demo', keyId: 'los-demo', notBeforeMs: now - 60_000, expiresAtMs: now + 3_600_000,
+    subjectRef: `loan-${run}`,
+    issuer: 'los-demo',
+    keyId: 'los-demo',
+    notBeforeMs: now - 60_000,
+    expiresAtMs: now + 3_600_000,
   },
   { alg: 'ed25519', privateKey: LOS },
 );
-const reg = await fetch(`${PR}/v1/intents`, { method: 'POST', headers: { authorization: `Bearer ${API}`, 'content-type': 'application/json' }, body: JSON.stringify(intent) });
-console.log(`   POST /v1/intents → ${reg.status === 201 ? green('201 accepted') : red(`${reg.status} ${await reg.text()}`)}  ${dim(intent.intentId)}`);
+const reg = await fetch(`${PR}/v1/intents`, {
+  method: 'POST',
+  headers: { authorization: `Bearer ${API}`, 'content-type': 'application/json' },
+  body: JSON.stringify(intent),
+});
+console.log(
+  `   POST /v1/intents → ${reg.status === 201 ? green('201 accepted') : red(`${reg.status} ${await reg.text()}`)}  ${dim(intent.intentId)}`,
+);
 
 await step('The legitimate disbursal presents that intent', 'Matching kind, amount ceiling and beneficiary: it goes through.');
 await payout({ amountPaise: 2_40_000_00, beneficiary: borrower, intentId: intent.intentId, attack: false });
@@ -117,11 +138,14 @@ await payout({ raw: JSON.stringify({ request_id: `${run}-bad`, amount_in_paise: 
 
 await step('What the SOC sees', 'Prometheus counters on :8080/metrics (also scraped by Prometheus on :9090).');
 const m = await (await fetch(`${PR}/metrics`, { headers: { authorization: `Bearer ${API}` } })).text();
-for (const l of m.split('\n')) if (/^payrekha_(verdicts_total|effective_actions_total|rule_hits_total)\{/.test(l)) console.log(dim(`   ${l}`));
+for (const l of m.split('\n'))
+  if (/^payrekha_(verdicts_total|effective_actions_total|rule_hits_total)\{/.test(l)) console.log(dim(`   ${l}`));
 console.log(dim('   decision log: docker compose -f deploy/docker-compose.yml exec payrekha tail -n 5 /var/lib/payrekha/decisions.jsonl'));
 
 await admin({ mode: 'shadow', reason: 'demo end' });
-console.log(`\n${bold(`Attacks attempted: ₹${(attempted / 100).toLocaleString('en-IN')}. ${leaked === 0 ? green('₹0 left the building.') : red(`₹${(leaked / 100).toLocaleString('en-IN')} left the building.`)}`)}`);
+console.log(
+  `\n${bold(`Attacks attempted: ₹${(attempted / 100).toLocaleString('en-IN')}. ${leaked === 0 ? green('₹0 left the building.') : red(`₹${(leaked / 100).toLocaleString('en-IN')} left the building.`)}`)}`,
+);
 console.log(dim('   gateway set back to shadow mode'));
 rl?.close();
 process.exitCode = leaked === 0 ? 0 : 1;

@@ -45,7 +45,10 @@ test('pa-settlement map: template id + coalesce notBeforeMs', () => {
   assert.equal(body.amountPaise, 1234500);
   assert.equal(body.notBeforeMs, 1793853000000);
   // second coalesce leg when payable_at is absent
-  const ev2 = { settlement: { cycle_id: 'c', net_paise: 1, cycle_end_ms: 42 }, merchant: { id: 'm', settlement_account: '123456', settlement_ifsc: 'ICIC0000001' } };
+  const ev2 = {
+    settlement: { cycle_id: 'c', net_paise: 1, cycle_end_ms: 42 },
+    merchant: { id: 'm', settlement_account: '123456', settlement_ifsc: 'ICIC0000001' },
+  };
   assert.equal(applyFieldMap(paMap, ev2).notBeforeMs, 42);
 });
 

@@ -1,7 +1,8 @@
 <!-- SPDX-License-Identifier: Apache-2.0 -->
+
 # Drills — evidence the failure modes actually work
 
-For *what* each failure looks like and which metric fires, see
+For _what_ each failure looks like and which metric fires, see
 `docs/failure-modes.md` — every drill below proves a row in that matrix.
 
 Checklists don't catch broken failover; drills do. Run each at least once
@@ -9,17 +10,17 @@ before enforce, then on a schedule (crash/restore monthly, failover and
 issuer-compromise quarterly). Every drill has a **pass criterion** — record
 the date + result in your ops log.
 
-| # | Drill | Automatable | Pass criterion |
-|---|---|---|---|
-| D1 | Kill -9 during save | `scripts/drill-crash.mjs` | Every restart: `/readyz` 200, state restored |
-| D2 | Postgres standby promotion | Manual | Standby ready ≤ 60 s, serves *restored* state |
-| D3 | Second writer fenced | Manual | Writer B goes unready; writer A unaffected |
-| D4 | Compromised issuer key | `curl` + tabletop | Revoke → live intents dead ≤ 5 s, audited |
-| D5 | Snapshot-key rotation | Manual | Old snapshot loads, next save under new key |
-| D6 | HIGH_ALERT reset | `curl` | Verdicts resume; audit shows actor+reason |
-| D7 | SIEM delivery | Manual | One decision + one audit line parse in SIEM |
-| D8 | Active-active invariants | `scripts/drill-shared-state.mjs` | Exactly-one spend, stored verdicts, fail-closed outage, revocation reach |
-| D9 | Active-active cutover | `scripts/state-to-shared.mjs` (manual) | Imported counters continue, old payoutIds replay REVIEW, no `uses` conflicts |
+| #   | Drill                      | Automatable                            | Pass criterion                                                               |
+| --- | -------------------------- | -------------------------------------- | ---------------------------------------------------------------------------- |
+| D1  | Kill -9 during save        | `scripts/drill-crash.mjs`              | Every restart: `/readyz` 200, state restored                                 |
+| D2  | Postgres standby promotion | Manual                                 | Standby ready ≤ 60 s, serves _restored_ state                                |
+| D3  | Second writer fenced       | Manual                                 | Writer B goes unready; writer A unaffected                                   |
+| D4  | Compromised issuer key     | `curl` + tabletop                      | Revoke → live intents dead ≤ 5 s, audited                                    |
+| D5  | Snapshot-key rotation      | Manual                                 | Old snapshot loads, next save under new key                                  |
+| D6  | HIGH_ALERT reset           | `curl`                                 | Verdicts resume; audit shows actor+reason                                    |
+| D7  | SIEM delivery              | Manual                                 | One decision + one audit line parse in SIEM                                  |
+| D8  | Active-active invariants   | `scripts/drill-shared-state.mjs`       | Exactly-one spend, stored verdicts, fail-closed outage, revocation reach     |
+| D9  | Active-active cutover      | `scripts/state-to-shared.mjs` (manual) | Imported counters continue, old payoutIds replay REVIEW, no `uses` conflicts |
 
 ## D1 — kill -9 during save (automated)
 
@@ -46,7 +47,7 @@ persisted reservation, not a fresh decision.
 
 ## D3 — second writer fencing
 
-1. With the active running, boot a *second* instance on the same
+1. With the active running, boot a _second_ instance on the same
    `PAYREKHA_STATE_NAME`/file.
 2. Wait for both to attempt a save.
 
@@ -75,7 +76,7 @@ keyId is a tombstone, never reused.
 3. After one save interval, remove `PAYREKHA_STATE_KEY_PREVIOUS`; restart again.
 
 **Pass:** both restarts ready; step 3 loads the snapshot written under the new
-key. Negative check (do it on dev): `PAYREKHA_STATE_KEY` changed *without*
+key. Negative check (do it on dev): `PAYREKHA_STATE_KEY` changed _without_
 `..._PREVIOUS` → the service stays unready rather than silently starting
 empty — that is the fail-closed behaviour working.
 

@@ -7,7 +7,11 @@ import { Buffer } from 'buffer';
 const origToString = Buffer.prototype.toString;
 Buffer.prototype.toString = function (enc, ...rest) {
   if (enc === 'base64url') {
-    return origToString.call(this, 'base64', ...rest).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
+    return origToString
+      .call(this, 'base64', ...rest)
+      .replace(/\+/g, '-')
+      .replace(/\//g, '_')
+      .replace(/=+$/, '');
   }
   return origToString.call(this, enc, ...rest);
 };

@@ -8,7 +8,7 @@ The default payout rule chain for [PayRekha](https://github.com/peopleofproduct/
 import { payrekhaRules } from '@payrekha/rules';
 import { Payrekha } from '@payrekha/core';
 
-const { rules, feed } = payrekhaRules({ velocity: { /* budgets */ }, external: { reviewScore: 0.7 } });
+const { rules, feed } = payrekhaRules({ velocity: {/* budgets */}, external: { reviewScore: 0.7 } });
 const fw = new Payrekha(rules, { config: { mode: 'shadow' } });
 ```
 

@@ -12,11 +12,11 @@ Security fixes ship as GitHub Security Advisories on the repo — CVE requested 
 
 ## Supported versions
 
-| Version | Supported | Until |
-|---|---|---|
-| 0.1.x (alpha) | Yes — security fixes on the latest alpha tag | superseded by 0.2/1.0 |
-| 1.x (once GA) | Latest minor + previous minor | previous minor drops 90 days after the next ships |
-| < 0.1 | No | — |
+| Version       | Supported                                    | Until                                             |
+| ------------- | -------------------------------------------- | ------------------------------------------------- |
+| 0.1.x (alpha) | Yes — security fixes on the latest alpha tag | superseded by 0.2/1.0                             |
+| 1.x (once GA) | Latest minor + previous minor                | previous minor drops 90 days after the next ships |
+| < 0.1         | No                                           | —                                                 |
 
 ## Semver & deprecation contract (effective at 1.0; alpha already follows it)
 

@@ -16,11 +16,11 @@ Docker labels on your payout service:
 
 ```yaml
 labels:
-  traefik.http.middlewares.payrekha.forwardauth.address: "http://payrekha:8080/ext_authz"
-  traefik.http.middlewares.payrekha.forwardauth.authResponseHeaders: "x-payrekha-verdict,x-payrekha-action,x-payrekha-decision-id,x-payrekha-rules"
-  traefik.http.middlewares.payrekha.forwardauth.authRequestHeaders: "authorization,x-client-id,x-forwarded-for"
-  traefik.http.middlewares.payrekha.forwardauth.trustForwardHeader: "true"
-  traefik.http.routers.payouts.middlewares: "payrekha"
+  traefik.http.middlewares.payrekha.forwardauth.address: 'http://payrekha:8080/ext_authz'
+  traefik.http.middlewares.payrekha.forwardauth.authResponseHeaders: 'x-payrekha-verdict,x-payrekha-action,x-payrekha-decision-id,x-payrekha-rules'
+  traefik.http.middlewares.payrekha.forwardauth.authRequestHeaders: 'authorization,x-client-id,x-forwarded-for'
+  traefik.http.middlewares.payrekha.forwardauth.trustForwardHeader: 'true'
+  traefik.http.routers.payouts.middlewares: 'payrekha'
 ```
 
 (File provider: the static-YAML version is in `deploy/traefik/README.md`.)

@@ -14,7 +14,14 @@
 import { createHash } from 'node:crypto';
 import { performance } from 'node:perf_hooks';
 import { clearImmediate, setImmediate } from 'node:timers';
-import { ed25519PrivateKeyFromSeed, exportPublicKey, hashBeneficiary, Payrekha, serializeSnapshot, signIntent } from '../packages/core/dist/index.js';
+import {
+  ed25519PrivateKeyFromSeed,
+  exportPublicKey,
+  hashBeneficiary,
+  Payrekha,
+  serializeSnapshot,
+  signIntent,
+} from '../packages/core/dist/index.js';
 import { payrekhaRules } from '../packages/rules/dist/index.js';
 
 const arg = (name, dflt) => {
@@ -51,7 +58,17 @@ for (let i = 0; i < INTENTS; i++) {
   const kind = i % 3 === 0 ? 'LOAN_DISBURSAL' : i % 3 === 1 ? 'VENDOR_PAYOUT' : 'REFUND';
   fw.registerIntent(
     signIntent(
-      { intentId: `seed-${i}`, kind, maxAmountPaise: 5_000_000_00, beneficiaryRef: benRefs[i % BENS], maxUses: 3, notBeforeMs: T0 - 1_000, expiresAtMs: T0 + 3_600_000, issuer: 'los-prod', keyId: 'los-1' },
+      {
+        intentId: `seed-${i}`,
+        kind,
+        maxAmountPaise: 5_000_000_00,
+        beneficiaryRef: benRefs[i % BENS],
+        maxUses: 3,
+        notBeforeMs: T0 - 1_000,
+        expiresAtMs: T0 + 3_600_000,
+        issuer: 'los-prod',
+        keyId: 'los-1',
+      },
       { alg: 'ed25519', privateKey: LOS },
     ),
   );
@@ -71,7 +88,9 @@ for (let i = 0; i < BENS; i++) {
     timestampMs: Date.now(),
   });
 }
-log(`seeded in ${((performance.now() - tSeed) / 1000).toFixed(1)}s — intents ${fw.metrics.intents}, beneficiaries ${fw.metrics.beneficiaries}`);
+log(
+  `seeded in ${((performance.now() - tSeed) / 1000).toFixed(1)}s — intents ${fw.metrics.intents}, beneficiaries ${fw.metrics.beneficiaries}`,
+);
 const heapAfterSeed = process.memoryUsage().heapUsed;
 
 // ---- Phase B: measured evaluation ------------------------------------------
@@ -154,17 +173,30 @@ const report = {
   memory: { heapAfterSeedMB: +(heapAfterSeed / 1048576).toFixed(1), heapAfterRunMB: +(heapEnd / 1048576).toFixed(1) },
   verdict: {
     evalP99ok: pct(used, 0.99) < 5_000 ? 'ok (<5ms)' : 'WATCH: p99 >5ms',
-    snapshotStall: stall.exportMs < 250 ? 'ok — export is the only sync pause; serialization is sliced' : 'INVESTIGATE: exportState() alone exceeds the bound — shard or reduce state',
+    snapshotStall:
+      stall.exportMs < 250
+        ? 'ok — export is the only sync pause; serialization is sliced'
+        : 'INVESTIGATE: exportState() alone exceeds the bound — shard or reduce state',
   },
 };
 
 if (JSON_OUT) {
   console.log(JSON.stringify(report, null, 2));
 } else {
-  console.log(`\nevaluate: ${n} calls @ ~${rps} rps   p50 ${report.evaluate.p50_us}µs  p95 ${report.evaluate.p95_us}µs  p99 ${report.evaluate.p99_us}µs  max ${report.evaluate.max_us}µs`);
-  console.log(`snapshot: ${(bytes / 1048576).toFixed(1)} MB   export ${stall.exportMs.toFixed(1)}ms (sync stall) + serialize ${stall.serializeMs.toFixed(1)}ms (sliced; worst loop gap ${stall.maxLoopGapMs.toFixed(1)}ms)`);
+  console.log(
+    `\nevaluate: ${n} calls @ ~${rps} rps   p50 ${report.evaluate.p50_us}µs  p95 ${report.evaluate.p95_us}µs  p99 ${report.evaluate.p99_us}µs  max ${report.evaluate.max_us}µs`,
+  );
+  console.log(
+    `snapshot: ${(bytes / 1048576).toFixed(1)} MB   export ${stall.exportMs.toFixed(1)}ms (sync stall) + serialize ${stall.serializeMs.toFixed(1)}ms (sliced; worst loop gap ${stall.maxLoopGapMs.toFixed(1)}ms)`,
+  );
   console.log(`heap:     ${report.memory.heapAfterSeedMB} MB after seed → ${report.memory.heapAfterRunMB} MB after run`);
-  console.log(`top hits: ${Object.entries(report.evaluate.hits).map(([k, v]) => `${k}×${v}`).join('  ') || 'none'}`);
+  console.log(
+    `top hits: ${
+      Object.entries(report.evaluate.hits)
+        .map(([k, v]) => `${k}×${v}`)
+        .join('  ') || 'none'
+    }`,
+  );
   console.log(`\nverdict:  eval p99 — ${report.verdict.evalP99ok}`);
   console.log(`          snapshot — ${report.verdict.snapshotStall}`);
 }

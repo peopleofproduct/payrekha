@@ -13,12 +13,12 @@ Normal cycles pass clean.
 
 ## Preset rationale
 
-| Rule | Setting | Why |
-|---|---|---|
-| `requireIntent` | PA_SETTLEMENT only | settlement engine signs every cycle payout |
-| `merchantAccount` | `settleWindowMs: 24h` | same-day settle to a changed account is THE takeover shape for PAs (advisory's core scenario) |
-| `velocity` | settlement-svc 500/₹500cr per 10 min | batches are bursty by design — sized ~2× the biggest observed batch |
-| `cooling` | 2 h, ≥ ₹1 lakh | settlement recipients are known accounts; new ones cool |
+| Rule              | Setting                              | Why                                                                                           |
+| ----------------- | ------------------------------------ | --------------------------------------------------------------------------------------------- |
+| `requireIntent`   | PA_SETTLEMENT only                   | settlement engine signs every cycle payout                                                    |
+| `merchantAccount` | `settleWindowMs: 24h`                | same-day settle to a changed account is THE takeover shape for PAs (advisory's core scenario) |
+| `velocity`        | settlement-svc 500/₹500cr per 10 min | batches are bursty by design — sized ~2× the biggest observed batch                           |
+| `cooling`         | 2 h, ≥ ₹1 lakh                       | settlement recipients are known accounts; new ones cool                                       |
 
 ## Wiring `account_changed` in production
 

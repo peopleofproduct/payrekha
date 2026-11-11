@@ -36,7 +36,10 @@ const hmac = (k, d, e) => createHmac('sha256', k).update(d).digest(e);
 async function sqs(target, body) {
   const payload = JSON.stringify(body);
   const now = new Date();
-  const amzDate = now.toISOString().replace(/[-:]/g, '').replace(/\.\d{3}Z$/, 'Z');
+  const amzDate = now
+    .toISOString()
+    .replace(/[-:]/g, '')
+    .replace(/\.\d{3}Z$/, 'Z');
   const dateStamp = amzDate.slice(0, 8);
   const headers = {
     'content-type': 'application/x-amz-json-1.0',
@@ -46,7 +49,9 @@ async function sqs(target, body) {
     ...(CREDS.sessionToken !== undefined ? { 'x-amz-security-token': CREDS.sessionToken } : {}),
   };
   const names = Object.keys(headers).sort();
-  const canonicalRequest = ['POST', '/', '', names.map((k) => `${k}:${headers[k]}\n`).join(''), names.join(';'), sha256Hex(payload)].join('\n');
+  const canonicalRequest = ['POST', '/', '', names.map((k) => `${k}:${headers[k]}\n`).join(''), names.join(';'), sha256Hex(payload)].join(
+    '\n',
+  );
   const scope = `${dateStamp}/${REGION}/sqs/aws4_request`;
   let key = hmac(`AWS4${CREDS.secretAccessKey}`, dateStamp);
   key = hmac(key, REGION);
@@ -55,7 +60,10 @@ async function sqs(target, body) {
   const signature = hmac(key, `AWS4-HMAC-SHA256\n${amzDate}\n${scope}\n${sha256Hex(canonicalRequest)}`, 'hex');
   const res = await fetch(`https://${HOST}/`, {
     method: 'POST',
-    headers: { ...headers, authorization: `AWS4-HMAC-SHA256 Credential=${CREDS.accessKeyId}/${scope}, SignedHeaders=${names.join(';')}, Signature=${signature}` },
+    headers: {
+      ...headers,
+      authorization: `AWS4-HMAC-SHA256 Credential=${CREDS.accessKeyId}/${scope}, SignedHeaders=${names.join(';')}, Signature=${signature}`,
+    },
     body: payload,
     signal: AbortSignal.timeout(30_000),
   });

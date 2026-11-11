@@ -1,6 +1,17 @@
 // SPDX-License-Identifier: Apache-2.0
 // Shared test fixtures: one LOS issuer key, a hash key, a weekday-daytime clock.
-import { generateIssuerKeyPair, hashBeneficiary, Payrekha, signIntent, type FirewallConfig, type Intent, type IntentKind, type IssuerKey, type PayoutRequest, type UnsignedIntent } from '@payrekha/core';
+import {
+  generateIssuerKeyPair,
+  hashBeneficiary,
+  Payrekha,
+  signIntent,
+  type FirewallConfig,
+  type Intent,
+  type IntentKind,
+  type IssuerKey,
+  type PayoutRequest,
+  type UnsignedIntent,
+} from '@payrekha/core';
 import { payrekhaRules, type RulesConfig } from '@payrekha/rules';
 
 export const HASH_KEY = 'test-hash-key-0123456789abcdef';
@@ -25,7 +36,11 @@ import { createHash } from 'node:crypto';
 export const adminSha = createHash('sha256').update(ADMIN_TOKEN).digest('hex');
 export const admin = { actor: 'test', reason: 'test', adminToken: ADMIN_TOKEN };
 
-export function firewall(config: FirewallConfig = {}, rules: RulesConfig = {}, keys?: IssuerKey[]): { fw: Payrekha; feed: ReturnType<typeof payrekhaRules>['feed'] } {
+export function firewall(
+  config: FirewallConfig = {},
+  rules: RulesConfig = {},
+  keys?: IssuerKey[],
+): { fw: Payrekha; feed: ReturnType<typeof payrekhaRules>['feed'] } {
   const set = payrekhaRules({ band: false, ...rules });
   const fw = new Payrekha(set.rules, {
     config: { mode: 'enforce', adminTokenSha256: adminSha, ...config },

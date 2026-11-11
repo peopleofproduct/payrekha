@@ -1,7 +1,17 @@
 // SPDX-License-Identifier: Apache-2.0
 // Copyright 2026 Kapil — People of Product™
 
-import { Verdict, type CommitResult, type EffectiveAction, type IntentKind, type Payrekha, type PayoutRequest, type PayoutVerdict, type SharedControlState, type SharedStateBackend } from '@payrekha/core';
+import {
+  Verdict,
+  type CommitResult,
+  type EffectiveAction,
+  type IntentKind,
+  type Payrekha,
+  type PayoutRequest,
+  type PayoutVerdict,
+  type SharedControlState,
+  type SharedStateBackend,
+} from '@payrekha/core';
 
 export interface SharedStateOptions {
   readonly backend: SharedStateBackend;
@@ -46,7 +56,16 @@ export class SharedStateDriver {
   /** Reachability we observed — feeds /readyz through setSharedReady. */
   private reachable = true;
   /** Verdict-path observability (ADR 0004 §7) — the first external dependency must be measured. */
-  readonly metrics = { commits: 0, committed: 0, conflicts: { payoutId: 0, uses: 0, control: 0 }, failClosed: 0, missFetches: 0, staleSyncs: 0, purgedReservations: 0, commitMs: { sum: 0, count: 0, max: 0 } };
+  readonly metrics = {
+    commits: 0,
+    committed: 0,
+    conflicts: { payoutId: 0, uses: 0, control: 0 },
+    failClosed: 0,
+    missFetches: 0,
+    staleSyncs: 0,
+    purgedReservations: 0,
+    commitMs: { sum: 0, count: 0, max: 0 },
+  };
 
   constructor(
     private readonly fw: Payrekha,
@@ -119,7 +138,9 @@ export class SharedStateDriver {
 
   /** Outcome write-through — the reservation row is the cross-replica truth. */
   async applyOutcome(payoutId: string, outcome: 'settled' | 'failed' | 'reversed', sourceKeyId: string): Promise<boolean> {
-    return outcome === 'settled' ? this.o.backend.settleReservation(payoutId, sourceKeyId) : this.o.backend.releaseReservation(payoutId, sourceKeyId);
+    return outcome === 'settled'
+      ? this.o.backend.settleReservation(payoutId, sourceKeyId)
+      : this.o.backend.releaseReservation(payoutId, sourceKeyId);
   }
 
   /**
@@ -180,7 +201,8 @@ export class SharedStateDriver {
         continue;
       }
       // res.conflict === 'uses'
-      let st: { uses: number; usedPaise: number } | undefined = res.uses !== undefined && res.usedPaise !== undefined ? { uses: res.uses, usedPaise: res.usedPaise } : undefined;
+      let st: { uses: number; usedPaise: number } | undefined =
+        res.uses !== undefined && res.usedPaise !== undefined ? { uses: res.uses, usedPaise: res.usedPaise } : undefined;
       if (st === undefined) {
         try {
           st = await this.o.backend.intentState(res.intentId);
@@ -269,7 +291,11 @@ export class SharedStateDriver {
     this.markReachable(false);
     const msg = e instanceof Error ? e.message : 'unknown error';
     return v.mode === 'enforce'
-      ? this.synthesize(v, Verdict.Block, `shared state commit unreachable (${msg.slice(0, 120)}) — failing closed, no allow-on-outage path`)
+      ? this.synthesize(
+          v,
+          Verdict.Block,
+          `shared state commit unreachable (${msg.slice(0, 120)}) — failing closed, no allow-on-outage path`,
+        )
       : this.synthesize(v, Verdict.Review, `shared state commit unreachable (${msg.slice(0, 120)}) — verdict is not authoritative`);
   }
 }

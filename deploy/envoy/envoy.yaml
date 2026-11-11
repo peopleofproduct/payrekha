@@ -9,14 +9,14 @@ static_resources:
         - filters:
             - name: envoy.filters.network.http_connection_manager
               typed_config:
-                "@type": type.googleapis.com/envoy.extensions.filters.network.http_connection_manager.v3.HttpConnectionManager
+                '@type': type.googleapis.com/envoy.extensions.filters.network.http_connection_manager.v3.HttpConnectionManager
                 stat_prefix: payouts
                 route_config:
                   virtual_hosts:
                     - name: payouts
-                      domains: ["*"]
+                      domains: ['*']
                       routes:
-                        - match: { prefix: "/payouts" }
+                        - match: { prefix: '/payouts' }
                           route: { cluster: payout_api }
                           # ADR 0004 Phase 1: heuristic state is per-replica.
                           # Hash by the asserted sourceKeyId so one caller keeps
@@ -25,16 +25,16 @@ static_resources:
                           # however your deployment asserts caller identity.
                           hash_policy:
                             - header: { header_name: x-client-id }
-                        - match: { prefix: "/" }
+                        - match: { prefix: '/' }
                           route: { cluster: payout_api }
                           typed_per_filter_config:
                             envoy.filters.http.ext_authz:
-                              "@type": type.googleapis.com/envoy.extensions.filters.http.ext_authz.v3.ExtAuthzPerRoute
+                              '@type': type.googleapis.com/envoy.extensions.filters.http.ext_authz.v3.ExtAuthzPerRoute
                               disabled: true
                 http_filters:
                   - name: envoy.filters.http.ext_authz
                     typed_config:
-                      "@type": type.googleapis.com/envoy.extensions.filters.http.ext_authz.v3.ExtAuthz
+                      '@type': type.googleapis.com/envoy.extensions.filters.http.ext_authz.v3.ExtAuthz
                       transport_api_version: V3
                       # PayRekha unreachable → deny. Pair with a client-side hold-above fail mode if you prefer.
                       failure_mode_allow: false
@@ -71,7 +71,7 @@ static_resources:
                             patterns: [{ prefix: x-payrekha- }]
                   - name: envoy.filters.http.router
                     typed_config:
-                      "@type": type.googleapis.com/envoy.extensions.filters.http.router.v3.Router
+                      '@type': type.googleapis.com/envoy.extensions.filters.http.router.v3.Router
   clusters:
     - name: payrekha
       type: STRICT_DNS

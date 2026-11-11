@@ -2,11 +2,11 @@
 
 ## Modes
 
-| Mode | What the caller gets | Use it for |
-|---|---|---|
-| `shadow` (default) | Always `ALLOW`; the real verdict is logged | Weeks 1–2, and any new payout kind |
-| `advise` | The real verdict; the caller decides | SDK integrations while tuning |
-| `enforce` | `HOLD` for REVIEW, `DECLINE` for BLOCK; ext_authz answers 403 | Production, one kind at a time via `modeByKind` |
+| Mode               | What the caller gets                                          | Use it for                                      |
+| ------------------ | ------------------------------------------------------------- | ----------------------------------------------- |
+| `shadow` (default) | Always `ALLOW`; the real verdict is logged                    | Weeks 1–2, and any new payout kind              |
+| `advise`           | The real verdict; the caller decides                          | SDK integrations while tuning                   |
+| `enforce`          | `HOLD` for REVIEW, `DECLINE` for BLOCK; ext_authz answers 403 | Production, one kind at a time via `modeByKind` |
 
 Change the mode at runtime with `PUT /v1/state` (admin token, `reason` required). The configuration file stays authoritative: restoring a snapshot never changes the mode.
 
@@ -14,13 +14,13 @@ Change the mode at runtime with `PUT /v1/state` (admin token, `reason` required)
 
 `PAYREKHA_API_KEYS` is `id:prod|nonprod[:role+role]:token` per entry, comma-separated. Without a role list a key can call everything (legacy behaviour). Grant narrowly:
 
-| Role | Allows | Give it to |
-|---|---|---|
-| `evaluate` | `POST /v1/evaluate` | the payout caller (LMS, payment service) |
-| `outcomes` | `POST /v1/outcomes` | whoever reports rail status — see below |
-| `intents` | `POST /v1/intents` | the system of record that signs intents (LOS) |
-| `mint` | `POST /v1/intents/mint` | managed-intents tier — see `docs/adoption.md` |
-| `read` | `GET /v1/state`, `GET /v1/decisions`, `GET /v1/audit`, `GET /v1/intents/{id}`, `GET /metrics` | dashboards, Prometheus, analyst consoles |
+| Role       | Allows                                                                                        | Give it to                                    |
+| ---------- | --------------------------------------------------------------------------------------------- | --------------------------------------------- |
+| `evaluate` | `POST /v1/evaluate`                                                                           | the payout caller (LMS, payment service)      |
+| `outcomes` | `POST /v1/outcomes`                                                                           | whoever reports rail status — see below       |
+| `intents`  | `POST /v1/intents`                                                                            | the system of record that signs intents (LOS) |
+| `mint`     | `POST /v1/intents/mint`                                                                       | managed-intents tier — see `docs/adoption.md` |
+| `read`     | `GET /v1/state`, `GET /v1/decisions`, `GET /v1/audit`, `GET /v1/intents/{id}`, `GET /metrics` | dashboards, Prometheus, analyst consoles      |
 
 m-of-n approvals: `firewall.requiredApprovals` per kind — `{ "VDA_WITHDRAWAL": 2 }` requires the payout's `intentId` plus a distinct-issuer intent in `approvalIds`. `onInsufficient: "review"` holds rather than declines while approvers onboard; `approverIssuers` restricts which issuers count. Approvers register intents through `/v1/intents` or mint like any issuer; every cited intent is consumed per payout and released together on `failed`/`reversed`. See ADR 0003.
 
@@ -99,7 +99,7 @@ Rehearse before trusting it: `npm run drill:shared-state` (or `PAYREKHA_SHARED_P
 
 **Cutover from single-node/snapshot to active-active**
 
-1. Freeze schema drift — run the export against the *current* snapshot, not a stale copy.
+1. Freeze schema drift — run the export against the _current_ snapshot, not a stale copy.
 2. `PAYREKHA_STATE_KEY=… node scripts/state-to-shared.mjs --file <snapshot> --dry-run` — verifies the signature and prints intent/reservation/control counts.
 3. `PAYREKHA_SHARED_PG_URL=… node scripts/state-to-shared.mjs --file <snapshot>` — imports intents (GREATEST-merged counters), reservations (first binding wins) and control state (revocations/alert/per-kind modes unioned, `mode` stays config-authoritative). Idempotent — safe to re-run and safe under live single-node traffic; in-flight intents cannot double-spend because imported counters never move backwards.
 4. Start the replicas with `gateway.sharedState` set and watch `payrekha_shared_*` metrics (`commits`/`conflicts`/`commit_ms` tell you the commit path is hot and healthy before you cut the LB).
@@ -115,5 +115,5 @@ Commit-path observability lives on `/metrics`: `payrekha_shared_commits_total`, 
 1. Replay a month in intent-less mode and read the false-positive list.
 2. Give known batch callers their own budget with `velocity.perSourceKeyOverrides` (for example, the nightly settlement run).
 3. **`merchantId` is untrusted caller input.** It scopes per-merchant velocity rings and the settlement-account ledger. If a key should only settle for known merchants, pin it with `gateway.merchantScope` — `{"gateway": {"merchantScope": {"pa-key-1": ["merch-a", "merch-b"]}}}` — the gateway then refuses (403) out-of-scope merchantIds and `PA_SETTLEMENT` payouts carrying none. Merchant velocity and key velocity are tracked in separate bounded maps, so churned merchantIds cannot evict either budget.
-3. Replay again with intents exported from your LOS. The REVIEW count should fall to the real anomalies.
-4. Deploy the same config file in shadow mode and compare its live log with the replay.
+4. Replay again with intents exported from your LOS. The REVIEW count should fall to the real anomalies.
+5. Deploy the same config file in shadow mode and compare its live log with the replay.

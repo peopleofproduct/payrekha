@@ -44,12 +44,12 @@ A rule threw — verdicts for that payout are `degraded`. Pull `payrekha_degrade
 
 ## Credential compromise
 
-| Key | Blast radius | Do |
-|---|---|---|
-| Payout API key | It can only evaluate (+ report its own outcomes) | Mint a replacement key id, remove the old entry from `PAYREKHA_API_KEYS`, rolling restart. Its `sourceKeyId` name is burned — do not reuse it. |
+| Key                         | Blast radius                                      | Do                                                                                                                                                                                                                                                                              |
+| --------------------------- | ------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Payout API key              | It can only evaluate (+ report its own outcomes)  | Mint a replacement key id, remove the old entry from `PAYREKHA_API_KEYS`, rolling restart. Its `sourceKeyId` name is burned — do not reuse it.                                                                                                                                  |
 | Intent-signing (issuer) key | Attacker can mint intents within that key's kinds | `DELETE /v1/issuers/<keyId>` (admin, reason required) — kills every intent it signed immediately and the revocation persists in the snapshot. Then roll a **new** keyId through config (a revoked keyId is a tombstone, never reused) and have the LOS re-sign pending intents. |
-| Admin token | Mode downgrade to shadow, HIGH_ALERT reset | Rotate `PAYREKHA_ADMIN_KEY`, rolling restart, then audit the decision log `type:"audit"` entries for `mode.set`/`alert.reset` you didn't make. |
-| Hash key | Beneficiary refs become unlinkable | Rotate requires re-keying all stored refs — plan this as a maintenance, not an incident fix; keep the old key until refs rotate. |
+| Admin token                 | Mode downgrade to shadow, HIGH_ALERT reset        | Rotate `PAYREKHA_ADMIN_KEY`, rolling restart, then audit the decision log `type:"audit"` entries for `mode.set`/`alert.reset` you didn't make.                                                                                                                                  |
+| Hash key                    | Beneficiary refs become unlinkable                | Rotate requires re-keying all stored refs — plan this as a maintenance, not an incident fix; keep the old key until refs rotate.                                                                                                                                                |
 
 ## Incident response — reporting to CERT-In / CSIRT-Fin and I4C
 
@@ -81,24 +81,24 @@ CIAD-2026-0058 obligates affected entities to report suspicious activity to CERT
 
 ## Promoting the standby (manual failover)
 
-One writer only. Promote a standby by scaling the fenced/down active to 0 first, then the standby up — never two writers at once. The standby serves 503 until it has read the snapshot (`/readyz` green = it is serving the *restored* state, not a guess).
+One writer only. Promote a standby by scaling the fenced/down active to 0 first, then the standby up — never two writers at once. The standby serves 503 until it has read the snapshot (`/readyz` green = it is serving the _restored_ state, not a guess).
 
 ## Capacity envelope (measured — `npm run loadcheck`)
 
 Full table, methodology and tuning guidance: `docs/capacity-envelope.md`.
 Headline numbers (dev host, enforce mode, behaviour rules + intent checks):
 
-| State size | eval p99 | snapshot export stall (sync) | serialize wall (off-loop) | heap after run |
-|---|---|---|---|---|
-| 20k intents / 50k beneficiaries (~12 MB snap) | ~32 µs | ~6 ms | ~82 ms | ~124 MB |
-| 100k intents / 200k beneficiaries (~56 MB snap) | ~34 µs | ~60 ms | ~340 ms | ~613 MB |
+| State size                                      | eval p99 | snapshot export stall (sync) | serialize wall (off-loop) | heap after run |
+| ----------------------------------------------- | -------- | ---------------------------- | ------------------------- | -------------- |
+| 20k intents / 50k beneficiaries (~12 MB snap)   | ~32 µs   | ~6 ms                        | ~82 ms                    | ~124 MB        |
+| 100k intents / 200k beneficiaries (~56 MB snap) | ~34 µs   | ~60 ms                       | ~340 ms                   | ~613 MB        |
 
 B3 sliced serialization + HMAC off the event loop — the residual sync pause
 is `exportState()` alone (linear in snapshot bytes; ~1% duty at 56 MB on the
 default 5 s interval, tunable via `PAYREKHA_STATE_INTERVAL_MS`). Watch
 `payrekha_eval_latency_micros` p99, `payrekha_state_save_ms_max`, and pod RSS
 against the 512 Mi limit on day one — dedupe entries grow toward their cap
-under unique payoutIds, so heap is driven by payout *rate*, not just
+under unique payoutIds, so heap is driven by payout _rate_, not just
 beneficiary count. If export ms climbs toward ~250 ms the next step is
 per-section sharding, not a torn export — see the envelope doc.
 

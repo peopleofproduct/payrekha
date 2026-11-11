@@ -87,7 +87,10 @@ export class PostgresStateStore implements StateStore {
 
   async load(fw: Payrekha): Promise<boolean> {
     await this.init();
-    const r = await this.pool.query<{ version: string; snapshot: FirewallSnapshot }>(`SELECT version, snapshot FROM ${this.table} WHERE name = $1`, [this.name]);
+    const r = await this.pool.query<{ version: string; snapshot: FirewallSnapshot }>(
+      `SELECT version, snapshot FROM ${this.table} WHERE name = $1`,
+      [this.name],
+    );
     const row = r.rows[0];
     if (row === undefined) {
       this.version = 0;

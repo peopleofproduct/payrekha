@@ -7,7 +7,7 @@ import { Payrekha } from '@payrekha/core';
 import { PostgresStateStore } from '@payrekha/store-postgres';
 
 const store = new PostgresStateStore({ connectionString: process.env.DATABASE_URL, name: 'payouts-prod' });
-await store.load(fw);          // false on first run; throws if the DB is unreachable
+await store.load(fw); // false on first run; throws if the DB is unreachable
 setInterval(() => store.save(fw).catch(failClosed), 5_000);
 ```
 

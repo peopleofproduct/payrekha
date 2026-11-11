@@ -6,13 +6,13 @@ Format per key: `id:origin:role1,role2:secret`. The gateway stores only
 `SHA-256(secret)` — the token itself is never persisted (see
 `ApiKey.sha256`, `packages/gateway/src/server.ts`).
 
-| Role | May call | Typical holder |
-|---|---|---|
-| `evaluate` | `POST /v1/evaluate` (+ ext_authz path via edge key) | payout API / proxy |
-| `intents` | `POST /v1/intents` (register), mint endpoints | system of record (LOS/settlement engine) |
-| `outcomes` | `POST /v1/outcomes` (settled/failed → release reservations) | settlement reporter |
-| `read` | `/metrics`, `/v1/decisions`, `/v1/intents` GET | dashboards, Prometheus |
-| `admin` | mode set, alert reset, issuer revocation, canary/feed writes | ops (still requires `PAYREKHA_ADMIN_KEY` — see below) |
+| Role       | May call                                                     | Typical holder                                        |
+| ---------- | ------------------------------------------------------------ | ----------------------------------------------------- |
+| `evaluate` | `POST /v1/evaluate` (+ ext_authz path via edge key)          | payout API / proxy                                    |
+| `intents`  | `POST /v1/intents` (register), mint endpoints                | system of record (LOS/settlement engine)              |
+| `outcomes` | `POST /v1/outcomes` (settled/failed → release reservations)  | settlement reporter                                   |
+| `read`     | `/metrics`, `/v1/decisions`, `/v1/intents` GET               | dashboards, Prometheus                                |
+| `admin`    | mode set, alert reset, issuer revocation, canary/feed writes | ops (still requires `PAYREKHA_ADMIN_KEY` — see below) |
 
 Absent `roles` = all roles (legacy); grant narrowly per the doc comment.
 

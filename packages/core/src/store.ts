@@ -31,7 +31,11 @@ export class FileStateStore implements StateStore {
    * `previousKeys` verify only — pass the retiring key during a rotation
    * window, remove it once a save with the new key has landed.
    */
-  constructor(readonly path: string, readonly hmacKey?: string, readonly previousKeys: readonly string[] = []) {}
+  constructor(
+    readonly path: string,
+    readonly hmacKey?: string,
+    readonly previousKeys: readonly string[] = [],
+  ) {}
 
   get describe(): string {
     return `file:${this.path}`;

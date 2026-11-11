@@ -32,7 +32,10 @@ const hmac = (k, d, e) => createHmac('sha256', k).update(d).digest(e);
 async function kin(target, body) {
   const payload = JSON.stringify(body);
   const now = new Date();
-  const amzDate = now.toISOString().replace(/[-:]/g, '').replace(/\.\d{3}Z$/, 'Z');
+  const amzDate = now
+    .toISOString()
+    .replace(/[-:]/g, '')
+    .replace(/\.\d{3}Z$/, 'Z');
   const scope = `${amzDate.slice(0, 8)}/${REGION}/kinesis/aws4_request`;
   const headers = `content-type:application/x-amz-json-1.1\nhost:${HOST}\nx-amz-date:${amzDate}\n`;
   const signed = 'content-type;host;x-amz-date';

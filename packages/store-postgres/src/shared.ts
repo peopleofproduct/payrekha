@@ -96,10 +96,10 @@ export class PostgresSharedBackend implements SharedStateBackend {
 
   async putIntent(intent: Intent): Promise<void> {
     await this.init();
-    const r = await this.pool.query(`INSERT INTO ${this.intents} (intent_id, intent) VALUES ($1, $2::jsonb) ON CONFLICT (intent_id) DO NOTHING RETURNING intent_id`, [
-      intent.intentId,
-      JSON.stringify(intent),
-    ]);
+    const r = await this.pool.query(
+      `INSERT INTO ${this.intents} (intent_id, intent) VALUES ($1, $2::jsonb) ON CONFLICT (intent_id) DO NOTHING RETURNING intent_id`,
+      [intent.intentId, JSON.stringify(intent)],
+    );
     if (r.rowCount === 0) {
       const ex = await this.pool.query<{ intent: Intent }>(`SELECT intent FROM ${this.intents} WHERE intent_id = $1`, [intent.intentId]);
       if (ex.rows[0] === undefined || ex.rows[0].intent.signature !== intent.signature) {
@@ -139,7 +139,10 @@ export class PostgresSharedBackend implements SharedStateBackend {
       }
       const counters: Record<string, { uses: number; usedPaise: number }> = {};
       for (const i of c.intents) {
-        await client.query(`INSERT INTO ${this.intents} (intent_id, intent) VALUES ($1, $2::jsonb) ON CONFLICT (intent_id) DO NOTHING`, [i.intentId, JSON.stringify(i)]);
+        await client.query(`INSERT INTO ${this.intents} (intent_id, intent) VALUES ($1, $2::jsonb) ON CONFLICT (intent_id) DO NOTHING`, [
+          i.intentId,
+          JSON.stringify(i),
+        ]);
         const u = await client.query<{ intent_id: string; uses: string; used_paise: string }>(
           `UPDATE ${this.intents} SET uses = uses + 1, used_paise = used_paise + $2
            WHERE intent_id = $1 AND uses < (intent->>'maxUses')::bigint AND (intent->>'maxAmountPaise')::bigint - used_paise >= $2
@@ -148,7 +151,10 @@ export class PostgresSharedBackend implements SharedStateBackend {
         );
         const row = u.rows[0];
         if (row === undefined) {
-          const st = await client.query<{ uses: string; used_paise: string }>(`SELECT uses, used_paise FROM ${this.intents} WHERE intent_id = $1`, [i.intentId]);
+          const st = await client.query<{ uses: string; used_paise: string }>(
+            `SELECT uses, used_paise FROM ${this.intents} WHERE intent_id = $1`,
+            [i.intentId],
+          );
           await client.query('ROLLBACK');
           return {
             conflict: 'uses',
@@ -175,7 +181,10 @@ export class PostgresSharedBackend implements SharedStateBackend {
 
   async intentState(intentId: string): Promise<{ uses: number; usedPaise: number } | undefined> {
     await this.init();
-    const r = await this.pool.query<{ uses: string; used_paise: string }>(`SELECT uses, used_paise FROM ${this.intents} WHERE intent_id = $1`, [intentId]);
+    const r = await this.pool.query<{ uses: string; used_paise: string }>(
+      `SELECT uses, used_paise FROM ${this.intents} WHERE intent_id = $1`,
+      [intentId],
+    );
     const row = r.rows[0];
     return row === undefined ? undefined : { uses: Number(row.uses), usedPaise: Number(row.used_paise) };
   }
@@ -196,7 +205,10 @@ export class PostgresSharedBackend implements SharedStateBackend {
       }
       const amount = Number(row.amount_paise);
       for (const id of [row.intent_id, ...row.approval_ids]) {
-        await client.query(`UPDATE ${this.intents} SET uses = GREATEST(0, uses - 1), used_paise = GREATEST(0, used_paise - $2) WHERE intent_id = $1`, [id, amount]);
+        await client.query(
+          `UPDATE ${this.intents} SET uses = GREATEST(0, uses - 1), used_paise = GREATEST(0, used_paise - $2) WHERE intent_id = $1`,
+          [id, amount],
+        );
       }
       await client.query('COMMIT');
       return true;
@@ -214,7 +226,10 @@ export class PostgresSharedBackend implements SharedStateBackend {
 
   async settleReservation(payoutId: string, sourceKeyId: string): Promise<boolean> {
     await this.init();
-    const r = await this.pool.query(`UPDATE ${this.reservations} SET settled = true WHERE payout_id = $1 AND settled = false AND (source_key_id = '' OR source_key_id = $2)`, [payoutId, sourceKeyId]);
+    const r = await this.pool.query(
+      `UPDATE ${this.reservations} SET settled = true WHERE payout_id = $1 AND settled = false AND (source_key_id = '' OR source_key_id = $2)`,
+      [payoutId, sourceKeyId],
+    );
     return (r.rowCount ?? 0) > 0;
   }
 
@@ -230,12 +245,16 @@ export class PostgresSharedBackend implements SharedStateBackend {
     const client = await this.pool.connect();
     try {
       await client.query('BEGIN');
-      const cur = await client.query<{ gen: string; state: SharedControlRow }>(`SELECT gen, state FROM ${this.control} WHERE id = 1 FOR UPDATE`);
+      const cur = await client.query<{ gen: string; state: SharedControlRow }>(
+        `SELECT gen, state FROM ${this.control} WHERE id = 1 FOR UPDATE`,
+      );
       const row = cur.rows[0];
       const next = mutate({ gen: Number(row?.gen ?? 0), ...row?.state });
       const state: Record<string, unknown> = { ...next };
       delete state['gen'];
-      await client.query(`UPDATE ${this.control} SET gen = gen + 1, state = $1::jsonb, updated_at = now() WHERE id = 1`, [JSON.stringify(state)]);
+      await client.query(`UPDATE ${this.control} SET gen = gen + 1, state = $1::jsonb, updated_at = now() WHERE id = 1`, [
+        JSON.stringify(state),
+      ]);
       await client.query('COMMIT');
       return true;
     } catch (e) {
@@ -261,7 +280,15 @@ export class PostgresSharedBackend implements SharedStateBackend {
     );
   }
 
-  async importReservation(r: { payoutId: string; sourceKeyId: string; intentId: string; approvalIds: readonly string[]; amountPaise: number; verdict: unknown; settled: boolean }): Promise<void> {
+  async importReservation(r: {
+    payoutId: string;
+    sourceKeyId: string;
+    intentId: string;
+    approvalIds: readonly string[];
+    amountPaise: number;
+    verdict: unknown;
+    settled: boolean;
+  }): Promise<void> {
     await this.init();
     await this.pool.query(
       `INSERT INTO ${this.reservations} (payout_id, source_key_id, intent_id, approval_ids, amount_paise, verdict, settled) VALUES ($1, $2, $3, $4::jsonb, $5, $6::jsonb, $7) ON CONFLICT (payout_id) DO NOTHING`,
@@ -272,13 +299,18 @@ export class PostgresSharedBackend implements SharedStateBackend {
   async purgeReservations(olderThanMs: number): Promise<number> {
     await this.init();
     // Store clock — replicas skew, `now()` is the one time everyone agrees on.
-    const r = await this.pool.query(`DELETE FROM ${this.reservations} WHERE settled = true AND created_at < now() - ($1::bigint * interval '1 millisecond')`, [olderThanMs]);
+    const r = await this.pool.query(
+      `DELETE FROM ${this.reservations} WHERE settled = true AND created_at < now() - ($1::bigint * interval '1 millisecond')`,
+      [olderThanMs],
+    );
     return r.rowCount ?? 0;
   }
 
   async reservationStats(): Promise<{ pending: number; settled: number }> {
     await this.init();
-    const r = await this.pool.query<{ pending: string; settled: string }>(`SELECT count(*) FILTER (WHERE settled = false) AS pending, count(*) FILTER (WHERE settled = true) AS settled FROM ${this.reservations}`);
+    const r = await this.pool.query<{ pending: string; settled: string }>(
+      `SELECT count(*) FILTER (WHERE settled = false) AS pending, count(*) FILTER (WHERE settled = true) AS settled FROM ${this.reservations}`,
+    );
     const row = r.rows[0];
     return { pending: Number(row?.pending ?? 0), settled: Number(row?.settled ?? 0) };
   }

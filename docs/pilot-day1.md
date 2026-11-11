@@ -1,11 +1,12 @@
 <!-- SPDX-License-Identifier: Apache-2.0 -->
+
 # Day-0 / Day-1 pilot — advisory coverage inside a lender this week
 
 For NBFCs, lenders and banks responding to CERT-In CIAD-2026-0058 (CRAFTY
 FALCON): attackers are **inside** and calling your own payout APIs with valid
 credentials — ₹1 probes, settlement-API abuse, UAT→prod pivots, repackaged-app
 direct calls, holiday timing. This document is the fastest safe way to stand
-PayRekha up on *your* infrastructure. Two properties make it liability-free:
+PayRekha up on _your_ infrastructure. Two properties make it liability-free:
 
 1. **It cannot decline anything.** `shadow` mode always lets the payout
    through — every verdict is logged as "what it would have done."
@@ -33,7 +34,7 @@ npm run replay -- --payouts ledger.csv --map map.json --out out/
 
 `map.json` renames your columns to ours (`payoutId`, `kind`, `amountRupees`,
 `timestamp`, `account`, `ifsc`, `sourceKeyId` — see `docs/getting-started.md`).
-What you get back: every payout that *would* have been held or declined, the
+What you get back: every payout that _would_ have been held or declined, the
 exact rule and evidence, a **false-positive review list** for tuning, and
 whether advisory-shaped patterns (probe-then-large, new-beneficiary bursts,
 UAT-origin calls, holiday windows) exist in your own data. Beneficiaries are
@@ -54,23 +55,32 @@ one named person owns what happens next.
 
 ### What you need
 
-| Item | Effort |
-|---|---|
-| A VM or container host inside your VPC (1 CPU / 512 MiB) | existing infra |
-| Docker (compose path) **or** Node ≥ 22 (bare binary) | minutes |
-| One Kubernetes/… secret: `PAYREKHA_API_KEYS`, `PAYREKHA_ADMIN_KEY`, `PAYREKHA_HASH_KEY`, `PAYREKHA_STATE_KEY` | one secret |
-| A `payrekha.json` (we ship shadow defaults — example below) | copy |
-| **Either** Envoy in front of the payout API (zero code) **or** one `POST /v1/evaluate` call in your payout service | hours, not days |
-| Somewhere for `decisions.jsonl` to land → your SIEM | existing pipeline |
+| Item                                                                                                               | Effort            |
+| ------------------------------------------------------------------------------------------------------------------ | ----------------- |
+| A VM or container host inside your VPC (1 CPU / 512 MiB)                                                           | existing infra    |
+| Docker (compose path) **or** Node ≥ 22 (bare binary)                                                               | minutes           |
+| One Kubernetes/… secret: `PAYREKHA_API_KEYS`, `PAYREKHA_ADMIN_KEY`, `PAYREKHA_HASH_KEY`, `PAYREKHA_STATE_KEY`      | one secret        |
+| A `payrekha.json` (we ship shadow defaults — example below)                                                        | copy              |
+| **Either** Envoy in front of the payout API (zero code) **or** one `POST /v1/evaluate` call in your payout service | hours, not days   |
+| Somewhere for `decisions.jsonl` to land → your SIEM                                                                | existing pipeline |
 
 ### Config for week one (copy this)
 
 ```json
-{ "firewall": {
+{
+  "firewall": {
     "mode": "shadow",
-    "requireIntent": { "LOAN_DISBURSAL": false, "PA_SETTLEMENT": false, "REFUND": false,
-                       "VDA_WITHDRAWAL": false, "VENDOR_PAYOUT": false, "VERIFICATION": false },
-    "maxTimestampSkewMs": 300000 } }
+    "requireIntent": {
+      "LOAN_DISBURSAL": false,
+      "PA_SETTLEMENT": false,
+      "REFUND": false,
+      "VDA_WITHDRAWAL": false,
+      "VENDOR_PAYOUT": false,
+      "VERIFICATION": false
+    },
+    "maxTimestampSkewMs": 300000
+  }
+}
 ```
 
 (`requireIntent:false` during week one — your LOS isn't signing yet; the
@@ -87,7 +97,7 @@ PAYREKHA_API_KEYS='payout-svc:prod:evaluate+outcomes:<token>,grafana:prod:read:<
 
 **No code change — Envoy `ext_authz`.** The filter in `deploy/envoy/` calls
 PayRekha before your payout API. `failure_mode_allow: true` means a PayRekha
-outage can never hold a payout; `x-client-id` is asserted *by Envoy*, never
+outage can never hold a payout; `x-client-id` is asserted _by Envoy_, never
 forwarded from the client. `docker compose -f deploy/docker-compose.yml up`
 shows the whole shape.
 
@@ -97,7 +107,7 @@ nothing yet — just log the verdict. Clients exist for Java/Python/Go/Node.
 ### Plant canaries on day one — this is the quick win
 
 Even untuned, a canary is instant tripwire coverage. Plant a beneficiary that
-*cannot legitimately receive money* (an account in your UAT bench, an old
+_cannot legitimately receive money_ (an account in your UAT bench, an old
 test VPA) — the advisory explicitly recommends deception:
 
 ```bash
@@ -114,18 +124,18 @@ your rules do.
 
 ## What your day-1 deployment already covers — advisory step by step
 
-| Advisory behaviour | Rule watching it day-1 |
-|---|---|
+| Advisory behaviour             | Rule watching it day-1                                                 |
+| ------------------------------ | ---------------------------------------------------------------------- |
 | ₹1 probe before large transfer | `probe.micro-then-large` (penny-drop-aware — see `docs/penny-drop.md`) |
-| Settlement API abuse | `settlement.over-captured`, `settlement.account-changed` |
-| UAT/staging → prod pivot | `origin.nonprod` (origin comes from the key, not the caller) |
-| Repackaged-app direct calls | `client.unattested` (when attestation is wired) |
-| Holiday/weekend/night timing | `calendar.window` → HOLIDAY tightens everything |
-| Machine-speed drains | `velocity.outflow`, `amount.band-anomaly` |
-| Mule/new accounts | `beneficiary.cooling`, `feed.reputation` |
-| Assume persistence | `HIGH_ALERT` survives restarts, human-reset only |
-| Deception | `canary.tripped` |
-| Log/share with SOC | `decisions.jsonl` → SIEM (JSONL or CEF) |
+| Settlement API abuse           | `settlement.over-captured`, `settlement.account-changed`               |
+| UAT/staging → prod pivot       | `origin.nonprod` (origin comes from the key, not the caller)           |
+| Repackaged-app direct calls    | `client.unattested` (when attestation is wired)                        |
+| Holiday/weekend/night timing   | `calendar.window` → HOLIDAY tightens everything                        |
+| Machine-speed drains           | `velocity.outflow`, `amount.band-anomaly`                              |
+| Mule/new accounts              | `beneficiary.cooling`, `feed.reputation`                               |
+| Assume persistence             | `HIGH_ALERT` survives restarts, human-reset only                       |
+| Deception                      | `canary.tripped`                                                       |
+| Log/share with SOC             | `decisions.jsonl` → SIEM (JSONL or CEF)                                |
 
 Not covered — because nothing at this layer can be: patching, EDR, cloud
 audit logs, identity/MFA, IoC blocking, CERT-In incident reporting. See

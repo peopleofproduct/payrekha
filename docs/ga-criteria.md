@@ -65,11 +65,11 @@ when **all gates pass**; the `1.0.0` tag is the assertion that they did.
 - `repository-settings.md` claims are all true in the live repo
   (protected branch, signed commits, pinned actions, provenance on).
 
-## What GA does *not* require
+## What GA does _not_ require
 
 - No minimum revenue, logo count, or feature checklist beyond the above.
 - Wave-3 items (console, Apigee/AWS gateways, D-certifications) are
-  *post-GA roadmap*, not gates — a 1.0 can ship without them.
+  _post-GA roadmap_, not gates — a 1.0 can ship without them.
 - GA is a **safety statement**, not a completeness one: it says "the
   controls in this box are proven on real money," nothing more.
 

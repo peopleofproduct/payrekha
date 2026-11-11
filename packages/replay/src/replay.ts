@@ -2,7 +2,19 @@
 // Copyright 2026 Kapil — People of Product™
 
 import { createHash, randomBytes } from 'node:crypto';
-import { generateIssuerKeyPair, hashBeneficiary, looksLikeRawIdentifier, Payrekha, signIntent, type FirewallConfig, type IntentKind, type IssuerKeyPair, type PayoutRequest, type PayoutVerdict, type RuleHit } from '@payrekha/core';
+import {
+  generateIssuerKeyPair,
+  hashBeneficiary,
+  looksLikeRawIdentifier,
+  Payrekha,
+  signIntent,
+  type FirewallConfig,
+  type IntentKind,
+  type IssuerKeyPair,
+  type PayoutRequest,
+  type PayoutVerdict,
+  type RuleHit,
+} from '@payrekha/core';
 import { payrekhaRules, type RulesConfig } from '@payrekha/rules';
 
 /** Our field → your column. Every key optional; defaults are the snake_case names below. */
@@ -173,7 +185,8 @@ export function runReplay(o: ReplayOptions): ReplayReport {
     try {
       if (acc !== undefined && ifsc !== undefined) return hashBeneficiary({ account: acc, ifsc }, hk);
       if (vpa !== undefined) return hashBeneficiary({ vpa }, hk);
-      if (typeof given === 'string' && given !== '' && !looksLikeRawIdentifier(given)) return hashBeneficiary({ address: given, network: 'opaque' }, hk);
+      if (typeof given === 'string' && given !== '' && !looksLikeRawIdentifier(given))
+        return hashBeneficiary({ address: given, network: 'opaque' }, hk);
     } catch {
       return undefined;
     }
@@ -215,7 +228,13 @@ export function runReplay(o: ReplayOptions): ReplayReport {
   }
   const fw = new Payrekha(rules, {
     config: cfg,
-    keys: [...signers.values()].map((s) => ({ keyId: s.keyId, issuer: s.issuer, alg: 'ed25519' as const, publicKey: s.pair.publicKey, kinds: allKinds })),
+    keys: [...signers.values()].map((s) => ({
+      keyId: s.keyId,
+      issuer: s.issuer,
+      alg: 'ed25519' as const,
+      publicKey: s.pair.publicKey,
+      kinds: allKinds,
+    })),
     now: () => clock,
   });
   const signerFor = (row: Record<string, unknown>) => {
@@ -236,7 +255,21 @@ export function runReplay(o: ReplayOptions): ReplayReport {
     const signer = signerFor(row);
     clock = nb;
     fw.registerIntent(
-      signIntent({ intentId: id, kind: kind as IntentKind, maxAmountPaise: max, beneficiaryRef: b, maxUses: Number.isSafeInteger(uses) ? uses : 1, notBeforeMs: nb, expiresAtMs: ex, issuer: signer.issuer, keyId: signer.keyId, ...(sub ? { subjectRef: String(sub) } : {}) }, { alg: 'ed25519', privateKey: signer.pair.privateKey }),
+      signIntent(
+        {
+          intentId: id,
+          kind: kind as IntentKind,
+          maxAmountPaise: max,
+          beneficiaryRef: b,
+          maxUses: Number.isSafeInteger(uses) ? uses : 1,
+          notBeforeMs: nb,
+          expiresAtMs: ex,
+          issuer: signer.issuer,
+          keyId: signer.keyId,
+          ...(sub ? { subjectRef: String(sub) } : {}),
+        },
+        { alg: 'ed25519', privateKey: signer.pair.privateKey },
+      ),
       nb,
     );
   }
@@ -250,7 +283,14 @@ export function runReplay(o: ReplayOptions): ReplayReport {
   });
   events.sort((a, b) => a.at - b.at || a.i - b.i);
 
-  const totals = { payouts: 0, amountPaise: 0, allow: { count: 0, amountPaise: 0 }, review: { count: 0, amountPaise: 0 }, block: { count: 0, amountPaise: 0 }, degraded: 0 };
+  const totals = {
+    payouts: 0,
+    amountPaise: 0,
+    allow: { count: 0, amountPaise: 0 },
+    review: { count: 0, amountPaise: 0 },
+    block: { count: 0, amountPaise: 0 },
+    degraded: 0,
+  };
   const ruleAgg = new Map<string, { hits: number; amountPaise: number }>();
   const flagged: FlaggedPayout[] = [];
   const lat: number[] = [];
@@ -298,7 +338,11 @@ export function runReplay(o: ReplayOptions): ReplayReport {
       if (v !== undefined && v !== '') p[k] = String(v);
     }
     const aids = row[c['approvalIds']!];
-    if (typeof aids === 'string' && aids !== '') p['approvalIds'] = aids.split(',').map((s) => s.trim()).filter(Boolean);
+    if (typeof aids === 'string' && aids !== '')
+      p['approvalIds'] = aids
+        .split(',')
+        .map((s) => s.trim())
+        .filter(Boolean);
     const kind = String(p['kind']);
     if (intentLess && b !== undefined) {
       if (kind === 'VERIFICATION') {
@@ -308,22 +352,60 @@ export function runReplay(o: ReplayOptions): ReplayReport {
         // are then exempt from probe/cooling, exactly as under a real intent.
         const subj = row[c['subjectRef']!] !== undefined && row[c['subjectRef']!] !== '' ? String(row[c['subjectRef']!]) : `verified:${b}`;
         try {
-          fw.registerIntent(signIntent({ intentId: `replay-verification-${i}`, kind: 'VERIFICATION', maxAmountPaise: Math.max(amount ?? 1, 1), beneficiaryRef: b, maxUses: 1, notBeforeMs: Math.max(1, at - 3_600_000), expiresAtMs: Number.MAX_SAFE_INTEGER, issuer: 'replay', keyId: 'replay', subjectRef: subj }, signKey), at);
+          fw.registerIntent(
+            signIntent(
+              {
+                intentId: `replay-verification-${i}`,
+                kind: 'VERIFICATION',
+                maxAmountPaise: Math.max(amount ?? 1, 1),
+                beneficiaryRef: b,
+                maxUses: 1,
+                notBeforeMs: Math.max(1, at - 3_600_000),
+                expiresAtMs: Number.MAX_SAFE_INTEGER,
+                issuer: 'replay',
+                keyId: 'replay',
+                subjectRef: subj,
+              },
+              signKey,
+            ),
+            at,
+          );
           p['intentId'] = `replay-verification-${i}`;
           if (!verified.has(b)) verified.set(b, subj);
           verificationRows += 1;
-        } catch { /* malformed row → falls through and is evaluated unbound */ }
+        } catch {
+          /* malformed row → falls through and is evaluated unbound */
+        }
       } else if (verified.has(b)) {
         const subj = verified.get(b)!;
         const iid = `replay-verified-${b}-${kind}`;
         try {
           if (!boundVerified.has(iid)) {
             boundVerified.add(iid);
-            fw.registerIntent(signIntent({ intentId: iid, kind: kind as IntentKind, maxAmountPaise: Number.MAX_SAFE_INTEGER, beneficiaryRef: b, maxUses: 1_000_000_000, notBeforeMs: 1, expiresAtMs: Number.MAX_SAFE_INTEGER, issuer: 'replay', keyId: 'replay', subjectRef: subj }, signKey), at);
+            fw.registerIntent(
+              signIntent(
+                {
+                  intentId: iid,
+                  kind: kind as IntentKind,
+                  maxAmountPaise: Number.MAX_SAFE_INTEGER,
+                  beneficiaryRef: b,
+                  maxUses: 1_000_000_000,
+                  notBeforeMs: 1,
+                  expiresAtMs: Number.MAX_SAFE_INTEGER,
+                  issuer: 'replay',
+                  keyId: 'replay',
+                  subjectRef: subj,
+                },
+                signKey,
+              ),
+              at,
+            );
           }
           p['intentId'] = iid;
           boundPayouts += 1;
-        } catch { /* unhandled kind or bad intent → evaluated unbound */ }
+        } catch {
+          /* unhandled kind or bad intent → evaluated unbound */
+        }
       }
     }
     if (intentLess && kind !== 'VERIFICATION' && amount !== undefined && amount <= microPaise) untaggedMicro += 1;
@@ -347,7 +429,17 @@ export function runReplay(o: ReplayOptions): ReplayReport {
       ruleAgg.set(h.rule, a);
     }
     if (v.verdict !== 'ALLOW')
-      flagged.push({ payoutId: v.payoutId, atMs: at, kind: String(p['kind']), amountPaise: amt, beneficiaryRef: b ?? '(missing)', sourceKeyId: String(p['sourceKeyId']), verdict: v.verdict, degraded: v.degraded, hits: v.hits.filter((h) => h.verdict !== 'ALLOW') });
+      flagged.push({
+        payoutId: v.payoutId,
+        atMs: at,
+        kind: String(p['kind']),
+        amountPaise: amt,
+        beneficiaryRef: b ?? '(missing)',
+        sourceKeyId: String(p['sourceKeyId']),
+        verdict: v.verdict,
+        degraded: v.degraded,
+        hits: v.hits.filter((h) => h.verdict !== 'ALLOW'),
+      });
     if (amount !== undefined) {
       amounts.push(amount);
       (amount <= microPaise ? microAmounts : nonMicroAmounts).push(amount);
@@ -359,7 +451,8 @@ export function runReplay(o: ReplayOptions): ReplayReport {
     }
   }
   lat.sort((a, b) => a - b);
-  const pct = (sorted: readonly number[], q: number): number | undefined => (sorted.length === 0 ? undefined : sorted[Math.min(sorted.length - 1, Math.floor(sorted.length * q))]);
+  const pct = (sorted: readonly number[], q: number): number | undefined =>
+    sorted.length === 0 ? undefined : sorted[Math.min(sorted.length - 1, Math.floor(sorted.length * q))];
   amounts.sort((a, b) => a - b);
   microAmounts.sort((a, b) => a - b);
   nonMicroAmounts.sort((a, b) => a - b);
@@ -372,7 +465,9 @@ export function runReplay(o: ReplayOptions): ReplayReport {
         boundPayouts,
         untaggedMicro,
         ...(untaggedMicro > 0 && verificationRows === 0
-          ? { tip: `${untaggedMicro} payouts at or below ${microPaise} paise look like penny drops, but none are tagged kind=VERIFICATION — tag them so they are read as account verifications, not probes.` }
+          ? {
+              tip: `${untaggedMicro} payouts at or below ${microPaise} paise look like penny drops, but none are tagged kind=VERIFICATION — tag them so they are read as account verifications, not probes.`,
+            }
           : {}),
       }
     : undefined;
@@ -383,7 +478,9 @@ export function runReplay(o: ReplayOptions): ReplayReport {
           rules: {
             ...(nonMicroAmounts.length >= 10 ? { probe: { largePaise: pct(nonMicroAmounts, 0.25)! } } : {}),
             ...(amounts.length >= 10 ? { cooling: { minAmountPaise: pct(amounts, 0.75)! } } : {}),
-            ...(winCounts.length >= 2 ? { velocity: { perSourceKey: { count: pct(winCounts, 0.99)!, sumPaise: pct(winSums, 0.99)! } } } : {}),
+            ...(winCounts.length >= 2
+              ? { velocity: { perSourceKey: { count: pct(winCounts, 0.99)!, sumPaise: pct(winSums, 0.99)! } } }
+              : {}),
           },
         },
         percentiles: {
@@ -405,7 +502,10 @@ export function runReplay(o: ReplayOptions): ReplayReport {
     totals,
     topRules: [...ruleAgg].map(([rule, a]) => ({ rule, ...a })).sort((x, y) => y.hits - x.hits),
     chains: chains(flagged),
-    falsePositiveReview: flagged.filter((f) => f.verdict === 'REVIEW' && f.hits.length === 1).sort((a, b) => b.amountPaise - a.amountPaise).slice(0, 50),
+    falsePositiveReview: flagged
+      .filter((f) => f.verdict === 'REVIEW' && f.hits.length === 1)
+      .sort((a, b) => b.amountPaise - a.amountPaise)
+      .slice(0, 50),
     flagged,
     alertEpisodes: episodes,
     p99Micros: lat.length === 0 ? 0 : lat[Math.min(lat.length - 1, Math.floor(lat.length * 0.99))]!,

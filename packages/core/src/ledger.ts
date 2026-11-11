@@ -96,18 +96,21 @@ export class CanaryRegistry implements CanarySets {
   readonly intentIds = new Set<string>();
   add(c: { beneficiaryRefs?: readonly string[]; sourceKeyIds?: readonly string[]; intentIds?: readonly string[] }): number {
     let n = 0;
-    for (const r of c.beneficiaryRefs ?? []) if (!this.beneficiaryRefs.has(r)) {
-      this.beneficiaryRefs.add(r);
-      n++;
-    }
-    for (const r of c.sourceKeyIds ?? []) if (!this.sourceKeyIds.has(r)) {
-      this.sourceKeyIds.add(r);
-      n++;
-    }
-    for (const r of c.intentIds ?? []) if (!this.intentIds.has(r)) {
-      this.intentIds.add(r);
-      n++;
-    }
+    for (const r of c.beneficiaryRefs ?? [])
+      if (!this.beneficiaryRefs.has(r)) {
+        this.beneficiaryRefs.add(r);
+        n++;
+      }
+    for (const r of c.sourceKeyIds ?? [])
+      if (!this.sourceKeyIds.has(r)) {
+        this.sourceKeyIds.add(r);
+        n++;
+      }
+    for (const r of c.intentIds ?? [])
+      if (!this.intentIds.has(r)) {
+        this.intentIds.add(r);
+        n++;
+      }
     return n;
   }
   get size(): number {

@@ -10,11 +10,11 @@ The rule checks `beneficiaryRef` against the feed, plus `beneficiaryMobileRef` w
 
 **Configuration:** Feed file (`feedSnapshot` in `payrekha.json`); `blockAt`, `reviewAt` risk bands. Snapshot format — `{version: 1, source, entries: [...]}` where each entry carries a band plus one identifier:
 
-| Field | Meaning |
-|---|---|
-| `ref` | an `hb1_…` ref already hashed with your PayRekha key (any beneficiary type — no hash key needed at load) |
-| `beneficiary` | a raw `{account,ifsc}` / `{vpa}` / `{mobile}` / `{address,network}` — hashed on load and discarded (needs `PAYREKHA_HASH_KEY`) |
-| `mobile` / `mobileRef` | legacy spellings for mobile entries — still accepted |
+| Field                  | Meaning                                                                                                                        |
+| ---------------------- | ------------------------------------------------------------------------------------------------------------------------------ |
+| `ref`                  | an `hb1_…` ref already hashed with your PayRekha key (any beneficiary type — no hash key needed at load)                       |
+| `beneficiary`          | a raw `{account,ifsc}` / `{vpa}` / `{mobile}` / `{address,network}` — hashed on load and discarded (needs `PAYREKHA_HASH_KEY`) |
+| `mobile` / `mobileRef` | legacy spellings for mobile entries — still accepted                                                                           |
 
 `scripts/csv-to-feed-snapshot.mjs` converts an operator CSV (`kind,value,aux,band,source` columns) into this snapshot — raw identifiers are hashed to `hb1_` refs and never written to disk: `node scripts/csv-to-feed-snapshot.mjs --in mules.csv --source i4c-cfcfrms > feed-snapshot.json`. See `examples/data/mule-list.csv`.
 

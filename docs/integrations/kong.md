@@ -26,15 +26,15 @@ deploys the same block goes in `declarative_config` under `plugins:`.
 
 ## Config
 
-| Field | Default | Notes |
-|---|---|---|
-| `payrekha_url` | required | gateway base URL |
-| `ext_authz_key` | required | sent as `x-payrekha-key`; keep it in Kong vaults/env, not config files |
-| `source_key_id` | required | asserted caller identity — set here, never read from the client |
-| `forward` | `body` | `body` = full JSON forwarded (Envoy parity); `headers` = only the `x-payrekha-*`/`x-payout-*`/`x-beneficiary-ref` headers |
-| `timeout_ms` | `250` | matches the Envoy budget; timeout → deny |
-| `payout_path` | `/payouts` | appended to `/ext_authz` so path-mapped rules see the real route |
-| `on_unavailable` | `deny` | only value — there is no allow-on-outage |
+| Field            | Default    | Notes                                                                                                                     |
+| ---------------- | ---------- | ------------------------------------------------------------------------------------------------------------------------- |
+| `payrekha_url`   | required   | gateway base URL                                                                                                          |
+| `ext_authz_key`  | required   | sent as `x-payrekha-key`; keep it in Kong vaults/env, not config files                                                    |
+| `source_key_id`  | required   | asserted caller identity — set here, never read from the client                                                           |
+| `forward`        | `body`     | `body` = full JSON forwarded (Envoy parity); `headers` = only the `x-payrekha-*`/`x-payout-*`/`x-beneficiary-ref` headers |
+| `timeout_ms`     | `250`      | matches the Envoy budget; timeout → deny                                                                                  |
+| `payout_path`    | `/payouts` | appended to `/ext_authz` so path-mapped rules see the real route                                                          |
+| `on_unavailable` | `deny`     | only value — there is no allow-on-outage                                                                                  |
 
 With `forward=body`, `mapPayout` reads `body.*` exactly like Envoy; with
 `forward=headers` the service asserts `x-payout-*`/`x-payrekha-intent`

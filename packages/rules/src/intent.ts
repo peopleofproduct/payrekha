@@ -40,7 +40,10 @@ export function intentRule(): PayoutRule {
             { ...ev, detail: c.detail ?? 'missing' },
           );
         case 'bad-signature':
-          return hit('intent.bad-signature', Verdict.Block, `Intent failed verification (${c.detail ?? 'bad-signature'})`, { ...ev, detail: c.detail ?? 'bad-signature' });
+          return hit('intent.bad-signature', Verdict.Block, `Intent failed verification (${c.detail ?? 'bad-signature'})`, {
+            ...ev,
+            detail: c.detail ?? 'bad-signature',
+          });
         case 'kind-mismatch':
           return hit('intent.kind-mismatch', Verdict.Block, `Intent authorises ${c.intentKind ?? '?'}, payout is ${p.kind}`, ev);
         case 'expired':
@@ -48,16 +51,25 @@ export function intentRule(): PayoutRule {
         case 'beneficiary-mismatch':
           return hit('intent.beneficiary-mismatch', Verdict.Block, 'Payout beneficiary is not the one the intent was signed for', ev);
         case 'reused':
-          return hit('intent.reused', Verdict.Block, `Intent already used ${c.uses ?? 0}/${c.maxUses ?? 1} time(s)`, { ...ev, uses: c.uses ?? 0, maxUses: c.maxUses ?? 1 });
+          return hit('intent.reused', Verdict.Block, `Intent already used ${c.uses ?? 0}/${c.maxUses ?? 1} time(s)`, {
+            ...ev,
+            uses: c.uses ?? 0,
+            maxUses: c.maxUses ?? 1,
+          });
         case 'amount-exceeds':
           // PA settlements report this as settlement.over-captured (more specific).
           if (p.kind === 'PA_SETTLEMENT') return null;
-          return hit('intent.amount-exceeds', Verdict.Block, `${rupees(p.amountPaise)} exceeds the ${rupees(c.remainingPaise ?? 0)} left on the intent`, {
-            ...ev,
-            amountPaise: p.amountPaise,
-            remainingPaise: c.remainingPaise ?? 0,
-            maxAmountPaise: c.maxAmountPaise ?? 0,
-          });
+          return hit(
+            'intent.amount-exceeds',
+            Verdict.Block,
+            `${rupees(p.amountPaise)} exceeds the ${rupees(c.remainingPaise ?? 0)} left on the intent`,
+            {
+              ...ev,
+              amountPaise: p.amountPaise,
+              remainingPaise: c.remainingPaise ?? 0,
+              maxAmountPaise: c.maxAmountPaise ?? 0,
+            },
+          );
         case 'approvals-insufficient': {
           // Configured per kind: 'review' holds for the maker-checker queue
           // while approvers onboard; 'block' (default) declines outright.
@@ -69,7 +81,12 @@ export function intentRule(): PayoutRule {
             {
               ...ev,
               ...(c.approvals !== undefined
-                ? { required: c.approvals.required, provided: c.approvals.provided, issuers: c.approvals.issuers.join(','), onInsufficient: c.approvals.onInsufficient }
+                ? {
+                    required: c.approvals.required,
+                    provided: c.approvals.provided,
+                    issuers: c.approvals.issuers.join(','),
+                    onInsufficient: c.approvals.onInsufficient,
+                  }
                 : {}),
             },
           );
@@ -82,12 +99,11 @@ export function intentRule(): PayoutRule {
             { ...ev, ...(c.approvals !== undefined ? { issuers: c.approvals.issuers.join(',') } : {}) },
           );
         case 'approvals-invalid':
-          return hit(
-            'intent.approvals-invalid',
-            Verdict.Block,
-            `Cited approval failed — ${c.detail ?? 'invalid approval'}`,
-            { ...ev, detail: c.detail ?? 'invalid', ...(c.approvals !== undefined ? { issuers: c.approvals.issuers.join(',') } : {}) },
-          );
+          return hit('intent.approvals-invalid', Verdict.Block, `Cited approval failed — ${c.detail ?? 'invalid approval'}`, {
+            ...ev,
+            detail: c.detail ?? 'invalid',
+            ...(c.approvals !== undefined ? { issuers: c.approvals.issuers.join(',') } : {}),
+          });
       }
     },
   };

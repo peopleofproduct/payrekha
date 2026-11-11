@@ -19,27 +19,27 @@ static_resources:
         - filters:
             - name: envoy.filters.network.http_connection_manager
               typed_config:
-                "@type": type.googleapis.com/envoy.extensions.filters.network.http_connection_manager.v3.HttpConnectionManager
+                '@type': type.googleapis.com/envoy.extensions.filters.network.http_connection_manager.v3.HttpConnectionManager
                 stat_prefix: payouts
                 route_config:
                   virtual_hosts:
                     - name: payouts
-                      domains: ["*"]
+                      domains: ['*']
                       routes:
                         # EDIT: match your payout endpoint paths. Everything
                         # matched is checked; everything else passes through.
-                        - match: { prefix: "/payouts" }
+                        - match: { prefix: '/payouts' }
                           route: { cluster: payout_api }
-                        - match: { prefix: "/" }
+                        - match: { prefix: '/' }
                           route: { cluster: payout_api }
                           typed_per_filter_config:
                             envoy.filters.http.ext_authz:
-                              "@type": type.googleapis.com/envoy.extensions.filters.http.ext_authz.v3.ExtAuthzPerRoute
+                              '@type': type.googleapis.com/envoy.extensions.filters.http.ext_authz.v3.ExtAuthzPerRoute
                               disabled: true
                 http_filters:
                   - name: envoy.filters.http.ext_authz
                     typed_config:
-                      "@type": type.googleapis.com/envoy.extensions.filters.http.ext_authz.v3.ExtAuthz
+                      '@type': type.googleapis.com/envoy.extensions.filters.http.ext_authz.v3.ExtAuthz
                       transport_api_version: V3
                       failure_mode_allow: true
                       with_request_body: { max_request_bytes: 65536, allow_partial_message: false }
@@ -68,7 +68,7 @@ static_resources:
                             patterns: [{ prefix: x-payrekha- }]
                   - name: envoy.filters.http.router
                     typed_config:
-                      "@type": type.googleapis.com/envoy.extensions.filters.http.router.v3.Router
+                      '@type': type.googleapis.com/envoy.extensions.filters.http.router.v3.Router
   clusters:
     - name: payrekha
       type: STRICT_DNS

@@ -22,31 +22,31 @@ Ed25519 issuer keys, and a calendar. Everything below starts from it.
 
 ### Edge / proxy (payrolls stop at the proxy — strongest posture)
 
-| Stack | Guide | Model |
-|---|---|---|
-| Envoy | `docs/integrations/envoy.md` | ext_authz filter |
-| NGINX / OpenResty | `docs/integrations/nginx.md` | auth_request / Lua |
-| Kong | `docs/integrations/kong.md` | `payrekha` plugin |
-| Istio | `docs/integrations/istio.md` | CUSTOM AuthorizationPolicy |
-| Traefik | `docs/integrations/traefik.md` | forwardAuth middleware |
-| AWS API Gateway | `docs/integrations/aws-apigw.md` | REQUEST Lambda authorizer |
-| Apigee | `docs/integrations/apigee.md` | ServiceCallout + RaiseFault |
+| Stack             | Guide                            | Model                       |
+| ----------------- | -------------------------------- | --------------------------- |
+| Envoy             | `docs/integrations/envoy.md`     | ext_authz filter            |
+| NGINX / OpenResty | `docs/integrations/nginx.md`     | auth_request / Lua          |
+| Kong              | `docs/integrations/kong.md`      | `payrekha` plugin           |
+| Istio             | `docs/integrations/istio.md`     | CUSTOM AuthorizationPolicy  |
+| Traefik           | `docs/integrations/traefik.md`   | forwardAuth middleware      |
+| AWS API Gateway   | `docs/integrations/aws-apigw.md` | REQUEST Lambda authorizer   |
+| Apigee            | `docs/integrations/apigee.md`    | ServiceCallout + RaiseFault |
 
 ### In-process (no proxy — the app evaluates inline)
 
-| Stack | Guide | Model |
-|---|---|---|
-| Express/Node | `docs/integrations/express.md` | `payrekhaMiddleware` |
-| Spring Boot | `docs/integrations/java-spring.md` | `@PayrekhaCheck` |
-| Any HTTP client | `docs/integrations/node.md` `go.md` `python.md` | `POST /v1/evaluate` |
+| Stack           | Guide                                           | Model                |
+| --------------- | ----------------------------------------------- | -------------------- |
+| Express/Node    | `docs/integrations/express.md`                  | `payrekhaMiddleware` |
+| Spring Boot     | `docs/integrations/java-spring.md`              | `@PayrekhaCheck`     |
+| Any HTTP client | `docs/integrations/node.md` `go.md` `python.md` | `POST /v1/evaluate`  |
 
 ### Signing (the system of record)
 
-| Language | Client |
-|---|---|
-| JS/TS · Java · Spring · .NET · Go · Python | `clients/` — all vector-conformant |
-| Ruby · PHP · Rust | `clients/ruby|php|rust/` signers |
-| Other | `clients/vectors/intent-v1.json` + the canonical rules — ~100 lines |
+| Language                                   | Client                                                              |
+| ------------------------------------------ | ------------------------------------------------------------------- |
+| JS/TS · Java · Spring · .NET · Go · Python | `clients/` — all vector-conformant                                  |
+| Ruby · PHP · Rust                          | `clients/ruby                                                       | php | rust/` signers |
+| Other                                      | `clients/vectors/intent-v1.json` + the canonical rules — ~100 lines |
 
 ### Intents from source systems
 

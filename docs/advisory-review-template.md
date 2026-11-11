@@ -6,13 +6,13 @@ run it identically every time so reviews are comparable.
 
 ## Turnaround targets
 
-| Stage | Target |
-|---|---|
-| Acknowledge + scope the advisory | 2 business days |
-| Line-by-line review doc committed | 5 business days |
-| Gap list → roadmap items (or explicit exclusions) | same PR as the review |
-| In-scope controls implemented | next release train — stated per gap |
-| Public advisory page updated (mapping + score) | with the implementing release |
+| Stage                                             | Target                              |
+| ------------------------------------------------- | ----------------------------------- |
+| Acknowledge + scope the advisory                  | 2 business days                     |
+| Line-by-line review doc committed                 | 5 business days                     |
+| Gap list → roadmap items (or explicit exclusions) | same PR as the review               |
+| In-scope controls implemented                     | next release train — stated per gap |
+| Public advisory page updated (mapping + score)    | with the implementing release       |
 
 ## The review doc — required sections
 
@@ -20,28 +20,34 @@ run it identically every time so reviews are comparable.
 # Advisory review: <ADVISORY-ID> (<codename>)
 
 ## 1. Advisory facts
-   Issuer, date, affected sectors, recommended-actions count, canonical link.
+
+Issuer, date, affected sectors, recommended-actions count, canonical link.
 
 ## 2. Scope decision — what a payout firewall can even address
-   Which recommended actions concern money moving through APIs (in scope),
-   which are endpoint/cloud/organizational (out of scope by architecture).
+
+Which recommended actions concern money moving through APIs (in scope),
+which are endpoint/cloud/organizational (out of scope by architecture).
 
 ## 3. Line-by-line table
-   | Advisory row | Verbatim requirement | Status | Evidence |
-   Status ∈ {COVERED, PARTIAL, GAP, OUT-OF-SCOPE(product), OUT-OF-SCOPE(operator), EXCLUDED}
-   Evidence = code path + test + doc, never prose. Every PARTIAL names
-   the missing half and its roadmap item.
+
+| Advisory row | Verbatim requirement | Status | Evidence |
+Status ∈ {COVERED, PARTIAL, GAP, OUT-OF-SCOPE(product), OUT-OF-SCOPE(operator), EXCLUDED}
+Evidence = code path + test + doc, never prose. Every PARTIAL names
+the missing half and its roadmap item.
 
 ## 4. The exclusions list — written, named, owned
-   Each exclusion: what it is, why it's not a payout-firewall concern,
-   and who owns it (operator / cloud provider / org function).
+
+Each exclusion: what it is, why it's not a payout-firewall concern,
+and who owns it (operator / cloud provider / org function).
 
 ## 5. Score
-   In-scope coverage %, separate from the raw row count — a firewall is
-   not scored on the entity's endpoint estate.
+
+In-scope coverage %, separate from the raw row count — a firewall is
+not scored on the entity's endpoint estate.
 
 ## 6. Gap plan
-   Each gap → roadmap item id (A/B/C/D/E), effort, acceptance criterion.
+
+Each gap → roadmap item id (A/B/C/D/E), effort, acceptance criterion.
 ```
 
 ## Standing rules

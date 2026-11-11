@@ -14,16 +14,24 @@ itself (`x-payrekha-intent`, `x-payout-kind`, `x-payout-amount`,
 them under `header.*`:
 
 ```json
-{ "extAuthz": { "origin": "prod", "keySha256": "<sha256 hex of the shared key>",
-  "mapping": {
-    "payoutId": "header.x-payout-id", "kind": "header.x-payout-kind",
-    "amountPaise": "header.x-payout-amount", "intentId": "header.x-payrekha-intent",
-    "beneficiaryRef": "header.x-beneficiary-ref",
-    "sourceKeyId": "header.x-client-id",           // nginx asserts it — never forwarded
-    "sourceHint": ["header.x-forwarded-for", "header.user-agent"] } } }
+{
+  "extAuthz": {
+    "origin": "prod",
+    "keySha256": "<sha256 hex of the shared key>",
+    "mapping": {
+      "payoutId": "header.x-payout-id",
+      "kind": "header.x-payout-kind",
+      "amountPaise": "header.x-payout-amount",
+      "intentId": "header.x-payrekha-intent",
+      "beneficiaryRef": "header.x-beneficiary-ref",
+      "sourceKeyId": "header.x-client-id", // nginx asserts it — never forwarded
+      "sourceHint": ["header.x-forwarded-for", "header.user-agent"]
+    }
+  }
+}
 ```
 
-`x-client-id` is set *by nginx* (`proxy_set_header x-client-id
+`x-client-id` is set _by nginx_ (`proxy_set_header x-client-id
 demo-payout-api`), never passed through — the caller must not name its own
 key. `PAYREKHA_EXT_AUTHZ_KEY` reaches nginx via template/`nginx -e`, not a
 literal in the conf.

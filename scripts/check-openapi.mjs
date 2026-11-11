@@ -14,19 +14,28 @@ const exact = [...server.matchAll(/path === '(\/[^']+)'/g)].map((m) => m[1]);
 // Prefix routes: `path.startsWith('/x/')` → OpenAPI `{param}` path.
 const prefix = [...server.matchAll(/path\.startsWith\('(\/[^']+)'\)/g)].map((m) => m[1]);
 const toSpec = (p) =>
-  p === '/v1/issuers/' ? '/v1/issuers/{keyId}'
-    : p === '/v1/intents/' ? '/v1/intents/{intentId}'
-      : p === '/ext_authz' ? '/ext_authz/{path}'
+  p === '/v1/issuers/'
+    ? '/v1/issuers/{keyId}'
+    : p === '/v1/intents/'
+      ? '/v1/intents/{intentId}'
+      : p === '/ext_authz'
+        ? '/ext_authz/{path}'
         : p;
 const serverPaths = new Set([...exact, ...prefix.map(toSpec)]);
 
 // Spec paths are two-space-indented keys under `paths:`.
-const specPaths = new Set(
-  [...openapi.matchAll(/^ {2}(\/\S+):/gm)].map((m) => m[1]),
-);
+const specPaths = new Set([...openapi.matchAll(/^ {2}(\/\S+):/gm)].map((m) => m[1]));
 
 let bad = false;
-for (const p of serverPaths) if (!specPaths.has(p)) { console.error(`server route missing from openapi.yaml: ${p}`); bad = true; }
-for (const p of specPaths) if (!serverPaths.has(p)) { console.error(`openapi.yaml documents a route the server does not serve: ${p}`); bad = true; }
+for (const p of serverPaths)
+  if (!specPaths.has(p)) {
+    console.error(`server route missing from openapi.yaml: ${p}`);
+    bad = true;
+  }
+for (const p of specPaths)
+  if (!serverPaths.has(p)) {
+    console.error(`openapi.yaml documents a route the server does not serve: ${p}`);
+    bad = true;
+  }
 if (bad) process.exit(1);
 console.log(`openapi contract OK — ${serverPaths.size} routes documented`);

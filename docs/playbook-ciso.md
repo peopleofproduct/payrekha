@@ -1,7 +1,7 @@
 # PayRekha for CISOs — the security playbook
 
-*From advisory to deployed control: what PayRekha covers, what it doesn't,
-and exactly how it slots into your stack and your compliance story.*
+_From advisory to deployed control: what PayRekha covers, what it doesn't,
+and exactly how it slots into your stack and your compliance story._
 
 ---
 
@@ -30,8 +30,8 @@ A **compensating control at the payout layer** — in-process, in your
 network. Failure posture is yours: shadow/quickstart fail-open (nothing
 can block money while you evaluate), production recipes fail-closed
 (`failure_mode_allow: false`, dead shared store → DECLINE) — see
-`docs/failure-modes.md`. It adds a second authorization factor *the
-attacker can't steal with a service credential*: a signed business intent
+`docs/failure-modes.md`. It adds a second authorization factor _the
+attacker can't steal with a service credential_: a signed business intent
 from your system of record.
 
 ```
@@ -42,20 +42,20 @@ attacker with stolen prod key → calls payout API ✔ authn passes
 Because it runs in shadow by default, deploying it **cannot make things
 worse**: observe-only, `failure_mode_allow` on Envoy, and a degrade-to-REVIEW
 posture rather than fail-closed surprises. It's the rare control you can
-deploy *during* the risk window instead of after it.
+deploy _during_ the risk window instead of after it.
 
 ### What it maps to
 
-| Advisory behaviour | PayRekha control |
-|---|---|
-| ₹1-probe → large-value burst | `probe-then-burst` velocity pattern |
-| Holiday/weekend/night execution | `calendarFile`-armed `holiday-burst` rules |
-| UAT/test keys in prod | `nonprod-key-in-prod` key-origin check |
-| New/unseen beneficiary, then drain | `new-beneficiary-burst` + intent binding |
-| Insider-held valid credentials | **intent binding** — credential ≠ authorization |
-| Reconnaissance before theft | **canary beneficiaries** → `HIGH_ALERT` |
+| Advisory behaviour                 | PayRekha control                                |
+| ---------------------------------- | ----------------------------------------------- |
+| ₹1-probe → large-value burst       | `probe-then-burst` velocity pattern             |
+| Holiday/weekend/night execution    | `calendarFile`-armed `holiday-burst` rules      |
+| UAT/test keys in prod              | `nonprod-key-in-prod` key-origin check          |
+| New/unseen beneficiary, then drain | `new-beneficiary-burst` + intent binding        |
+| Insider-held valid credentials     | **intent binding** — credential ≠ authorization |
+| Reconnaissance before theft        | **canary beneficiaries** → `HIGH_ALERT`         |
 
-### What it does *not* replace — say this to your board before they do
+### What it does _not_ replace — say this to your board before they do
 
 It is **one layer**, and the runbook says so plainly. It does not replace:
 patching, EDR, MFA/PAM, cloud audit logging, egress controls, UAT isolation,
@@ -74,33 +74,33 @@ payout caller ──▶ Envoy ext_authz ──▶ PayRekha gateway ──▶ ALL
                                              └─▶ /metrics ──▶ Prometheus
 ```
 
-| Boundary | What holds it |
-|---|---|
-| Intent signing | Ed25519 keys — issuer-scoped, revocable (`DELETE /v1/issuers/{keyId}`) |
-| Beneficiary privacy | Raw identifiers hashed at edge; only `hb1_` refs stored/logged |
-| State integrity | HMAC-signed snapshots — tampering fails load, not silently trusted |
-| API access | Role-scoped keys (`evaluate`/`read`/`mint`/`outcomes`/admin) |
-| Trusted identity | Envoy `ext_authz` injects caller identity; gateway trusts the header only from its own proxy |
-| `HIGH_ALERT` | Persists across restarts; reset only by authenticated admin — audited |
+| Boundary            | What holds it                                                                                |
+| ------------------- | -------------------------------------------------------------------------------------------- |
+| Intent signing      | Ed25519 keys — issuer-scoped, revocable (`DELETE /v1/issuers/{keyId}`)                       |
+| Beneficiary privacy | Raw identifiers hashed at edge; only `hb1_` refs stored/logged                               |
+| State integrity     | HMAC-signed snapshots — tampering fails load, not silently trusted                           |
+| API access          | Role-scoped keys (`evaluate`/`read`/`mint`/`outcomes`/admin)                                 |
+| Trusted identity    | Envoy `ext_authz` injects caller identity; gateway trusts the header only from its own proxy |
+| `HIGH_ALERT`        | Persists across restarts; reset only by authenticated admin — audited                        |
 
 **Key management:** start with gateway-held mint keys; graduate to signing
 in your KMS/HSM — same payload, your key custody.
 
 ## 4. This week — the four-step plan
 
-| Step | Time | Posture | You get |
-|---|---|---|---|
-| **Replay** | ~30 min | offline, laptop | what it *would* have caught in your own history + your false-positive baseline |
-| **Shadow** | ~1 day | observe-only, fail-open | live would-stop evidence + canaries armed for the holiday window |
-| **Advise** | wk 2–3 | verdicts to payout service | ops reviews holds; tuning continues |
-| **Enforce** | per kind | active hold/decline | the guarantee, where you choose it |
+| Step        | Time     | Posture                    | You get                                                                        |
+| ----------- | -------- | -------------------------- | ------------------------------------------------------------------------------ |
+| **Replay**  | ~30 min  | offline, laptop            | what it _would_ have caught in your own history + your false-positive baseline |
+| **Shadow**  | ~1 day   | observe-only, fail-open    | live would-stop evidence + canaries armed for the holiday window               |
+| **Advise**  | wk 2–3   | verdicts to payout service | ops reviews holds; tuning continues                                            |
+| **Enforce** | per kind | active hold/decline        | the guarantee, where you choose it                                             |
 
 This week's concrete path: [try-this-weekend.md](try-this-weekend.md) —
 your team can run it; it's written for them.
 
 ## 5. Compliance & audit evidence
 
-Deploying PayRekha generates the artefacts an auditor asks for *after* an
+Deploying PayRekha generates the artefacts an auditor asks for _after_ an
 advisory response:
 
 - **Decision log** — every evaluation recorded (JSONL or **CEF** for
@@ -109,8 +109,8 @@ advisory response:
   `type:"audit"` records alongside decisions
 - **HIGH_ALERT persistence** — tamper-evident alert state, audited reset
 - **Advisory mapping** — [advisory-mapping.md](advisory-mapping.md) maps
-  each observed technique to a rule, so your *"what did we do about
-  CIAD-2026-0058"* answer is a document, not a scramble
+  each observed technique to a rule, so your _"what did we do about
+  CIAD-2026-0058"_ answer is a document, not a scramble
 - **SIEM shipper** — `deploy/siem/vector.toml` feeds decisions to your
   existing SOC pipeline (Splunk/Sentinel/Elastic query packs ship in
   `deploy/siem/queries/`)
@@ -134,7 +134,7 @@ and never persisted raw — the decision log is DPDP-light by construction.
 3. **Revoke the issuer/credential** — `DELETE /v1/issuers/{keyId}` kills the
    signing side; revoke the service key at your API gateway.
 4. **Scope** — `GET /v1/audit` shows every config/state change around it.
-5. **Report per CERT-In norms** — the decision log *is* your evidence pack.
+5. **Report per CERT-In norms** — the decision log _is_ your evidence pack.
 6. **Reset only when clean** — `PUT /v1/state` with `{"highAlert":"reset"}`
    under admin auth; the reset itself is audited.
 
@@ -142,8 +142,8 @@ and never persisted raw — the decision log is DPDP-light by construction.
 
 The durable asset isn't the rules engine — it's **intent signing as a
 control**. Once your system of record signs payout intents, you get a
-property that survives every future campaign: *authorization lives in the
-business layer, not in credentials.* That holds whether next quarter's
+property that survives every future campaign: _authorization lives in the
+business layer, not in credentials._ That holds whether next quarter's
 attack uses phished keys, vendor VPNs, or a compromised CI runner. The
 thresholds tune; the intent primitive doesn't age.
 

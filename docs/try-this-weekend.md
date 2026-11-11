@@ -1,11 +1,11 @@
 # Try PayRekha this weekend — a lender team's runbook
 
-*For the security, payments or platform team at an NBFC, lender, bank or
+_For the security, payments or platform team at an NBFC, lender, bank or
 payment aggregator who read the CERT-In advisory and wants payout-layer
-coverage **before Monday**.*
+coverage **before Monday**._
 
 **The promise in one line:** by Sunday night you'll have PayRekha watching
-every payout in shadow mode — logging what it *would* have stopped, with
+every payout in shadow mode — logging what it _would_ have stopped, with
 canaries planted — and **zero possibility of it touching a customer payout.**
 
 ---
@@ -17,8 +17,8 @@ canaries planted — and **zero possibility of it touching a customer payout.**
 - A Grafana board showing verdicts, rule hits and the would-stop rate.
 - 2–3 **canary beneficiaries** planted — accounts only you know are traps.
 - A decision log your SIEM can already consume.
-- A short evidence pack for Monday: *here is what it saw, here is what it
-  would have stopped.*
+- A short evidence pack for Monday: _here is what it saw, here is what it
+  would have stopped._
 
 Nothing leaves your network. Beneficiary identifiers are hashed at the edge.
 No licence agreement, no vendor onboarding — it runs on your iron, today.
@@ -27,11 +27,11 @@ No licence agreement, no vendor onboarding — it runs on your iron, today.
 
 ## The deal you'll make with your team
 
-| You give | ~4 hours total, spread over the weekend |
-|---|---|
-| A VM or container host | 1 CPU, 512 MB — that's the whole footprint |
-| One config file + one Envoy edit | We ship the templates |
-| Your attention when the red panel lights up | That's the point of it |
+| You give                                    | ~4 hours total, spread over the weekend    |
+| ------------------------------------------- | ------------------------------------------ |
+| A VM or container host                      | 1 CPU, 512 MB — that's the whole footprint |
+| One config file + one Envoy edit            | We ship the templates                      |
+| Your attention when the red panel lights up | That's the point of it                     |
 
 ---
 
@@ -45,8 +45,8 @@ npm ci && npm run demo          # 10 seconds: the full CRAFTY FALCON chain
 ```
 
 You just watched 8 attack steps — stolen credentials, ₹1 probe, UAT key,
-holiday burst, changed settlement account, canary trip — and *"₹0 left the
-building."* That was the engine, locally, in shadow-then-enforce modes.
+holiday burst, changed settlement account, canary trip — and _"₹0 left the
+building."_ That was the engine, locally, in shadow-then-enforce modes.
 
 **Now your own data.** Export last month's payouts (even a week) as CSV —
 `payoutId, kind, amount, beneficiary, channel, timestamp`. Then:
@@ -56,7 +56,7 @@ npm run replay -- --payouts your-ledger-export.csv
 ```
 
 You get a terminal summary plus `report.html`: which advisory-shaped
-patterns exist in *your* data, what PayRekha would have flagged, and —
+patterns exist in _your_ data, what PayRekha would have flagged, and —
 just as important — **the false-positive list you'd need to tune**. This
 is the 30-minute answer to "is there anything here for us?"
 
@@ -70,7 +70,7 @@ is the 30-minute answer to "is there anything here for us?"
 > into `payrekha.json` before judging the verdicts.
 
 > Stop here if you want. You already have evidence for Monday. Everything
-> below makes it *live*.
+> below makes it _live_.
 
 ---
 
@@ -89,8 +89,8 @@ Then three small edits (each marked `EDIT` in the files):
    `x-payrekha-key` = your `PAYREKHA_EXT_AUTHZ_KEY`; `x-client-id` = a name
    for the calling service.
 2. **`payrekha.shadow.json`** → run `node scripts/check-mapping.mjs
-   --file <one real payout JSON>` first — it tells you exactly which
-   mapping lines to fix for *your* payload shape. 2 minutes, no guessing.
+--file <one real payout JSON>` first — it tells you exactly which
+   mapping lines to fix for _your_ payload shape. 2 minutes, no guessing.
 3. **`prometheus.yml`** → paste your `PAYREKHA_READ_KEY`.
 4. **`calendar.json`** → the Diwali window is pre-armed. Add your
    thin-staffing dates if different.
@@ -103,7 +103,7 @@ npm run verify:deploy -- --url http://localhost:8080 \
 ```
 
 **12 checks must pass** — health, shadow non-blocking proof, metrics, and a
-*live canary trip* that raises HIGH_ALERT and resets under audit. If all 12
+_live canary trip_ that raises HIGH_ALERT and resets under audit. If all 12
 are green, the stack is real, not just "up."
 
 Now point payout traffic at `http://<host>:10000` (Envoy) — or have your
@@ -133,7 +133,7 @@ an incident** — it fires `canary.tripped`, pushes the gateway to
 
 ## Saturday–Sunday — watch
 
-- **Grafana** `http://<host>:3000` — the *ALERT STATE* panel, verdicts vs
+- **Grafana** `http://<host>:3000` — the _ALERT STATE_ panel, verdicts vs
   effective actions (the gap = what it would have stopped), rule-hit ranking.
 - **SIEM** — point `deploy/siem/vector.toml` at your Splunk/Elastic/Sentinel.
   The decision log is JSONL, beneficiary-safe (hashes only) — DPDP-clean.
@@ -155,15 +155,15 @@ curl -s localhost:8080/v1/decisions?verdict=REVIEW \
 
 What you now know that you didn't on Friday: which rules fired, at what
 rate, whether anything canary-shaped moved, and your false-positive profile
-for tuning. That *is* the business case for week 2.
+for tuning. That _is_ the business case for week 2.
 
 ## After the weekend — the four-step ladder
 
-| Step | When | What changes |
-|---|---|---|
-| ✅ Replay | Friday, done | — |
-| ✅ Shadow | This weekend | — |
-| **Advise** | Week 2–3 | Payout service reads verdicts; ops reviews holds |
+| Step        | When              | What changes                                          |
+| ----------- | ----------------- | ----------------------------------------------------- |
+| ✅ Replay   | Friday, done      | —                                                     |
+| ✅ Shadow   | This weekend      | —                                                     |
+| **Advise**  | Week 2–3          | Payout service reads verdicts; ops reviews holds      |
 | **Enforce** | When you're ready | Per payout kind, riskiest first (crypto, settlements) |
 
 Graduation detail: [docs/pilot-day1.md](pilot-day1.md) →

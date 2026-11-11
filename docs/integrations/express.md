@@ -22,7 +22,7 @@ import { payrekhaMiddleware } from '@payrekha/client/express';
 
 const client = new PayrekhaClient({
   baseUrl: 'http://payrekha:8080',
-  apiKey: process.env.PAYREKHA_EVAL_KEY,   // an evaluate-role key
+  apiKey: process.env.PAYREKHA_EVAL_KEY, // an evaluate-role key
 });
 
 app.post('/payouts', payrekhaMiddleware({ client }), payoutHandler);

@@ -14,12 +14,12 @@ on normal traffic (thresholds sit comfortably above the data).
 
 ## Preset rationale (`payrekha.json`)
 
-| Rule | Setting | Why |
-|---|---|---|
-| `requireIntent` | disbursals + refunds | the advisory's core: money moves only against a signed intent |
-| `cooling` | 1 h, ≥ ₹5,000 | penny-drop → disbursal normally takes a day; same-hour large payouts to new accounts are the takeover shape |
-| `probe` | ₹10k, 25× window | micro-verification bursts precede bulk theft |
-| `velocity` | lms-prod 120/₹5cr, refunds-svc 60/₹1cr per 10 min | ~40 disbursals/day peak; refund amounts are ≤ ₹5k |
+| Rule            | Setting                                           | Why                                                                                                         |
+| --------------- | ------------------------------------------------- | ----------------------------------------------------------------------------------------------------------- |
+| `requireIntent` | disbursals + refunds                              | the advisory's core: money moves only against a signed intent                                               |
+| `cooling`       | 1 h, ≥ ₹5,000                                     | penny-drop → disbursal normally takes a day; same-hour large payouts to new accounts are the takeover shape |
+| `probe`         | ₹10k, 25× window                                  | micro-verification bursts precede bulk theft                                                                |
+| `velocity`      | lms-prod 120/₹5cr, refunds-svc 60/₹1cr per 10 min | ~40 disbursals/day peak; refund amounts are ≤ ₹5k                                                           |
 
 ## Your first week
 

@@ -11,7 +11,10 @@
 import { createHash } from 'node:crypto';
 
 const args = process.argv.slice(2);
-const flag = (n, d) => { const i = args.indexOf(n); return i >= 0 ? args[i + 1] : d; };
+const flag = (n, d) => {
+  const i = args.indexOf(n);
+  return i >= 0 ? args[i + 1] : d;
+};
 const BASE = flag('--url', process.env.PAYREKHA_URL ?? 'http://localhost:8080').replace(/\/$/, '');
 const API = flag('--api-key', process.env.PAYREKHA_EVALUATE_KEY ?? '');
 const READ = flag('--read-key', process.env.PAYREKHA_READ_KEY ?? API);
@@ -62,20 +65,26 @@ if (state.status === 200) {
 }
 
 const verdict = await call('/v1/evaluate', { method: 'POST', body: payout() });
-check('evaluate responds', verdict.status === 200 && typeof verdict.json?.verdict === 'string',
-  `status ${verdict.status} verdict=${verdict.json?.verdict}`);
+check(
+  'evaluate responds',
+  verdict.status === 200 && typeof verdict.json?.verdict === 'string',
+  `status ${verdict.status} verdict=${verdict.json?.verdict}`,
+);
 if (EXPECT_MODE === 'shadow' && verdict.status === 200) {
-  check('shadow is non-blocking', verdict.json.effectiveAction === 'ALLOW',
-    `effectiveAction=${verdict.json.effectiveAction} (verdict=${verdict.json.verdict} logged only)`);
+  check(
+    'shadow is non-blocking',
+    verdict.json.effectiveAction === 'ALLOW',
+    `effectiveAction=${verdict.json.effectiveAction} (verdict=${verdict.json.verdict} logged only)`,
+  );
 }
 
 const metrics = await call('/metrics', { key: READ });
-check('metrics endpoint', metrics.status === 200 && metrics.text.includes('payrekha_evaluations_total'),
-  `status ${metrics.status}`);
+check('metrics endpoint', metrics.status === 200 && metrics.text.includes('payrekha_evaluations_total'), `status ${metrics.status}`);
 
 // Canary end-to-end: register, trip it, confirm HIGH_ALERT, reset.
 const reg = await call('/v1/canaries', {
-  method: 'POST', key: ADMIN,
+  method: 'POST',
+  key: ADMIN,
   body: { beneficiaryRefs: [canaryRef], actor: 'verify-deploy', reason: 'post-install smoke check' },
 });
 check('canary registration', reg.status === 201, `status ${reg.status}`);
@@ -89,7 +98,8 @@ if (reg.status === 201) {
   check('HIGH_ALERT raised', after.json?.alertState === 'HIGH_ALERT', `alertState=${after.json?.alertState}`);
 
   const reset = await call('/v1/state', {
-    method: 'PUT', key: ADMIN,
+    method: 'PUT',
+    key: ADMIN,
     body: { highAlert: 'reset', actor: 'verify-deploy', reason: 'smoke check cleanup' },
   });
   check('alert reset (audited)', reset.status === 200 && reset.json?.alertState === 'NORMAL', `status ${reset.status}`);

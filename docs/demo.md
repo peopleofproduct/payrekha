@@ -24,12 +24,12 @@ npm run replay -- --payouts examples/data/payouts.csv --intents examples/data/in
 
 Run `npm run demo`. Walk through the steps and stop on these:
 
-| Step | What to say |
-|---|---|
-| Stolen LMS credentials, no intent | The credential is valid. What's missing is the business intent the LOS signs. |
-| Replayed intent to a mule | An intent is tied to one beneficiary, one amount ceiling and a validity window. |
-| ₹1 probe, then ₹4,99,999 | The same playbook as the advisory, caught by `probe.micro-then-large`. |
-| Canary, then HIGH_ALERT | One canary hit locks everything down until an authenticated admin resets it. |
+| Step                              | What to say                                                                     |
+| --------------------------------- | ------------------------------------------------------------------------------- |
+| Stolen LMS credentials, no intent | The credential is valid. What's missing is the business intent the LOS signs.   |
+| Replayed intent to a mule         | An intent is tied to one beneficiary, one amount ceiling and a validity window. |
+| ₹1 probe, then ₹4,99,999          | The same playbook as the advisory, caught by `probe.micro-then-large`.          |
+| Canary, then HIGH_ALERT           | One canary hit locks everything down until an authenticated admin resets it.    |
 
 Close on the last line: **"8 attack steps. ₹0 left the building."** The dimmed line under it is the same run in shadow mode, which is how a team starts on day 1.
 
@@ -70,9 +70,9 @@ Show `out/report.html`. It covers 3,280 synthetic NBFC payouts with three plante
 
 ## If something breaks on stage
 
-| Problem | Fallback |
-|---|---|
-| Docker won't start | `npm run demo` alone tells the whole story with no network and no containers. |
-| Stack is stuck in HIGH_ALERT or enforce mode | Run `npm run demo:live` again. It resets the alert and the mode at startup. |
-| Port 8080 or 10000 is busy | `docker compose -f deploy/docker-compose.yml down`, free the port, then start again. |
-| Colours unreadable on the projector | `NO_COLOR=1 npm run demo` |
+| Problem                                      | Fallback                                                                             |
+| -------------------------------------------- | ------------------------------------------------------------------------------------ |
+| Docker won't start                           | `npm run demo` alone tells the whole story with no network and no containers.        |
+| Stack is stuck in HIGH_ALERT or enforce mode | Run `npm run demo:live` again. It resets the alert and the mode at startup.          |
+| Port 8080 or 10000 is busy                   | `docker compose -f deploy/docker-compose.yml down`, free the port, then start again. |
+| Colours unreadable on the projector          | `NO_COLOR=1 npm run demo`                                                            |

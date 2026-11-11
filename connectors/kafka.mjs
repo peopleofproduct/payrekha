@@ -32,7 +32,13 @@ const kafka = new Kafka({
   brokers: (process.env.KAFKA_BROKERS ?? 'localhost:9092').split(','),
   ...(process.env.KAFKA_CLIENT_ID !== undefined ? { clientId: process.env.KAFKA_CLIENT_ID } : { clientId: 'payrekha-connector' }),
   ...(process.env.KAFKA_SASL_USER !== undefined
-    ? { sasl: { mechanism: process.env.KAFKA_SASL_MECH ?? 'scram-sha-512', username: process.env.KAFKA_SASL_USER, password: process.env.KAFKA_SASL_PASS ?? '' } }
+    ? {
+        sasl: {
+          mechanism: process.env.KAFKA_SASL_MECH ?? 'scram-sha-512',
+          username: process.env.KAFKA_SASL_USER,
+          password: process.env.KAFKA_SASL_PASS ?? '',
+        },
+      }
     : {}),
   ...(process.env.KAFKA_SSL === '1' ? { ssl: true } : {}),
 });

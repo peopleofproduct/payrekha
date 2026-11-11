@@ -5,7 +5,9 @@
   "type": "module",
   "description": "Zero-code intent connectors: webhook / Kafka / SQS receivers that turn your system's approval events into managed PayRekha intents.",
   "license": "Apache-2.0",
-  "engines": { "node": ">=18" },
+  "engines": {
+    "node": ">=18"
+  },
   "scripts": {
     "test": "node --test test/",
     "start:webhook": "node webhook.mjs",

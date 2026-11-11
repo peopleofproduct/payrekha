@@ -5,14 +5,12 @@
 // SPDX-License-Identifier: Apache-2.0
 
 const K = new Uint32Array([
-  0x428a2f98, 0x71374491, 0xb5c0fbcf, 0xe9b5dba5, 0x3956c25b, 0x59f111f1, 0x923f82a4, 0xab1c5ed5,
-  0xd807aa98, 0x12835b01, 0x243185be, 0x550c7dc3, 0x72be5d74, 0x80deb1fe, 0x9bdc06a7, 0xc19bf174,
-  0xe49b69c1, 0xefbe4786, 0x0fc19dc6, 0x240ca1cc, 0x2de92c6f, 0x4a7484aa, 0x5cb0a9dc, 0x76f988da,
-  0x983e5152, 0xa831c66d, 0xb00327c8, 0xbf597fc7, 0xc6e00bf3, 0xd5a79147, 0x06ca6351, 0x14292967,
-  0x27b70a85, 0x2e1b2138, 0x4d2c6dfc, 0x53380d13, 0x650a7354, 0x766a0abb, 0x81c2c92e, 0x92722c85,
-  0xa2bfe8a1, 0xa81a664b, 0xc24b8b70, 0xc76c51a3, 0xd192e819, 0xd6990624, 0xf40e3585, 0x106aa070,
-  0x19a4c116, 0x1e376c08, 0x2748774c, 0x34b0bcb5, 0x391c0cb3, 0x4ed8aa4a, 0x5b9cca4f, 0x682e6ff3,
-  0x748f82ee, 0x78a5636f, 0x84c87814, 0x8cc70208, 0x90befffa, 0xa4506ceb, 0xbef9a3f7, 0xc67178f2,
+  0x428a2f98, 0x71374491, 0xb5c0fbcf, 0xe9b5dba5, 0x3956c25b, 0x59f111f1, 0x923f82a4, 0xab1c5ed5, 0xd807aa98, 0x12835b01, 0x243185be,
+  0x550c7dc3, 0x72be5d74, 0x80deb1fe, 0x9bdc06a7, 0xc19bf174, 0xe49b69c1, 0xefbe4786, 0x0fc19dc6, 0x240ca1cc, 0x2de92c6f, 0x4a7484aa,
+  0x5cb0a9dc, 0x76f988da, 0x983e5152, 0xa831c66d, 0xb00327c8, 0xbf597fc7, 0xc6e00bf3, 0xd5a79147, 0x06ca6351, 0x14292967, 0x27b70a85,
+  0x2e1b2138, 0x4d2c6dfc, 0x53380d13, 0x650a7354, 0x766a0abb, 0x81c2c92e, 0x92722c85, 0xa2bfe8a1, 0xa81a664b, 0xc24b8b70, 0xc76c51a3,
+  0xd192e819, 0xd6990624, 0xf40e3585, 0x106aa070, 0x19a4c116, 0x1e376c08, 0x2748774c, 0x34b0bcb5, 0x391c0cb3, 0x4ed8aa4a, 0x5b9cca4f,
+  0x682e6ff3, 0x748f82ee, 0x78a5636f, 0x84c87814, 0x8cc70208, 0x90befffa, 0xa4506ceb, 0xbef9a3f7, 0xc67178f2,
 ]);
 const rotr = (x, n) => (x >>> n) | (x << (32 - n));
 
@@ -45,8 +43,14 @@ export function sha256Bytes(data) {
       const t2 = (S0 + maj) >>> 0;
       [hh, g, f, e, d, c, b, a] = [g, f, e, (d + t1) >>> 0, c, b, a, (t1 + t2) >>> 0];
     }
-    h[0] = (h[0] + a) >>> 0; h[1] = (h[1] + b) >>> 0; h[2] = (h[2] + c) >>> 0; h[3] = (h[3] + d) >>> 0;
-    h[4] = (h[4] + e) >>> 0; h[5] = (h[5] + f) >>> 0; h[6] = (h[6] + g) >>> 0; h[7] = (h[7] + hh) >>> 0;
+    h[0] = (h[0] + a) >>> 0;
+    h[1] = (h[1] + b) >>> 0;
+    h[2] = (h[2] + c) >>> 0;
+    h[3] = (h[3] + d) >>> 0;
+    h[4] = (h[4] + e) >>> 0;
+    h[5] = (h[5] + f) >>> 0;
+    h[6] = (h[6] + g) >>> 0;
+    h[7] = (h[7] + hh) >>> 0;
   }
   const out = new Uint8Array(32);
   const ov = new DataView(out.buffer);
@@ -61,12 +65,17 @@ export function hmacSha256Bytes(key, data) {
   if (k.length > 64) k = sha256Bytes(k);
   const ipad = new Uint8Array(64).fill(0x36);
   const opad = new Uint8Array(64).fill(0x5c);
-  for (let i = 0; i < k.length; i++) { ipad[i] ^= k[i]; opad[i] ^= k[i]; }
+  for (let i = 0; i < k.length; i++) {
+    ipad[i] ^= k[i];
+    opad[i] ^= k[i];
+  }
   const inner = new Uint8Array(64 + bytesOf(data).length);
-  inner.set(ipad); inner.set(bytesOf(data), 64);
+  inner.set(ipad);
+  inner.set(bytesOf(data), 64);
   const ih = sha256Bytes(inner);
   const outer = new Uint8Array(64 + 32);
-  outer.set(opad); outer.set(ih, 64);
+  outer.set(opad);
+  outer.set(ih, 64);
   return sha256Bytes(outer);
 }
 
@@ -74,10 +83,17 @@ export function hmacSha256Bytes(key, data) {
 function hashLike(fn) {
   const chunks = [];
   const self = {
-    update(d) { chunks.push(bytesOf(d)); return self; },
+    update(d) {
+      chunks.push(bytesOf(d));
+      return self;
+    },
     digest(enc) {
       const all = new Uint8Array(chunks.reduce((a, c) => a + c.length, 0));
-      let o = 0; for (const c of chunks) { all.set(c, o); o += c.length; }
+      let o = 0;
+      for (const c of chunks) {
+        all.set(c, o);
+        o += c.length;
+      }
       const bytes = fn(all);
       return enc === undefined ? Buffer.from(bytes) : Buffer.from(bytes).toString(enc);
     },
@@ -88,7 +104,8 @@ function hashLike(fn) {
 export const createHash = () => hashLike(sha256Bytes);
 export const createHmac = (_alg, key) => hashLike((d) => hmacSha256Bytes(bytesOf(key), d));
 export const timingSafeEqual = (a, b) => {
-  const x = bytesOf(a), y = bytesOf(b);
+  const x = bytesOf(a),
+    y = bytesOf(b);
   if (x.length !== y.length) return false;
   let v = 0;
   for (let i = 0; i < x.length; i++) v |= x[i] ^ y[i];
@@ -97,7 +114,9 @@ export const timingSafeEqual = (a, b) => {
 export const randomBytes = (n) => Buffer.from(globalThis.crypto.getRandomValues(new Uint8Array(n)));
 
 const unsupported = (name) => () => {
-  throw new Error(`${name} is Node-only — the browser playground uses hmac-sha256 demo issuers (production deployments use Ed25519 via Node/KMS)`);
+  throw new Error(
+    `${name} is Node-only — the browser playground uses hmac-sha256 demo issuers (production deployments use Ed25519 via Node/KMS)`,
+  );
 };
 export const sign = unsupported('sign');
 export const verify = unsupported('verify');

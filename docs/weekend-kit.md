@@ -2,7 +2,7 @@
 
 For a lender/NBFC/bank responding to the CERT-In advisory **this weekend**.
 Everything here runs **shadow mode**: PayRekha watches every payout and logs
-what it *would* have stopped. It cannot decline traffic, and Envoy fails open
+what it _would_ have stopped. It cannot decline traffic, and Envoy fails open
 if PayRekha dies. There is no path by which this kit blocks a customer payout.
 
 ## What you get
@@ -18,7 +18,7 @@ if PayRekha dies. There is no path by which this kit blocks a customer payout.
 A Linux VM with Docker + docker compose, ~1 CPU / 512Mi free. No internet —
 
 > **Shortcut**: `npm run init` generates this whole stack in one step; `GET /console` gives the triage UI instead of the curls below. The manual path still works — it's just not required anymore.
-dependency at runtime once images are pulled; nothing phones home.
+> dependency at runtime once images are pulled; nothing phones home.
 
 ## Step 1 — secrets (2 min)
 
@@ -52,23 +52,23 @@ node scripts/check-mapping.mjs --file sample-payout.json \
   --headers "x-payout-kind=LOAN_DISBURSAL,x-client-id=los-core"
 ```
 
-It prints what resolves, what's missing, *why* (e.g. "account number must be
+It prints what resolves, what's missing, _why_ (e.g. "account number must be
 6–20 digits"), and every leaf path your JSON offers — then edit
 `deploy/quickstart/payrekha.shadow.json` → `extAuthz.mapping` to match.
 
 Common shapes → the mapping values to use:
 
-| Your payload | `payoutId` | `amountPaise` | `channel` | beneficiary |
-|---|---|---|---|---|
-| NBFC LMS (shipped default) | `body.request_id` | `body.amount_in_paise` | `body.mode` | `body.beneficiary.account_number` + `.ifsc` |
-| Payment aggregator (`{"id":…,"amount":…,"destination":{…}}`) | `body.id` | `body.amount` *(must be paise)* | `{"const":"IMPS"}` | `body.destination.account_number` + `.ifsc` |
-| Crypto exchange (`{"withdrawal_id":…,"address":…}`) | `body.withdrawal_id` | `body.amount_paise` or a minor-units field | `{"const":"CRYPTO"}` | `beneficiary.address` ← `body.address`, `beneficiary.network` ← `body.network` |
+| Your payload                                                 | `payoutId`           | `amountPaise`                              | `channel`            | beneficiary                                                                    |
+| ------------------------------------------------------------ | -------------------- | ------------------------------------------ | -------------------- | ------------------------------------------------------------------------------ |
+| NBFC LMS (shipped default)                                   | `body.request_id`    | `body.amount_in_paise`                     | `body.mode`          | `body.beneficiary.account_number` + `.ifsc`                                    |
+| Payment aggregator (`{"id":…,"amount":…,"destination":{…}}`) | `body.id`            | `body.amount` _(must be paise)_            | `{"const":"IMPS"}`   | `body.destination.account_number` + `.ifsc`                                    |
+| Crypto exchange (`{"withdrawal_id":…,"address":…}`)          | `body.withdrawal_id` | `body.amount_paise` or a minor-units field | `{"const":"CRYPTO"}` | `beneficiary.address` ← `body.address`, `beneficiary.network` ← `body.network` |
 
 Notes: `channel` accepts `IMPS|NEFT|RTGS|UPI|INTERNAL|CRYPTO` — use a
 `{"const":"…"}` if your payload has no channel field. `amountPaise` must be an
 integer in paise — if your API sends rupees, either convert upstream or send
 `{"const"}`-style test traffic to the evaluate API instead. `kind` is what
-your payout *is* (`LOAN_DISBURSAL`, `VENDOR_PAYOUT`, `REFUND`, `VERIFICATION`…);
+your payout _is_ (`LOAN_DISBURSAL`, `VENDOR_PAYOUT`, `REFUND`, `VERIFICATION`…);
 a single payout path can pin it with `{"const":"LOAN_DISBURSAL"}`.
 
 ## Step 3 — up (5 min)

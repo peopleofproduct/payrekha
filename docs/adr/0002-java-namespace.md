@@ -9,15 +9,15 @@ The Java client (`clients/java`) sits under `city.theproduct.payrekha`, a packag
 
 PayRekha is positioned as "a Panini Tech project by People of Product™". If PayRekha later gets its own domain or legal entity, a vendor-namespace artifact reads slightly off — and **renaming a package after a stable release is a breaking change**: every `import city.theproduct.payrekha.*` in consumer code must change.
 
-The window where a rename is free is *now* — the client is alpha and published nowhere yet (no Maven Central release exists; consumers at most compile from source).
+The window where a rename is free is _now_ — the client is alpha and published nowhere yet (no Maven Central release exists; consumers at most compile from source).
 
 ## Options considered
 
-| Namespace | Ownership proof | Notes |
-|---|---|---|
-| `city.theproduct.payrekha` | Already verifiable today | Vendor namespace — like `com.acme.product`. Consistent with the PoP family. Costs nothing. |
+| Namespace                      | Ownership proof                                                             | Notes                                                                                                    |
+| ------------------------------ | --------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------- |
+| `city.theproduct.payrekha`     | Already verifiable today                                                    | Vendor namespace — like `com.acme.product`. Consistent with the PoP family. Costs nothing.               |
 | `dev.payrekha` / `io.payrekha` | Requires registering a `payrekha` domain (~₹1–3k/yr) and keeping it forever | Cleanest product brand for BFSI evaluators. If the domain ever lapses, the groupId claim lapses with it. |
-| `io.github.peopleofproduct` | Free via GitHub verification | Brands the artifact to the org account, not the product. No better than the status quo. |
+| `io.github.peopleofproduct`    | Free via GitHub verification                                                | Brands the artifact to the org account, not the product. No better than the status quo.                  |
 
 ## Decision
 
@@ -32,4 +32,4 @@ Keep `city.theproduct.payrekha`.
 ## Consequences
 
 - Maven Central publishing can proceed under `city.theproduct` groupId whenever the client stabilises.
-- The release checklist gains one line: *"pre-1.0 only — if a payrekha domain exists by then, revisit ADR 0002 before tagging."*
+- The release checklist gains one line: _"pre-1.0 only — if a payrekha domain exists by then, revisit ADR 0002 before tagging."_

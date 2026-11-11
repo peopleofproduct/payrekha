@@ -56,7 +56,8 @@ describe('hashBeneficiary', () => {
     assert.throws(() => hashBeneficiary({ vpa: 'aa@okbank' }, 'short'));
   });
   it('flags raw identifiers', () => {
-    for (const raw of ['alice@okbank', '9876543210', '123456789012', 'HDFC0001234:1234567890']) assert.equal(looksLikeRawIdentifier(raw), true, raw);
+    for (const raw of ['alice@okbank', '9876543210', '123456789012', 'HDFC0001234:1234567890'])
+      assert.equal(looksLikeRawIdentifier(raw), true, raw);
     assert.equal(looksLikeRawIdentifier(hashBeneficiary({ vpa: 'aa@okbank' }, KEY)), false);
   });
 });
@@ -77,12 +78,17 @@ const unsigned = (o: Partial<UnsignedIntent> = {}): UnsignedIntent => ({
 describe('intents', () => {
   it('Ed25519 round-trip, tamper, wrong issuer, kind scope, rotation, revoke', () => {
     const kp = generateIssuerKeyPair();
-    const ring = new Keyring([{ keyId: 'k1', issuer: 'los-prod', alg: 'ed25519', publicKey: kp.publicKey, kinds: ['LOAN_DISBURSAL'], notAfterMs: T0 + 1000 }]);
+    const ring = new Keyring([
+      { keyId: 'k1', issuer: 'los-prod', alg: 'ed25519', publicKey: kp.publicKey, kinds: ['LOAN_DISBURSAL'], notAfterMs: T0 + 1000 },
+    ]);
     const i = signIntent(unsigned(), { alg: 'ed25519', privateKey: kp.privateKey });
     assert.deepEqual(ring.verify(i, T0), { ok: true });
     assert.deepEqual(ring.verify({ ...i, maxAmountPaise: i.maxAmountPaise + 1 }, T0), { ok: false, reason: 'bad-signature' });
     assert.deepEqual(ring.verify({ ...i, issuer: 'evil' }, T0), { ok: false, reason: 'issuer-mismatch' });
-    assert.deepEqual(ring.verify(signIntent(unsigned({ kind: 'REFUND' }), { alg: 'ed25519', privateKey: kp.privateKey }), T0), { ok: false, reason: 'kind-not-allowed' });
+    assert.deepEqual(ring.verify(signIntent(unsigned({ kind: 'REFUND' }), { alg: 'ed25519', privateKey: kp.privateKey }), T0), {
+      ok: false,
+      reason: 'kind-not-allowed',
+    });
     assert.deepEqual(ring.verify(i, T0 + 2000), { ok: false, reason: 'key-expired' });
     const g = ring.generation;
     ring.revoke('k1');
@@ -94,7 +100,10 @@ describe('intents', () => {
     const ring = new Keyring([{ keyId: 'k1', issuer: 'los-prod', alg: 'hmac-sha256', secret, kinds: ['LOAN_DISBURSAL'] }]);
     const i = signIntent(unsigned(), { alg: 'hmac-sha256', secret });
     assert.deepEqual(ring.verify(i, T0), { ok: true });
-    assert.deepEqual(ring.verify({ ...i, beneficiaryRef: hashBeneficiary({ vpa: 'xx@okbank' }, KEY) }, T0), { ok: false, reason: 'bad-signature' });
+    assert.deepEqual(ring.verify({ ...i, beneficiaryRef: hashBeneficiary({ vpa: 'xx@okbank' }, KEY) }, T0), {
+      ok: false,
+      reason: 'bad-signature',
+    });
     assert.throws(() => ring.add({ keyId: 'k2', issuer: 'x', alg: 'hmac-sha256', secret: 'short', kinds: [] }));
   });
   it('signing payload is domain-separated canonical JSON without the signature', () => {
@@ -113,7 +122,9 @@ describe('intents', () => {
     };
     assert.equal(intentSigningPayload(vec.intent).toString(), vec.payload);
     assert.equal(signIntent(vec.intent, { alg: 'hmac-sha256', secret: vec.hmacSecret }).signature, vec.hmacSignature);
-    const ring = new Keyring([{ keyId: vec.intent.keyId, issuer: vec.intent.issuer, alg: 'ed25519', publicKey: vec.ed25519PublicKey, kinds: [vec.intent.kind] }]);
+    const ring = new Keyring([
+      { keyId: vec.intent.keyId, issuer: vec.intent.issuer, alg: 'ed25519', publicKey: vec.ed25519PublicKey, kinds: [vec.intent.kind] },
+    ]);
     assert.deepEqual(ring.verify({ ...vec.intent, signature: vec.ed25519Signature }, vec.intent.notBeforeMs), { ok: true });
   });
 });
@@ -146,8 +157,14 @@ describe('Engine (Krediwall semantics)', () => {
     );
     const ev = e.evaluate({ n: 1 }, null);
     assert.equal(ev.verdict, 'BLOCK');
-    assert.deepEqual(ev.hits.map((h) => h.rule), ['rev', 'blk']);
-    assert.deepEqual(ev.ruleErrors.map((r) => r.rule), ['err']);
+    assert.deepEqual(
+      ev.hits.map((h) => h.rule),
+      ['rev', 'blk'],
+    );
+    assert.deepEqual(
+      ev.ruleErrors.map((r) => r.rule),
+      ['err'],
+    );
     assert.equal(ev.degraded, true);
     assert.equal(after, false);
     assert.deepEqual(errs, ['err']);
@@ -155,7 +172,12 @@ describe('Engine (Krediwall semantics)', () => {
   });
   it('hot-swaps rules and carries state across same-named rules', () => {
     let restored: unknown = null;
-    const mk = (): Rule<R, null> => ({ name: 's', evaluate: () => null, exportState: () => ({ x: 1 }), restoreState: (s) => void (restored = s) });
+    const mk = (): Rule<R, null> => ({
+      name: 's',
+      evaluate: () => null,
+      exportState: () => ({ x: 1 }),
+      restoreState: (s) => void (restored = s),
+    });
     const e = new Engine<R, null>([mk()], { validate });
     e.replaceRules([mk()]);
     assert.deepEqual(restored, { x: 1 });
@@ -171,7 +193,10 @@ describe('LruMap / TimeRing / IST', () => {
     m.set('c', 3);
     assert.equal(m.has('b'), false);
     assert.equal(m.evictedCount, 1);
-    assert.deepEqual([...m.entriesLeastRecentFirst()].map(([k]) => k), ['a', 'c']);
+    assert.deepEqual(
+      [...m.entriesLeastRecentFirst()].map(([k]) => k),
+      ['a', 'c'],
+    );
   });
   it('TimeRing windows and stays bounded', () => {
     const r = new TimeRing(3);
@@ -191,7 +216,10 @@ describe('LruMap / TimeRing / IST', () => {
 
 const adminToken = 'tok-tok-tok';
 const sha = createHash('sha256').update(adminToken).digest('hex');
-const blockAll: Rule<PayoutRequest, never> = { name: 'x', evaluate: (p) => ({ rule: 'x', verdict: 'BLOCK', reason: 'x', evidence: { kind: p.kind } }) };
+const blockAll: Rule<PayoutRequest, never> = {
+  name: 'x',
+  evaluate: (p) => ({ rule: 'x', verdict: 'BLOCK', reason: 'x', evidence: { kind: p.kind } }),
+};
 const po = (o: Partial<PayoutRequest> = {}): PayoutRequest => ({
   payoutId: `p-${Math.random()}`,
   kind: 'REFUND',
@@ -231,7 +259,10 @@ describe('Payrekha firewall', () => {
   });
   it('HIGH_ALERT: burst of blocks raises it; reset needs the admin token; it survives restart', () => {
     const audits: string[] = [];
-    const fw = new Payrekha([blockAll as never], { config: { mode: 'enforce', adminTokenSha256: sha, highAlertOnBlocks: { count: 3, windowMs: 60_000 } }, onAudit: (e) => audits.push(e.action) });
+    const fw = new Payrekha([blockAll as never], {
+      config: { mode: 'enforce', adminTokenSha256: sha, highAlertOnBlocks: { count: 3, windowMs: 60_000 } },
+      onAudit: (e) => audits.push(e.action),
+    });
     for (let k = 0; k < 3; k++) fw.evaluate(po({ timestampMs: T0 + k }));
     assert.equal(fw.alertState, 'HIGH_ALERT');
     assert.throws(() => fw.resetHighAlert({ actor: 'x', reason: 'y', adminToken: 'wrong' }), AuthorizationError);
@@ -255,16 +286,30 @@ describe('Payrekha firewall', () => {
     assert.equal(fw.evaluate(po()).mode, 'enforce');
     assert.equal(fw.evaluate(po({ kind: 'VENDOR_PAYOUT' })).mode, 'shadow');
   });
-  it('config validation fails loud on a typo\'d kind, a bad mode and a non-finite multiplier', () => {
-    assert.throws(() => new Payrekha([], { config: { modeByKind: { LOAN_DISBURSALX: 'enforce' } as never } }), /modeByKind\.LOAN_DISBURSALX.*IntentKind/);
+  it("config validation fails loud on a typo'd kind, a bad mode and a non-finite multiplier", () => {
+    assert.throws(
+      () => new Payrekha([], { config: { modeByKind: { LOAN_DISBURSALX: 'enforce' } as never } }),
+      /modeByKind\.LOAN_DISBURSALX.*IntentKind/,
+    );
     assert.throws(() => new Payrekha([], { config: { requireIntent: { REFUNDS: false } as never } }), /requireIntent\.REFUNDS/);
     assert.throws(() => new Payrekha([], { config: { mode: 'block' as never } }), /mode must be shadow, advise or enforce/);
-    assert.throws(() => new Payrekha([], { config: { multipliers: { NORMAL: { velocity: Number.NaN } } } }), /multipliers\.NORMAL\.velocity/);
+    assert.throws(
+      () => new Payrekha([], { config: { multipliers: { NORMAL: { velocity: Number.NaN } } } }),
+      /multipliers\.NORMAL\.velocity/,
+    );
     assert.throws(() => new Payrekha([], { config: { multipliers: { WEEKDAY: { velocity: 1 } } as never } }), /multipliers\.WEEKDAY/);
     assert.throws(() => new Payrekha([], { config: { maxTimestampSkewMs: -5 } }), /maxTimestampSkewMs/);
     assert.throws(() => new Payrekha([], { config: { adminTokenSha256: 'nothex' } }), /adminTokenSha256/);
     // A good config still boots.
-    new Payrekha([], { config: { mode: 'enforce', modeByKind: { REFUND: 'shadow' }, requireIntent: { REFUND: false }, multipliers: { NORMAL: { velocity: 2 } }, maxTimestampSkewMs: 60_000 } });
+    new Payrekha([], {
+      config: {
+        mode: 'enforce',
+        modeByKind: { REFUND: 'shadow' },
+        requireIntent: { REFUND: false },
+        multipliers: { NORMAL: { velocity: 2 } },
+        maxTimestampSkewMs: 60_000,
+      },
+    });
   });
   it('an active beneficiary refreshes its ledger recency on every payout', () => {
     const fw = new Payrekha([], { config: { mode: 'enforce', ledgerCapacity: 2 } });
@@ -278,11 +323,15 @@ describe('Payrekha firewall', () => {
     assert.ok(fw.beneficiaries.get(b) === undefined, 'the least-recent entry goes');
   });
   it('a throwing decision hook does not break evaluation', () => {
-    const fw = new Payrekha([], { onDecision: () => { throw new Error('x'); } });
+    const fw = new Payrekha([], {
+      onDecision: () => {
+        throw new Error('x');
+      },
+    });
     assert.equal(fw.evaluate(po()).verdict, 'ALLOW');
     assert.equal(fw.metrics.hookErrors, 1);
   });
-  it('dedupe is scoped to the caller: one key cannot preload another key\'s payoutId', () => {
+  it("dedupe is scoped to the caller: one key cannot preload another key's payoutId", () => {
     const fw = new Payrekha([], { config: { mode: 'enforce' } });
     const id = 'shared-id-1';
     const a = fw.evaluate(po({ payoutId: id, sourceKeyId: 'key-a' }));
@@ -310,7 +359,7 @@ describe('Payrekha firewall', () => {
     assert.equal(fw.reportOutcome(first.payoutId, 'failed', 'key-b'), false, 'another key must not free the intent');
     assert.equal(uses(), 1, 'denied release must not refund the intent use');
     assert.equal(fw.reportOutcome(first.payoutId, 'failed', 'key-a'), true);
-    assert.equal(uses(), 0, 'the consuming key\'s failure report refunds the use');
+    assert.equal(uses(), 0, "the consuming key's failure report refunds the use");
     assert.deepEqual(audits, ['outcome.denied', 'outcome.failed']);
   });
   it('mintIntent builds, signs and registers — idempotent, audited, scope-checked', () => {
@@ -323,7 +372,14 @@ describe('Payrekha firewall', () => {
       now: () => T0,
     });
     const signer = { alg: 'ed25519' as const, privateKey: kp.privateKey };
-    const spec = { keyId: 'mint-1', key: signer, kind: 'LOAN_DISBURSAL' as const, maxAmountPaise: 500_000, beneficiaryRef: 'h:v1:abc', ttlMs: 60_000 };
+    const spec = {
+      keyId: 'mint-1',
+      key: signer,
+      kind: 'LOAN_DISBURSAL' as const,
+      maxAmountPaise: 500_000,
+      beneficiaryRef: 'h:v1:abc',
+      ttlMs: 60_000,
+    };
     const first = fw.mintIntent(spec, 'los-key-a');
     assert.equal(first.accepted, true);
     assert.ok(first.intentId?.startsWith('mint-'));
@@ -342,13 +398,18 @@ describe('Payrekha firewall', () => {
     const badKind = fw.mintIntent({ ...spec, kind: 'VDA_WITHDRAWAL' }, 'los-key-a');
     assert.equal(badKind.accepted, false);
     assert.match(badKind.reason ?? '', /kind-not-allowed/);
-    assert.deepEqual(audits.filter((a) => a === 'intent.minted').length, 3, 'every accepted mint call is audited, including idempotent retries');
+    assert.deepEqual(
+      audits.filter((a) => a === 'intent.minted').length,
+      3,
+      'every accepted mint call is audited, including idempotent retries',
+    );
   });
   it('a payoutId is bound to one intent for life — even across restarts', () => {
     const kp = generateIssuerKeyPair();
     const intentRule: Rule<PayoutRequest, PayoutContext> = {
       name: 'intent',
-      evaluate: (_p, ctx) => (ctx.intent.status === 'reused' ? { rule: 'intent.reused', verdict: 'BLOCK', reason: 'reused', evidence: {} } : null),
+      evaluate: (_p, ctx) =>
+        ctx.intent.status === 'reused' ? { rule: 'intent.reused', verdict: 'BLOCK', reason: 'reused', evidence: {} } : null,
     };
     const mk = () =>
       new Payrekha([intentRule], {
@@ -421,7 +482,10 @@ describe('Payrekha firewall', () => {
     const kp = generateIssuerKeyPair();
     const intentRule: Rule<PayoutRequest, PayoutContext> = {
       name: 'intent',
-      evaluate: (_p, ctx) => (ctx.intent.status === 'bad-signature' ? { rule: 'intent.bad-signature', verdict: 'BLOCK', reason: 'bad-signature', evidence: {} } : null),
+      evaluate: (_p, ctx) =>
+        ctx.intent.status === 'bad-signature'
+          ? { rule: 'intent.bad-signature', verdict: 'BLOCK', reason: 'bad-signature', evidence: {} }
+          : null,
     };
     const mk = () =>
       new Payrekha([intentRule], {

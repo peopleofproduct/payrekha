@@ -11,10 +11,7 @@
       "issuer": "los-demo",
       "alg": "ed25519",
       "publicKey": "MCowBQYDK2VwAyEAmzXzScVTaj+7skKK/5FlT98fJfW7uWuiLUnmF/kTWMc=",
-      "kinds": [
-        "LOAN_DISBURSAL",
-        "VERIFICATION"
-      ]
+      "kinds": ["LOAN_DISBURSAL", "VERIFICATION"]
     }
   ],
   "extAuthz": {

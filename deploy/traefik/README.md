@@ -1,6 +1,6 @@
 # Traefik — forwardAuth to /ext_authz
-> **The full step-by-step trial guide: `docs/integrations/traefik.md`** — this file is the config reference.
 
+> **The full step-by-step trial guide: `docs/integrations/traefik.md`** — this file is the config reference.
 
 Traefik's `forwardAuth` middleware is the integration point. It forwards
 method/URI/headers to PayRekha and either lets the request through (200)
@@ -9,11 +9,11 @@ or returns the auth server's status (403 on HOLD/DECLINE).
 ```yaml
 # docker-compose / dynamic config
 labels:
-  traefik.http.middlewares.payrekha.forwardauth.address: "http://payrekha:8080/ext_authz"
-  traefik.http.middlewares.payrekha.forwardauth.authResponseHeaders: "x-payrekha-verdict,x-payrekha-action,x-payrekha-decision-id,x-payrekha-rules"
-  traefik.http.middlewares.payrekha.forwardauth.authRequestHeaders: "authorization,x-client-id,x-forwarded-for"
-  traefik.http.middlewares.payrekha.forwardauth.trustForwardHeader: "true"
-  traefik.http.routers.payouts.middlewares: "payrekha"
+  traefik.http.middlewares.payrekha.forwardauth.address: 'http://payrekha:8080/ext_authz'
+  traefik.http.middlewares.payrekha.forwardauth.authResponseHeaders: 'x-payrekha-verdict,x-payrekha-action,x-payrekha-decision-id,x-payrekha-rules'
+  traefik.http.middlewares.payrekha.forwardauth.authRequestHeaders: 'authorization,x-client-id,x-forwarded-for'
+  traefik.http.middlewares.payrekha.forwardauth.trustForwardHeader: 'true'
+  traefik.http.routers.payouts.middlewares: 'payrekha'
 ```
 
 Or static YAML:

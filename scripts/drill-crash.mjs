@@ -81,7 +81,13 @@ for (let round = 1; round <= ROUNDS; round++) {
     await fetch(`${base}/v1/evaluate`, {
       method: 'POST',
       headers: { authorization: `Bearer ${API}`, 'content-type': 'application/json' },
-      body: JSON.stringify({ payoutId: `drill-${round}`, kind: 'LOAN_DISBURSAL', amountPaise: 100_00, beneficiaryRef: 'h:v1:drill', channel: 'IMPS' }),
+      body: JSON.stringify({
+        payoutId: `drill-${round}`,
+        kind: 'LOAN_DISBURSAL',
+        amountPaise: 100_00,
+        beneficiaryRef: 'h:v1:drill',
+        channel: 'IMPS',
+      }),
     });
     // Let at least one save land, then kill at an arbitrary point in the
     // save cycle — the interval is 400ms so the kill lands mid-write often.
@@ -92,7 +98,7 @@ for (let round = 1; round <= ROUNDS; round++) {
     const g2 = boot(p);
     try {
       await waitReady(base, `round ${round} restart`);
-      const st = (await (await get(`${base}/v1/state`)).json());
+      const st = await (await get(`${base}/v1/state`)).json();
       const ok = st.alertState === 'HIGH_ALERT';
       console.log(`round ${round}: restart ready, alertState=${st.alertState} ${ok ? '✓' : '✗ LOST'}`);
       if (!ok) failed++;

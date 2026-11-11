@@ -16,7 +16,7 @@ Point any Prometheus-compatible scraper at the endpoint with the key:
 ```yaml
 scrape_configs:
   - job_name: payrekha
-    scheme: https                      # terminate TLS at your ingress/LB
+    scheme: https # terminate TLS at your ingress/LB
     authorization:
       type: Bearer
       credentials: <read-role-api-key> # PAYREKHA_API_KEYS …:read:…
@@ -38,7 +38,7 @@ init_config:
 instances:
   - openmetrics_endpoint: http://payrekha:8080/metrics
     namespace: payrekha
-    metrics: ['payrekha_*']            # the whole prefix
+    metrics: ['payrekha_*'] # the whole prefix
     headers:
       Authorization: Bearer <read-role-api-key>
 ```
@@ -58,11 +58,11 @@ the OpenMetrics endpoint path is simpler:
 # nri-prometheus / openmetrics config
 targets:
   - description: payrekha
-    urls: ["http://payrekha:8080/metrics"]
+    urls: ['http://payrekha:8080/metrics']
     labels: { service: payout-firewall }
     tls_config: {}
     http_headers:
-      Authorization: ["Bearer <read-role-api-key>"]
+      Authorization: ['Bearer <read-role-api-key>']
 ```
 
 ## OpenTelemetry Collector
@@ -88,14 +88,14 @@ service:
 
 ## The alert shortlist (any backend)
 
-| Condition | Why |
-|---|---|
-| `increase(payrekha_shared_failclosed_total[5m]) > 0` | store wobble → verdicts failing closed — page |
-| `increase(payrekha_decision_log_errors_total[5m]) > 0` | audit gap window — investigate before attesting |
-| `increase(payrekha_state_save_errors_total[15m]) > 0` | restart would replay stale state |
-| `payrekha_high_alert == 1` | an alert needs a human, by design forever |
+| Condition                                                        | Why                                              |
+| ---------------------------------------------------------------- | ------------------------------------------------ |
+| `increase(payrekha_shared_failclosed_total[5m]) > 0`             | store wobble → verdicts failing closed — page    |
+| `increase(payrekha_decision_log_errors_total[5m]) > 0`           | audit gap window — investigate before attesting  |
+| `increase(payrekha_state_save_errors_total[15m]) > 0`            | restart would replay stale state                 |
+| `payrekha_high_alert == 1`                                       | an alert needs a human, by design forever        |
 | `rate(payrekha_verdicts_total{verdict="BLOCK"}[5m])` vs baseline | attack or a config regression — either way, look |
-| `histogram_quantile(0.99, payrekha_eval_latency_micros)` drift | verdict-path latency budget |
+| `histogram_quantile(0.99, payrekha_eval_latency_micros)` drift   | verdict-path latency budget                      |
 
 Log side: `deploy/siem/` ships the Vector shipper + query packs for
 Splunk (`splunk.spl`), Sentinel (`sentinel.kql`), Elastic (`elastic.esql`)
@@ -107,11 +107,21 @@ Two paths — the agent's embedded-OpenMetrics scrape (preferred) or
 `amazon-cloudwatch-agent` with the `prometheus` input:
 
 ```json
-{ "agent": { "metrics_collection_interval": 15 },
-  "metrics": { "namespace": "PayRekha", "append_dimensions": {},
-    "metrics_collected": { "prometheus": {
-      "prometheus_config_path": "env:PROMETHEUS_CONFIG_CONTENTS",
-      "emf_processor": { "metric_declaration": [{ "source_labels": ["job"], "label_matcher": "payrekha", "metric_selectors": ["^payrekha_"] }] } } } } }
+{
+  "agent": { "metrics_collection_interval": 15 },
+  "metrics": {
+    "namespace": "PayRekha",
+    "append_dimensions": {},
+    "metrics_collected": {
+      "prometheus": {
+        "prometheus_config_path": "env:PROMETHEUS_CONFIG_CONTENTS",
+        "emf_processor": {
+          "metric_declaration": [{ "source_labels": ["job"], "label_matcher": "payrekha", "metric_selectors": ["^payrekha_"] }]
+        }
+      }
+    }
+  }
+}
 ```
 
 `PROMETHEUS_CONFIG_CONTENTS` = the same scrape block as managed
@@ -138,7 +148,7 @@ scrape_configs:
   - job_name: payrekha
     pipeline_stages:
       - json: { expressions: { verdict: verdict, rules: rules, payoutId: payoutId } }
-      - labels: { verdict: "", payoutId: "" }   # keep label cardinality tiny — rules stay in the line
+      - labels: { verdict: '', payoutId: '' } # keep label cardinality tiny — rules stay in the line
     static_configs: [{ targets: [localhost], labels: { job: payrekha, __path__: /var/log/payrekha/decisions.jsonl } }]
 ```
 

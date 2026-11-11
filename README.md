@@ -17,11 +17,11 @@ A **Panini Tech** project by **[People of Product™](https://theproduct.city)**
 
 ## The name, and the line it stands for
 
-In the Ramayana, when Lakshman has to leave Sita alone, he draws a line in the earth around her — the *Lakshman Rekha*. And here's the part that matters: **Ravana never broke that line. He couldn't.** He came disguised as someone harmless, and got Sita to step outside it.
+In the Ramayana, when Lakshman has to leave Sita alone, he draws a line in the earth around her — the _Lakshman Rekha_. And here's the part that matters: **Ravana never broke that line. He couldn't.** He came disguised as someone harmless, and got Sita to step outside it.
 
 Attackers work the same way. They don't break your payment rails — they show up dressed as your own systems: your API, your credentials, your app. Then they ask your money to step outside.
 
-**PayRekha — *pay* + *rekha* — is the line that holds anyway.**
+**PayRekha — _pay_ + _rekha_ — is the line that holds anyway.**
 
 When your systems are present and honest, money moves freely: a sanctioned loan, a settled merchant, a whitelisted withdrawal. But when something is wrong — a stolen credential, a repackaged app, a payout call at 3 AM on a holiday — the line holds. Whoever is calling, whatever key they hold: **no matching intent, no payout.**
 
@@ -29,44 +29,44 @@ When your systems are present and honest, money moves freely: a sanctioned loan,
 
 PayRekha is an open-source **payout firewall** for Indian NBFCs, digital lenders, payment aggregators and crypto exchanges. It sits between your payout API and the money rails and asks two questions of every rupee leaving:
 
-1. **Was this payout actually decided?** Your system of record (LOS, reconciliation, withdrawal approver) signs an *intent* — this loan, this ceiling, this beneficiary, valid until this time. A payout must show a matching intent to pass.
+1. **Was this payout actually decided?** Your system of record (LOS, reconciliation, withdrawal approver) signs an _intent_ — this loan, this ceiling, this beneficiary, valid until this time. A payout must show a matching intent to pass.
 2. **Does it look like the attacks we've seen?** ₹1-then-large probes, brand-new beneficiaries, holiday bursts, UAT keys in prod — the patterns in the CERT-In advisory.
 
 Get either answer wrong and the money stays. Even if the attacker is inside, with your real payout credential, they still don't hold the intent-signing key — **the money doesn't leave.**
 
-*Built against CERT-In Advisory CIAD-2026-0058 · open source · runs inside your walls · never phones home.*
+_Built against CERT-In Advisory CIAD-2026-0058 · open source · runs inside your walls · never phones home._
 
-|       18        |     108      |       ~19 µs        |        3        |                 0                  |
-| :-------------: | :----------: | :-----------------: | :-------------: | :--------------------------------: |
+|          18           |       108        |        ~19 µs        |                   3                   |                          0                          |
+| :-------------------: | :--------------: | :------------------: | :-----------------------------------: | :-------------------------------------------------: |
 | advisory-mapped rules | tests, all green | p99 eval, in-process | client languages (Go · Java · Python) | runtime deps in `core` · network calls · phone-home |
 
 ## Why this week, of all weeks
 
-CERT-In advisory **CIAD-2026-0058** ("CRAFTY FALCON") describes attackers who get inside a lender and call its *own* payout APIs with valid credentials — and it warns they favour **holidays**, when the guardians are thinnest.
+CERT-In advisory **CIAD-2026-0058** ("CRAFTY FALCON") describes attackers who get inside a lender and call its _own_ payout APIs with valid credentials — and it warns they favour **holidays**, when the guardians are thinnest.
 
 This is Diwali week — the festival that celebrates the very epic the Lakshman Rekha comes from, and one of the longest low-staffing windows of the year. We open-sourced PayRekha the week the guardian steps away, because that's exactly when the line matters. The [weekend kit](docs/weekend-kit.md) stands it up in ~30 minutes in shadow mode — it watches, learns and alerts, and by construction **it cannot block a single payout.**
 
 ## How you adopt it — four steps, each reversible
 
-| Step | When | What happens | What it can break |
-|---|---|---|---|
-| **Replay** | Day 1 · ~30 min | Your last month's payout export runs through it on a laptop — see what it would have caught | Nothing — it reads a file |
-| **Shadow** | Week 1 | Sits in front of the payout API in observe-only mode | Nothing — it cannot block by construction |
-| **Advise** | Week 2–3 | Your payout service reads each verdict; ops reviews the holds | Nothing — verdicts are advisory |
-| **Enforce** | When you're ready | Turn it on per payout type, riskiest first (crypto withdrawals, merchant settlements) | Only what you explicitly turn on |
+| Step        | When              | What happens                                                                                | What it can break                         |
+| ----------- | ----------------- | ------------------------------------------------------------------------------------------- | ----------------------------------------- |
+| **Replay**  | Day 1 · ~30 min   | Your last month's payout export runs through it on a laptop — see what it would have caught | Nothing — it reads a file                 |
+| **Shadow**  | Week 1            | Sits in front of the payout API in observe-only mode                                        | Nothing — it cannot block by construction |
+| **Advise**  | Week 2–3          | Your payout service reads each verdict; ops reviews the holds                               | Nothing — verdicts are advisory           |
+| **Enforce** | When you're ready | Turn it on per payout type, riskiest first (crypto withdrawals, merchant settlements)       | Only what you explicitly turn on          |
 
-| | |
-|---|---|
-| **What it is** | A TypeScript library and a small HTTP gateway (with an Envoy ext_authz adapter) that answers `ALLOW`, `REVIEW` or `BLOCK` for each payout. Measured p99 is about 19 µs in-process and 0.7 ms through the gateway on a laptop. |
-| **Who it's for** | Teams that run payout, disbursal, refund, settlement or withdrawal APIs, and the CISOs who answer for them. |
-| **What it is not** | Not an ML platform, not an EDR, and not a replacement for patching or cloud audit logs. It is the last check before the money leaves. |
-| **Maturity** | **Alpha** (`0.1.0-alpha.2`). Thresholds are illustrative and have not been tuned on production data. Run it in shadow mode first. |
+|                    |                                                                                                                                                                                                                               |
+| ------------------ | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **What it is**     | A TypeScript library and a small HTTP gateway (with an Envoy ext_authz adapter) that answers `ALLOW`, `REVIEW` or `BLOCK` for each payout. Measured p99 is about 19 µs in-process and 0.7 ms through the gateway on a laptop. |
+| **Who it's for**   | Teams that run payout, disbursal, refund, settlement or withdrawal APIs, and the CISOs who answer for them.                                                                                                                   |
+| **What it is not** | Not an ML platform, not an EDR, and not a replacement for patching or cloud audit logs. It is the last check before the money leaves.                                                                                         |
+| **Maturity**       | **Alpha** (`0.1.0-alpha.2`). Thresholds are illustrative and have not been tuned on production data. Run it in shadow mode first.                                                                                             |
 
 ## The attack it's built for
 
 CERT-In advisory CIAD-2026-0058 describes "CRAFTY FALCON": attackers get inside a lender or payment company and then **call the victim's own payout APIs**. They do ₹1 test transfers before large ones. They abuse merchant settlement APIs. They move from an exposed UAT box into production, call APIs directly from repackaged mobile apps, and strike on holidays. Every one of those calls uses a valid credential. Perimeter controls do not see a problem.
 
-PayRekha adds a second key. The system that *decides* money should move (your LOS, your reconciliation engine, your withdrawal approver) signs an **intent**: this loan, this amount ceiling, this beneficiary, valid until this time. The system that *moves* money must show a matching intent. If an attacker steals the payout credential, they still do not have the intent-signing key. **Even if they're inside, the money doesn't leave.**
+PayRekha adds a second key. The system that _decides_ money should move (your LOS, your reconciliation engine, your withdrawal approver) signs an **intent**: this loan, this amount ceiling, this beneficiary, valid until this time. The system that _moves_ money must show a matching intent. If an attacker steals the payout credential, they still do not have the intent-signing key. **Even if they're inside, the money doesn't leave.**
 
 ## Where it sits
 
@@ -90,7 +90,7 @@ npm run demo -- --json            # one JSON line per step
 npm run demo:live                 # live, through Envoy (start the compose stack first)
 ```
 
-The demo walks through these steps: a legitimate penny-drop and loan disbursal, then stolen credentials with no intent, a replayed intent, a ₹1 then ₹4,99,999 probe, a UAT key, a changed settlement account, a Diwali burst, and a canary hit that enters `HIGH_ALERT`. It ends with *"8 attack steps. ₹0 left the building."*
+The demo walks through these steps: a legitimate penny-drop and loan disbursal, then stolen credentials with no intent, a replayed intent, a ₹1 then ₹4,99,999 probe, a UAT key, a changed settlement account, a Diwali burst, and a canary hit that enters `HIGH_ALERT`. It ends with _"8 attack steps. ₹0 left the building."_
 
 ### …or run the same chain in your browser, no install
 
@@ -125,31 +125,31 @@ curl -i -XPOST localhost:10000/payouts -H 'x-payout-kind: LOAN_DISBURSAL' \
 
 Every hit carries a rule ID, a plain-words reason with ₹ amounts, and structured evidence. Beneficiaries are keyed hashes (`hb1_…`) from the moment they enter. Raw account numbers, VPAs and mobiles never reach logs or state.
 
-| Rule | Fires when | Default |
-|---|---|---|
-| [`intent.missing`](docs/rules/intent.missing.md) | No intent on a payout kind that requires one | BLOCK |
-| [`intent.bad-signature`](docs/rules/intent.bad-signature.md) | Signature invalid, or the key is unknown or revoked | BLOCK |
-| [`intent.kind-mismatch`](docs/rules/intent.kind-mismatch.md) | A refund intent is used for a disbursal, and similar | BLOCK |
-| [`intent.expired`](docs/rules/intent.expired.md) | Outside the intent's validity window | BLOCK |
-| [`intent.amount-exceeds`](docs/rules/intent.amount-exceeds.md) | Above the intent's ceiling | BLOCK |
-| [`intent.beneficiary-mismatch`](docs/rules/intent.beneficiary-mismatch.md) | A real intent replayed to another account | BLOCK |
-| [`intent.reused`](docs/rules/intent.reused.md) | Intent used more than `maxUses` times | BLOCK |
-| [`intent.approvals-insufficient`](docs/rules/intent.approvals-insufficient.md) | Fewer distinct-issuer approvals than `requiredApprovals` demands | BLOCK or REVIEW |
-| [`intent.approvals-not-distinct`](docs/rules/intent.approvals-not-distinct.md) | Two cited intents share an issuer — one party approving twice | BLOCK |
-| [`intent.approvals-invalid`](docs/rules/intent.approvals-invalid.md) | A cited approval is bad, mismatched, expired or re-spent | BLOCK |
-| [`settlement.over-captured`](docs/rules/settlement.over-captured.md) | Settlement above the reconciled amount | BLOCK |
-| [`settlement.account-changed`](docs/rules/settlement.account-changed.md) | Merchant settlement account changed recently | REVIEW |
-| [`probe.micro-then-large`](docs/rules/probe.micro-then-large.md) | ₹1 test, then a large payout (penny-drop aware) | REVIEW (BLOCK in HIGH_ALERT) |
-| [`beneficiary.cooling`](docs/rules/beneficiary.cooling.md) | Large payout to a beneficiary first seen minutes ago | REVIEW |
-| [`velocity.outflow`](docs/rules/velocity.outflow.md) | Outflow over budget per API key, merchant or globally | REVIEW, BLOCK above 2× |
-| [`amount.band-anomaly`](docs/rules/amount.band-anomaly.md) | Far above the rolling median/MAD band | REVIEW |
-| [`origin.nonprod`](docs/rules/origin.nonprod.md) | Call from a UAT or staging origin or key | BLOCK |
-| [`origin.mismatch`](docs/rules/origin.mismatch.md) | Caller's declared environment disagrees with its route origin | REVIEW |
-| [`identity.fingerprint`](docs/rules/identity.fingerprint.md) | API key used from a new edge-asserted source | REVIEW |
-| [`canary.tripped`](docs/rules/canary.tripped.md) | Planted canary beneficiary, key or intent touched | BLOCK + HIGH_ALERT |
-| [`calendar.window`](docs/rules/calendar.window.md) | Holiday, weekend or night window (evidence only) | ALLOW (tightens others) |
-| [`feed.reputation`](docs/rules/feed.reputation.md) | Beneficiary is on an operator-loaded fraud feed | REVIEW / BLOCK |
-| [`client.unattested`](docs/rules/client.unattested.md) | App attestation is required but missing | REVIEW |
+| Rule                                                                           | Fires when                                                       | Default                      |
+| ------------------------------------------------------------------------------ | ---------------------------------------------------------------- | ---------------------------- |
+| [`intent.missing`](docs/rules/intent.missing.md)                               | No intent on a payout kind that requires one                     | BLOCK                        |
+| [`intent.bad-signature`](docs/rules/intent.bad-signature.md)                   | Signature invalid, or the key is unknown or revoked              | BLOCK                        |
+| [`intent.kind-mismatch`](docs/rules/intent.kind-mismatch.md)                   | A refund intent is used for a disbursal, and similar             | BLOCK                        |
+| [`intent.expired`](docs/rules/intent.expired.md)                               | Outside the intent's validity window                             | BLOCK                        |
+| [`intent.amount-exceeds`](docs/rules/intent.amount-exceeds.md)                 | Above the intent's ceiling                                       | BLOCK                        |
+| [`intent.beneficiary-mismatch`](docs/rules/intent.beneficiary-mismatch.md)     | A real intent replayed to another account                        | BLOCK                        |
+| [`intent.reused`](docs/rules/intent.reused.md)                                 | Intent used more than `maxUses` times                            | BLOCK                        |
+| [`intent.approvals-insufficient`](docs/rules/intent.approvals-insufficient.md) | Fewer distinct-issuer approvals than `requiredApprovals` demands | BLOCK or REVIEW              |
+| [`intent.approvals-not-distinct`](docs/rules/intent.approvals-not-distinct.md) | Two cited intents share an issuer — one party approving twice    | BLOCK                        |
+| [`intent.approvals-invalid`](docs/rules/intent.approvals-invalid.md)           | A cited approval is bad, mismatched, expired or re-spent         | BLOCK                        |
+| [`settlement.over-captured`](docs/rules/settlement.over-captured.md)           | Settlement above the reconciled amount                           | BLOCK                        |
+| [`settlement.account-changed`](docs/rules/settlement.account-changed.md)       | Merchant settlement account changed recently                     | REVIEW                       |
+| [`probe.micro-then-large`](docs/rules/probe.micro-then-large.md)               | ₹1 test, then a large payout (penny-drop aware)                  | REVIEW (BLOCK in HIGH_ALERT) |
+| [`beneficiary.cooling`](docs/rules/beneficiary.cooling.md)                     | Large payout to a beneficiary first seen minutes ago             | REVIEW                       |
+| [`velocity.outflow`](docs/rules/velocity.outflow.md)                           | Outflow over budget per API key, merchant or globally            | REVIEW, BLOCK above 2×       |
+| [`amount.band-anomaly`](docs/rules/amount.band-anomaly.md)                     | Far above the rolling median/MAD band                            | REVIEW                       |
+| [`origin.nonprod`](docs/rules/origin.nonprod.md)                               | Call from a UAT or staging origin or key                         | BLOCK                        |
+| [`origin.mismatch`](docs/rules/origin.mismatch.md)                             | Caller's declared environment disagrees with its route origin    | REVIEW                       |
+| [`identity.fingerprint`](docs/rules/identity.fingerprint.md)                   | API key used from a new edge-asserted source                     | REVIEW                       |
+| [`canary.tripped`](docs/rules/canary.tripped.md)                               | Planted canary beneficiary, key or intent touched                | BLOCK + HIGH_ALERT           |
+| [`calendar.window`](docs/rules/calendar.window.md)                             | Holiday, weekend or night window (evidence only)                 | ALLOW (tightens others)      |
+| [`feed.reputation`](docs/rules/feed.reputation.md)                             | Beneficiary is on an operator-loaded fraud feed                  | REVIEW / BLOCK               |
+| [`client.unattested`](docs/rules/client.unattested.md)                         | App attestation is required but missing                          | REVIEW                       |
 
 ## Repository layout
 
@@ -195,17 +195,17 @@ No ML, and no hosted service — it runs on your iron. It makes no calls to gove
 
 One line of defence per surface, from the same People of Product™ workshop:
 
-- **[Panini](https://github.com/peopleofproduct/Panini)** — checks the financial story you're *shown* (India's digital public infrastructure).
-- **[Krediwall](https://github.com/peopleofproduct/krediwall)** — checks every rupee your *customers* spend on credit. PayRekha's engine semantics come from it.
-- **PayRekha** — checks every rupee your *own systems* send out.
+- **[Panini](https://github.com/peopleofproduct/Panini)** — checks the financial story you're _shown_ (India's digital public infrastructure).
+- **[Krediwall](https://github.com/peopleofproduct/krediwall)** — checks every rupee your _customers_ spend on credit. PayRekha's engine semantics come from it.
+- **PayRekha** — checks every rupee your _own systems_ send out.
 
 ## Project
 
 **PayRekha** is a **Panini Tech** project by **[People of Product™](https://theproduct.city)** — the team behind **Panini** and **Krediwall**, built to make India's open-finance infrastructure more open for everyone.
 
 - 🌐 Website — [peopleofproduct.github.io/payrekha](https://peopleofproduct.github.io/payrekha)
-- 💼 LinkedIn — PayRekha *(coming soon)* · [People of Product™](https://www.linkedin.com/company/people-of-product)
-- 🐦 X — PayRekha *(coming soon)* · [@PeopleOfProduct](https://x.com/PeopleOfProduct)
+- 💼 LinkedIn — PayRekha _(coming soon)_ · [People of Product™](https://www.linkedin.com/company/people-of-product)
+- 🐦 X — PayRekha _(coming soon)_ · [@PeopleOfProduct](https://x.com/PeopleOfProduct)
 
 The open-source core is free forever — if it's protecting your payouts, you can [support the maintainers](SUPPORT.md).
 

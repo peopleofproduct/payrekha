@@ -77,4 +77,6 @@ if (problems.length > 0) {
   process.exit(1);
 }
 process.stdout.write(`${JSON.stringify({ version: 1, source, generatedAt: new Date().toISOString(), entries }, null, 2)}\n`);
-console.error(`${entries.length} entries (${rows.length} rows${rows.length > entries.length ? `, ${rows.length - entries.length} duplicates collapsed` : ''}) — raw identifiers hashed, not written.`);
+console.error(
+  `${entries.length} entries (${rows.length} rows${rows.length > entries.length ? `, ${rows.length - entries.length} duplicates collapsed` : ''}) — raw identifiers hashed, not written.`,
+);

@@ -15,7 +15,15 @@ export interface WebhookOptions {
 
 export type WebhookEvent =
   | { readonly type: 'alert.entered' | 'alert.cleared'; readonly atMs: number; readonly actor: string; readonly reason: string }
-  | { readonly type: 'payout.blocked'; readonly atMs: number; readonly decisionId: string; readonly payoutId: string; readonly rules: readonly string[]; readonly mode: string; readonly effectiveAction: string };
+  | {
+      readonly type: 'payout.blocked';
+      readonly atMs: number;
+      readonly decisionId: string;
+      readonly payoutId: string;
+      readonly rules: readonly string[];
+      readonly mode: string;
+      readonly effectiveAction: string;
+    };
 
 export function signWebhook(secret: string, timestamp: string, body: string): string {
   return `sha256=${createHmac('sha256', secret).update(`${timestamp}.${body}`).digest('hex')}`;
@@ -67,7 +75,11 @@ export class WebhookSender {
       try {
         const res = await this.fetchImpl(this.o.url, {
           method: 'POST',
-          headers: { 'content-type': 'application/json', 'x-payrekha-timestamp': ts, 'x-payrekha-signature': signWebhook(this.o.secret, ts, body) },
+          headers: {
+            'content-type': 'application/json',
+            'x-payrekha-timestamp': ts,
+            'x-payrekha-signature': signWebhook(this.o.secret, ts, body),
+          },
           body,
           signal: AbortSignal.timeout(this.o.timeoutMs ?? 3_000),
         });

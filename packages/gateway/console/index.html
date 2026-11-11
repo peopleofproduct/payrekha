@@ -3,121 +3,330 @@
      data call carries the read-role API key you paste below. Keys live in
      sessionStorage only (tab-scoped, cleared on close). -->
 <html lang="en">
-<head>
-<meta charset="utf-8"><title>PayRekha console</title>
-<style>
-body{font-family:ui-monospace,Menlo,monospace;background:#0d1117;color:#e6edf3;margin:0;font-size:13px}
-header{padding:10px 16px;background:#161b22;border-bottom:1px solid #30363d;display:flex;gap:14px;align-items:center;flex-wrap:wrap}
-input,select{background:#0d1117;border:1px solid #30363d;color:#e6edf3;padding:4px 8px;border-radius:4px;font:inherit}
-button{background:#21262d;border:1px solid #30363d;color:#e6edf3;padding:4px 10px;border-radius:4px;cursor:pointer;font:inherit}
-button:hover{background:#30363d}
-section{margin:14px 16px;padding:12px;background:#161b22;border:1px solid #30363d;border-radius:6px}
-h2{margin:0 0 8px;font-size:13px;text-transform:uppercase;letter-spacing:.06em;color:#8b949e}
-table{width:100%;border-collapse:collapse}td,th{padding:3px 8px;text-align:left;border-bottom:1px solid #21262d;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:260px}
-.ALLOW{color:#3fb950}.REVIEW{color:#d29922}.BLOCK{color:#f85149}
-.alert{border-color:#f85149;background:#2d1215}
-.badge{padding:1px 7px;border-radius:10px;border:1px solid #30363d}
-.err{color:#f85149}.dim{color:#8b949e}
-</style>
-</head>
-<body>
-<header>
-  <b>PayRekha</b>
-  <input id="gw" size="34" placeholder="gateway URL e.g. http://localhost:8080">
-  <input id="key" size="22" placeholder="read-role API key" type="password">
-  <input id="adm" size="20" placeholder="admin token (writes only)" type="password">
-  <button onclick="connect()">connect</button>
-  <span id="status" class="dim">not connected</span>
-  <span id="alert" class="badge dim"></span>
-</header>
+  <head>
+    <meta charset="utf-8" />
+    <title>PayRekha console</title>
+    <style>
+      body {
+        font-family: ui-monospace, Menlo, monospace;
+        background: #0d1117;
+        color: #e6edf3;
+        margin: 0;
+        font-size: 13px;
+      }
+      header {
+        padding: 10px 16px;
+        background: #161b22;
+        border-bottom: 1px solid #30363d;
+        display: flex;
+        gap: 14px;
+        align-items: center;
+        flex-wrap: wrap;
+      }
+      input,
+      select {
+        background: #0d1117;
+        border: 1px solid #30363d;
+        color: #e6edf3;
+        padding: 4px 8px;
+        border-radius: 4px;
+        font: inherit;
+      }
+      button {
+        background: #21262d;
+        border: 1px solid #30363d;
+        color: #e6edf3;
+        padding: 4px 10px;
+        border-radius: 4px;
+        cursor: pointer;
+        font: inherit;
+      }
+      button:hover {
+        background: #30363d;
+      }
+      section {
+        margin: 14px 16px;
+        padding: 12px;
+        background: #161b22;
+        border: 1px solid #30363d;
+        border-radius: 6px;
+      }
+      h2 {
+        margin: 0 0 8px;
+        font-size: 13px;
+        text-transform: uppercase;
+        letter-spacing: 0.06em;
+        color: #8b949e;
+      }
+      table {
+        width: 100%;
+        border-collapse: collapse;
+      }
+      td,
+      th {
+        padding: 3px 8px;
+        text-align: left;
+        border-bottom: 1px solid #21262d;
+        white-space: nowrap;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        max-width: 260px;
+      }
+      .ALLOW {
+        color: #3fb950;
+      }
+      .REVIEW {
+        color: #d29922;
+      }
+      .BLOCK {
+        color: #f85149;
+      }
+      .alert {
+        border-color: #f85149;
+        background: #2d1215;
+      }
+      .badge {
+        padding: 1px 7px;
+        border-radius: 10px;
+        border: 1px solid #30363d;
+      }
+      .err {
+        color: #f85149;
+      }
+      .dim {
+        color: #8b949e;
+      }
+    </style>
+  </head>
+  <body>
+    <header>
+      <b>PayRekha</b>
+      <input id="gw" size="34" placeholder="gateway URL e.g. http://localhost:8080" />
+      <input id="key" size="22" placeholder="read-role API key" type="password" />
+      <input id="adm" size="20" placeholder="admin token (writes only)" type="password" />
+      <button onclick="connect()">connect</button>
+      <span id="status" class="dim">not connected</span>
+      <span id="alert" class="badge dim"></span>
+    </header>
 
-<section id="alertbox" style="display:none" class="alert">
-  <h2>HIGH_ALERT</h2><div id="alertinfo"></div>
-  <input id="reason" size="50" placeholder="reset reason (required, goes to audit)">
-  <button onclick="resetAlert()">reset alert</button>
-  <span id="resetmsg"></span>
-</section>
+    <section id="alertbox" style="display: none" class="alert">
+      <h2>HIGH_ALERT</h2>
+      <div id="alertinfo"></div>
+      <input id="reason" size="50" placeholder="reset reason (required, goes to audit)" />
+      <button onclick="resetAlert()">reset alert</button>
+      <span id="resetmsg"></span>
+    </section>
 
-<section>
-  <h2>HOLD queue <span class="dim">(verdict REVIEW → action HOLD)</span></h2>
-  <table id="holds"><tr><td class="dim">—</td></tr></table>
-</section>
+    <section>
+      <h2>HOLD queue <span class="dim">(verdict REVIEW → action HOLD)</span></h2>
+      <table id="holds">
+        <tr>
+          <td class="dim">—</td>
+        </tr>
+      </table>
+    </section>
 
-<section>
-  <h2>Decisions <span class="dim" id="dcount"></span></h2>
-  <select onchange="load(this.value)" id="vf">
-    <option value="">all verdicts</option><option>ALLOW</option><option>REVIEW</option><option>BLOCK</option>
-  </select>
-  <table id="dec"><tr><td class="dim">—</td></tr></table>
-</section>
+    <section>
+      <h2>Decisions <span class="dim" id="dcount"></span></h2>
+      <select onchange="load(this.value)" id="vf">
+        <option value="">all verdicts</option>
+        <option>ALLOW</option>
+        <option>REVIEW</option>
+        <option>BLOCK</option>
+      </select>
+      <table id="dec">
+        <tr>
+          <td class="dim">—</td>
+        </tr>
+      </table>
+    </section>
 
-<section>
-  <h2>Intent lookup</h2>
-  <input id="iid" size="40" placeholder="intentId"> <button onclick="lookup()">fetch</button>
-  <pre id="intent"></pre>
-</section>
+    <section>
+      <h2>Intent lookup</h2>
+      <input id="iid" size="40" placeholder="intentId" /> <button onclick="lookup()">fetch</button>
+      <pre id="intent"></pre>
+    </section>
 
-<section>
-  <h2>Canary registration <span class="dim">(admin)</span></h2>
-  <input id="crefs" size="60" placeholder="comma-separated hb1_ refs, sourceKeyIds, or intentIds — prefix s:/i:">
-  <input id="creason" size="30" placeholder="reason (audit)">
-  <button onclick="addCanaries()">register</button> <span id="cmsg"></span>
-</section>
+    <section>
+      <h2>Canary registration <span class="dim">(admin)</span></h2>
+      <input id="crefs" size="60" placeholder="comma-separated hb1_ refs, sourceKeyIds, or intentIds — prefix s:/i:" />
+      <input id="creason" size="30" placeholder="reason (audit)" />
+      <button onclick="addCanaries()">register</button> <span id="cmsg"></span>
+    </section>
 
-<section>
-  <h2>Audit trail</h2><table id="audit"><tr><td class="dim">—</td></tr></table>
-</section>
+    <section>
+      <h2>Audit trail</h2>
+      <table id="audit">
+        <tr>
+          <td class="dim">—</td>
+        </tr>
+      </table>
+    </section>
 
-<script>
-const $=id=>document.getElementById(id);const B='';
-sessionStorage.gw&&($('gw').value=sessionStorage.gw);sessionStorage.key&&($('key').value=sessionStorage.key);
-const hdr=()=>({authorization:'Bearer '+$('key').value,'content-type':'application/json'});
-const api=async(p,m,body)=>{const r=await fetch($('gw').value.replace(/\/$/,'')+p,{method:m||'GET',headers:hdr(),body:body&&JSON.stringify(body)});const j=await r.json().catch(()=>({}));if(!r.ok)throw new Error(r.status+' '+(j.error||r.statusText));return j};
-const esc=s=>String(s??'').replace(/&/g,'&amp;').replace(/</g,'&lt;');
-const row=a=>'<tr>'+a.map(c=>'<td>'+c+'</td>').join('')+'</tr>';
+    <script>
+      const $ = (id) => document.getElementById(id);
+      const B = '';
+      sessionStorage.gw && ($('gw').value = sessionStorage.gw);
+      sessionStorage.key && ($('key').value = sessionStorage.key);
+      const hdr = () => ({ authorization: 'Bearer ' + $('key').value, 'content-type': 'application/json' });
+      const api = async (p, m, body) => {
+        const r = await fetch($('gw').value.replace(/\/$/, '') + p, {
+          method: m || 'GET',
+          headers: hdr(),
+          body: body && JSON.stringify(body),
+        });
+        const j = await r.json().catch(() => ({}));
+        if (!r.ok) throw new Error(r.status + ' ' + (j.error || r.statusText));
+        return j;
+      };
+      const esc = (s) =>
+        String(s ?? '')
+          .replace(/&/g, '&amp;')
+          .replace(/</g, '&lt;');
+      const row = (a) => '<tr>' + a.map((c) => '<td>' + c + '</td>').join('') + '</tr>';
 
-async function connect(){try{
-  sessionStorage.gw=$('gw').value;sessionStorage.key=$('key').value;
-  const s=await api('/v1/state');
-  $('status').innerHTML=s.mode+' · '+s.version+' · '+s.issuers.length+' issuers';
-  const hi=s.alertState==='HIGH_ALERT';
-  $('alert').textContent=s.alertState;$('alert').style.color=hi?'#f85149':'#3fb950';
-  $('alertbox').style.display=hi?'block':'none';
-  $('alertinfo').textContent=hi?(s.highAlert?('since '+new Date(s.highAlert.since).toISOString()+' — '+s.highAlert.reason):''):'';
-  load();audit();
-}catch(e){$('status').innerHTML='<span class=err>'+esc(e.message)+'</span>'}}
+      async function connect() {
+        try {
+          sessionStorage.gw = $('gw').value;
+          sessionStorage.key = $('key').value;
+          const s = await api('/v1/state');
+          $('status').innerHTML = s.mode + ' · ' + s.version + ' · ' + s.issuers.length + ' issuers';
+          const hi = s.alertState === 'HIGH_ALERT';
+          $('alert').textContent = s.alertState;
+          $('alert').style.color = hi ? '#f85149' : '#3fb950';
+          $('alertbox').style.display = hi ? 'block' : 'none';
+          $('alertinfo').textContent = hi
+            ? s.highAlert
+              ? 'since ' + new Date(s.highAlert.since).toISOString() + ' — ' + s.highAlert.reason
+              : ''
+            : '';
+          load();
+          audit();
+        } catch (e) {
+          $('status').innerHTML = '<span class=err>' + esc(e.message) + '</span>';
+        }
+      }
 
-async function load(v){try{
-  const d=await api('/v1/decisions?limit=200'+(v?'&verdict='+v:''));
-  $('dcount').textContent='('+d.total+' held, showing '+d.decisions.length+')';
-  $('dec').innerHTML=row(['<b>ts</b>','<b>verdict</b>','<b>action</b>','<b>payoutId</b>','<b>kind</b>','<b>₹</b>','<b>rules</b>','<b>src</b>'])+
-    d.decisions.map(r=>row([esc(r.ts.slice(11,19)),'<span class='+r.verdict+'>'+r.verdict+'</span>',esc(r.effectiveAction),esc(r.payoutId),esc(r.kind||''),r.amountPaise?(r.amountPaise/100).toLocaleString():'',esc((r.rules||[]).join(' ')),esc(r.sourceKeyId||'')])).join('');
-  const holds=d.decisions.filter(r=>r.effectiveAction==='HOLD');
-  $('holds').innerHTML=row(['<b>ts</b>','<b>payoutId</b>','<b>kind</b>','<b>₹</b>','<b>intent</b>','<b>rules</b>'])+
-    (holds.map(r=>row([esc(r.ts.slice(11,19)),esc(r.payoutId),esc(r.kind||''),r.amountPaise?(r.amountPaise/100).toLocaleString():'',esc(r.intentId||'—'),esc((r.rules||[]).join(' '))])).join('')||row(['<span class=dim>empty</span>','','','','','']));
-}catch(e){$('dec').innerHTML=row(['<span class=err>'+esc(e.message)+'</span>'])}}
+      async function load(v) {
+        try {
+          const d = await api('/v1/decisions?limit=200' + (v ? '&verdict=' + v : ''));
+          $('dcount').textContent = '(' + d.total + ' held, showing ' + d.decisions.length + ')';
+          $('dec').innerHTML =
+            row([
+              '<b>ts</b>',
+              '<b>verdict</b>',
+              '<b>action</b>',
+              '<b>payoutId</b>',
+              '<b>kind</b>',
+              '<b>₹</b>',
+              '<b>rules</b>',
+              '<b>src</b>',
+            ]) +
+            d.decisions
+              .map((r) =>
+                row([
+                  esc(r.ts.slice(11, 19)),
+                  '<span class=' + r.verdict + '>' + r.verdict + '</span>',
+                  esc(r.effectiveAction),
+                  esc(r.payoutId),
+                  esc(r.kind || ''),
+                  r.amountPaise ? (r.amountPaise / 100).toLocaleString() : '',
+                  esc((r.rules || []).join(' ')),
+                  esc(r.sourceKeyId || ''),
+                ]),
+              )
+              .join('');
+          const holds = d.decisions.filter((r) => r.effectiveAction === 'HOLD');
+          $('holds').innerHTML =
+            row(['<b>ts</b>', '<b>payoutId</b>', '<b>kind</b>', '<b>₹</b>', '<b>intent</b>', '<b>rules</b>']) +
+            (holds
+              .map((r) =>
+                row([
+                  esc(r.ts.slice(11, 19)),
+                  esc(r.payoutId),
+                  esc(r.kind || ''),
+                  r.amountPaise ? (r.amountPaise / 100).toLocaleString() : '',
+                  esc(r.intentId || '—'),
+                  esc((r.rules || []).join(' ')),
+                ]),
+              )
+              .join('') || row(['<span class=dim>empty</span>', '', '', '', '', '']));
+        } catch (e) {
+          $('dec').innerHTML = row(['<span class=err>' + esc(e.message) + '</span>']);
+        }
+      }
 
-async function lookup(){try{$('intent').textContent=JSON.stringify(await api('/v1/intents/'+encodeURIComponent($('iid').value.trim())),null,2)}catch(e){$('intent').textContent=e.message}}
+      async function lookup() {
+        try {
+          $('intent').textContent = JSON.stringify(await api('/v1/intents/' + encodeURIComponent($('iid').value.trim())), null, 2);
+        } catch (e) {
+          $('intent').textContent = e.message;
+        }
+      }
 
-async function resetAlert(){try{
-  if(!$('reason').value.trim()){$('resetmsg').innerHTML='<span class=err>reason required</span>';return}
-  const r=await fetch($('gw').value.replace(/\/$/,'')+'/v1/state',{method:'PUT',headers:{authorization:'Bearer '+$('key').value,'x-payrekha-admin':$('adm').value,'content-type':'application/json'},body:JSON.stringify({highAlert:'reset',actor:'console',reason:$('reason').value.trim()})});
-  const j=await r.json();if(!r.ok)throw new Error(j.error);$('resetmsg').textContent='reset';connect();
-}catch(e){$('resetmsg').innerHTML='<span class=err>'+esc(e.message)+'</span>'}}
+      async function resetAlert() {
+        try {
+          if (!$('reason').value.trim()) {
+            $('resetmsg').innerHTML = '<span class=err>reason required</span>';
+            return;
+          }
+          const r = await fetch($('gw').value.replace(/\/$/, '') + '/v1/state', {
+            method: 'PUT',
+            headers: { authorization: 'Bearer ' + $('key').value, 'x-payrekha-admin': $('adm').value, 'content-type': 'application/json' },
+            body: JSON.stringify({ highAlert: 'reset', actor: 'console', reason: $('reason').value.trim() }),
+          });
+          const j = await r.json();
+          if (!r.ok) throw new Error(j.error);
+          $('resetmsg').textContent = 'reset';
+          connect();
+        } catch (e) {
+          $('resetmsg').innerHTML = '<span class=err>' + esc(e.message) + '</span>';
+        }
+      }
 
-async function addCanaries(){try{
-  const body={actor:'console',reason:$('creason').value.trim()||'console canary registration',beneficiaryRefs:[],sourceKeyIds:[],intentIds:[]};
-  for(const t of $('crefs').value.split(',').map(s=>s.trim()).filter(Boolean))
-    t.startsWith('s:')?body.sourceKeyIds.push(t.slice(2)):t.startsWith('i:')?body.intentIds.push(t.slice(2)):body.beneficiaryRefs.push(t);
-  const r=await fetch($('gw').value.replace(/\/$/,'')+'/v1/canaries',{method:'POST',headers:{authorization:'Bearer '+$('key').value,'x-payrekha-admin':$('adm').value,'content-type':'application/json'},body:JSON.stringify(body)});
-  const j=await r.json();if(!r.ok)throw new Error(j.error);$('cmsg').textContent='registered — canaries: '+j.canaries;
-}catch(e){$('cmsg').innerHTML='<span class=err>'+esc(e.message)+'</span>'}}
+      async function addCanaries() {
+        try {
+          const body = {
+            actor: 'console',
+            reason: $('creason').value.trim() || 'console canary registration',
+            beneficiaryRefs: [],
+            sourceKeyIds: [],
+            intentIds: [],
+          };
+          for (const t of $('crefs')
+            .value.split(',')
+            .map((s) => s.trim())
+            .filter(Boolean))
+            t.startsWith('s:')
+              ? body.sourceKeyIds.push(t.slice(2))
+              : t.startsWith('i:')
+                ? body.intentIds.push(t.slice(2))
+                : body.beneficiaryRefs.push(t);
+          const r = await fetch($('gw').value.replace(/\/$/, '') + '/v1/canaries', {
+            method: 'POST',
+            headers: { authorization: 'Bearer ' + $('key').value, 'x-payrekha-admin': $('adm').value, 'content-type': 'application/json' },
+            body: JSON.stringify(body),
+          });
+          const j = await r.json();
+          if (!r.ok) throw new Error(j.error);
+          $('cmsg').textContent = 'registered — canaries: ' + j.canaries;
+        } catch (e) {
+          $('cmsg').innerHTML = '<span class=err>' + esc(e.message) + '</span>';
+        }
+      }
 
-async function audit(){try{
-  const a=await api('/v1/audit?limit=50');
-  $('audit').innerHTML=row(['<b>ts</b>','<b>action</b>','<b>actor</b>','<b>detail</b>'])+
-    a.audit.map(r=>row([esc((r.ts||'').slice(11,19)),esc(r.action),esc(r.actor),esc(r.detail||r.reason||'')])).join('');
-}catch(e){$('audit').innerHTML=row(['<span class=err>'+esc(e.message)+'</span>'])}}
-</script>
-</body>
+      async function audit() {
+        try {
+          const a = await api('/v1/audit?limit=50');
+          $('audit').innerHTML =
+            row(['<b>ts</b>', '<b>action</b>', '<b>actor</b>', '<b>detail</b>']) +
+            a.audit
+              .map((r) => row([esc((r.ts || '').slice(11, 19)), esc(r.action), esc(r.actor), esc(r.detail || r.reason || '')]))
+              .join('');
+        } catch (e) {
+          $('audit').innerHTML = row(['<span class=err>' + esc(e.message) + '</span>']);
+        }
+      }
+    </script>
+  </body>
 </html>

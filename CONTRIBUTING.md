@@ -16,6 +16,7 @@ cp scripts/pre-commit.sh .git/hooks/pre-commit
 ```
 
 Ground rules:
+
 - **Safety by default.** When a change trades safety for convenience, the safe behaviour is the default and the convenience is a documented option.
 - **Never a silent ALLOW.** Malformed or missing input must produce `REVIEW` with `degraded: true`.
 - **Integer paise, epoch ms.** No floating-point money.

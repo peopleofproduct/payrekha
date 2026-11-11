@@ -42,7 +42,17 @@ const section = (s) => console.log(`\n▶ ${s}`);
 /** Fault-injecting wrapper — 'down' makes every call throw, on any backend. */
 const toggle = (inner) => {
   const t = { down: false, describe: inner.describe };
-  for (const m of ['putIntent', 'getIntent', 'commit', 'intentState', 'releaseReservation', 'settleReservation', 'readControl', 'writeControl', 'close']) {
+  for (const m of [
+    'putIntent',
+    'getIntent',
+    'commit',
+    'intentState',
+    'releaseReservation',
+    'settleReservation',
+    'readControl',
+    'writeControl',
+    'close',
+  ]) {
     if (typeof inner[m] === 'function') t[m] = (...a) => (t.down ? Promise.reject(new Error('backend down (drill)')) : inner[m](...a));
   }
   return t;
@@ -93,19 +103,45 @@ const url = { A: await listen(A), B: await listen(B), C: await listen(C) };
 
 const intent = (id, key = 'los-1', priv = LOS.privateKey, ref = benRef, maxUses = 1) =>
   signIntent(
-    { intentId: id, kind: 'LOAN_DISBURSAL', maxAmountPaise: 100_000_00, beneficiaryRef: ref, maxUses, notBeforeMs: T0 - 60_000, expiresAtMs: T0 + 3_600_000, issuer: 'los', keyId: key },
+    {
+      intentId: id,
+      kind: 'LOAN_DISBURSAL',
+      maxAmountPaise: 100_000_00,
+      beneficiaryRef: ref,
+      maxUses,
+      notBeforeMs: T0 - 60_000,
+      expiresAtMs: T0 + 3_600_000,
+      issuer: 'los',
+      keyId: key,
+    },
     { alg: 'ed25519', privateKey: priv },
   );
-const post = (side, path, body, tok = API) => fetch(url[side] + path, { method: 'POST', headers: { authorization: `Bearer ${tok}`, 'content-type': 'application/json' }, body: JSON.stringify(body) });
+const post = (side, path, body, tok = API) =>
+  fetch(url[side] + path, {
+    method: 'POST',
+    headers: { authorization: `Bearer ${tok}`, 'content-type': 'application/json' },
+    body: JSON.stringify(body),
+  });
 const evalOn = (side, payoutId, intentId, ref = benRef, tok = API) =>
-  post(side, '/v1/evaluate', { payoutId, kind: 'LOAN_DISBURSAL', intentId, amountPaise: 100_000_00, beneficiaryRef: ref, channel: 'IMPS' }, tok).then((r) => r.json());
+  post(
+    side,
+    '/v1/evaluate',
+    { payoutId, kind: 'LOAN_DISBURSAL', intentId, amountPaise: 100_000_00, beneficiaryRef: ref, channel: 'IMPS' },
+    tok,
+  ).then((r) => r.json());
 const readyz = (side) => fetch(url[side] + '/readyz').then((r) => r.status);
 const register = (side, i) => post(side, '/v1/intents', i, REG).then((r) => r.status);
 
 // ---------------------------------------------------------------- S1 race
 section('S1: 5 concurrent evaluations on one maxUses=1 intent — exactly one commits');
 await register('A', intent('d2-race'));
-const race = await Promise.all([evalOn('A', 'd2-r1', 'd2-race'), evalOn('A', 'd2-r2', 'd2-race'), evalOn('B', 'd2-r3', 'd2-race'), evalOn('B', 'd2-r4', 'd2-race'), evalOn('B', 'd2-r5', 'd2-race')]);
+const race = await Promise.all([
+  evalOn('A', 'd2-r1', 'd2-race'),
+  evalOn('A', 'd2-r2', 'd2-race'),
+  evalOn('B', 'd2-r3', 'd2-race'),
+  evalOn('B', 'd2-r4', 'd2-race'),
+  evalOn('B', 'd2-r5', 'd2-race'),
+]);
 const allows = race.filter((v) => v.verdict === 'ALLOW').length;
 check(allows === 1, `expected exactly 1 ALLOW across replicas, got ${allows} (${JSON.stringify(race.map((v) => v.verdict))})`);
 console.log(`    verdicts: ${race.map((v) => v.verdict).join(', ')}`);
@@ -113,9 +149,17 @@ console.log(`    verdicts: ${race.map((v) => v.verdict).join(', ')}`);
 // ------------------------------------------------------- S2 payoutId storm
 section('S2: same payoutId on both replicas — one decision, everyone replays it');
 await register('A', intent('d2-dup'));
-const dups = await Promise.all([evalOn('A', 'd2-dup', 'd2-dup'), evalOn('B', 'd2-dup', 'd2-dup'), evalOn('B', 'd2-dup', 'd2-dup'), evalOn('A', 'd2-dup', 'd2-dup')]);
+const dups = await Promise.all([
+  evalOn('A', 'd2-dup', 'd2-dup'),
+  evalOn('B', 'd2-dup', 'd2-dup'),
+  evalOn('B', 'd2-dup', 'd2-dup'),
+  evalOn('A', 'd2-dup', 'd2-dup'),
+]);
 const ids = new Set(dups.map((v) => v.decisionId));
-check(dups.every((v) => v.verdict === 'ALLOW'), `every retry must get the stored ALLOW, got ${JSON.stringify(dups.map((v) => v.verdict))}`);
+check(
+  dups.every((v) => v.verdict === 'ALLOW'),
+  `every retry must get the stored ALLOW, got ${JSON.stringify(dups.map((v) => v.verdict))}`,
+);
 check(ids.size === 1, `one decisionId expected, got ${ids.size}`);
 
 // ---------------------------------------------------------------- S3 outage
@@ -123,8 +167,14 @@ section('S3: store outage mid-traffic — fail closed, readyz drops, poll recove
 await register('C', intent('d2-out'));
 backend.down = true;
 const down = await evalOn('C', 'd2-down', 'd2-out');
-check(down.effectiveAction === 'DECLINE' && down.verdict === 'BLOCK', `enforce must DECLINE while the store is down, got ${JSON.stringify(down)}`);
-check(down.hits.some((h) => h.rule === 'store.commit-failed'), 'expected store.commit-failed evidence');
+check(
+  down.effectiveAction === 'DECLINE' && down.verdict === 'BLOCK',
+  `enforce must DECLINE while the store is down, got ${JSON.stringify(down)}`,
+);
+check(
+  down.hits.some((h) => h.rule === 'store.commit-failed'),
+  'expected store.commit-failed evidence',
+);
 await sleep(400);
 check((await readyz('C')) === 503, 'replica must report not-ready while the store is down');
 backend.down = false;
@@ -139,10 +189,17 @@ await register('A', intent('d2-rev'));
 await register('A', intent('d2-rev2')); // registered while valid — the cite below is the in-flight case
 const alive = await evalOn('B', 'd2-rev1', 'd2-rev');
 check(alive.verdict === 'ALLOW', 'precondition: intent valid on B before revocation');
-const del = await fetch(url.A + '/v1/issuers/los-1', { method: 'DELETE', headers: { authorization: `Bearer ${ADMIN}`, 'content-type': 'application/json' }, body: JSON.stringify({ actor: 'soc', reason: 'key leaked (drill)' }) });
+const del = await fetch(url.A + '/v1/issuers/los-1', {
+  method: 'DELETE',
+  headers: { authorization: `Bearer ${ADMIN}`, 'content-type': 'application/json' },
+  body: JSON.stringify({ actor: 'soc', reason: 'key leaked (drill)' }),
+});
 check(del.status === 200, `revoke call returned ${del.status}`);
 const dead = await evalOn('B', 'd2-rev2', 'd2-rev2');
-check(dead.verdict === 'BLOCK' && dead.hits.some((h) => h.rule === 'intent.bad-signature'), `revoked key must block via commit gen check, got ${JSON.stringify(dead.hits.map((h) => h.rule))}`);
+check(
+  dead.verdict === 'BLOCK' && dead.hits.some((h) => h.rule === 'intent.bad-signature'),
+  `revoked key must block via commit gen check, got ${JSON.stringify(dead.hits.map((h) => h.rule))}`,
+);
 
 // ------------------------------------------------------ S5 outcome release
 section('S5: outcome reported on B frees the use committed on A');
@@ -152,11 +209,16 @@ check(first.verdict === 'ALLOW', 'precondition: A commits the first use');
 const out = await post('B', '/v1/outcomes', { payoutId: 'd2-rel1', outcome: 'failed' }).then((r) => r.json());
 check(out.known === true, `B must see the shared reservation, got ${JSON.stringify(out)}`);
 const reuse = await evalOn('B', 'd2-rel2', 'd2-rel', benRef2, API2);
-check(reuse.verdict === 'ALLOW', `the released use must be spendable on B, got ${reuse.verdict} ${JSON.stringify(reuse.hits.map((h) => h.rule))}`);
+check(
+  reuse.verdict === 'ALLOW',
+  `the released use must be spendable on B, got ${reuse.verdict} ${JSON.stringify(reuse.hits.map((h) => h.rule))}`,
+);
 
 for (const gw of gws) {
   gw.server.close();
   await gw.closeShared();
 }
-console.log(failed === 0 ? '\nDrill D2 PASSED — every active-active invariant held.' : `\nDrill D2 FAILED — ${failed} invariant(s) broken.`);
+console.log(
+  failed === 0 ? '\nDrill D2 PASSED — every active-active invariant held.' : `\nDrill D2 FAILED — ${failed} invariant(s) broken.`,
+);
 process.exit(failed === 0 ? 0 : 1);

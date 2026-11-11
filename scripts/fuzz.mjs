@@ -5,16 +5,25 @@
 //     the contract is "never throw", abort, >200 ms hang)  → finding.
 // Deterministic: --seed reproduces any finding; --n scales the corpus.
 //   node scripts/fuzz.mjs [--seed 1] [--n 20000]
-import { canonicalJson, generateIssuerKeyPair, hashBeneficiary, intentShapeProblem, signIntent, verifyAndUnwrap } from '../packages/core/dist/index.js';
+import {
+  canonicalJson,
+  generateIssuerKeyPair,
+  hashBeneficiary,
+  intentShapeProblem,
+  signIntent,
+  verifyAndUnwrap,
+} from '../packages/core/dist/index.js';
 import { mapPayout } from '../packages/gateway/dist/index.js';
 import { parseCsv } from '../packages/replay/dist/csv.js';
 
 // Accepts both --n 5000 and --n=5000.
 const argv = process.argv.slice(2);
-const args = Object.fromEntries(argv.map((a, i) => {
-  const kv = a.replace(/^--/, '').split('=');
-  return [kv[0], kv[1] ?? argv[i + 1]];
-}));
+const args = Object.fromEntries(
+  argv.map((a, i) => {
+    const kv = a.replace(/^--/, '').split('=');
+    return [kv[0], kv[1] ?? argv[i + 1]];
+  }),
+);
 const N = Number(args['n'] ?? 20000);
 let seed = Number(args['seed'] ?? 1);
 const rand = () => (seed = (seed * 1103515245 + 12345) & 0x7fffffff) / 0x7fffffff;
@@ -41,9 +50,14 @@ function run(name, fn) {
 const kp = generateIssuerKeyPair();
 const goodIntent = signIntent(
   {
-    intentId: 'int_fuzz', issuer: 'fuzz', kind: 'VENDOR_PAYOUT',
-    amountPaise: 100, maxUses: 1, beneficiary: hashBeneficiary({ vpa: 'alice@okhdfc' }, 'h'.repeat(32)),
-    notBeforeMs: 0, expiresAtMs: 9_999_999_999_999,
+    intentId: 'int_fuzz',
+    issuer: 'fuzz',
+    kind: 'VENDOR_PAYOUT',
+    amountPaise: 100,
+    maxUses: 1,
+    beneficiary: hashBeneficiary({ vpa: 'alice@okhdfc' }, 'h'.repeat(32)),
+    notBeforeMs: 0,
+    expiresAtMs: 9_999_999_999_999,
   },
   { alg: 'ed25519', privateKey: kp.privateKey },
 );
@@ -52,8 +66,11 @@ const goodSnap = { intents: [goodIntent], tombstones: {}, ledger: { ring: {} }, 
 const mutators = [
   (s) => s.slice(0, Math.floor(rand() * s.length)), // truncate
   (s) => s + s.slice(Math.floor(rand() * s.length)), // dup tail
-  (s) => { const i = Math.floor(rand() * s.length); return s.slice(0, i) + pick(['{', '}', '[', ']', '"', ',', ':', 'e', '9']) + s.slice(i); },
-  (s) => s.replace(/"[^"]*":/, pick(['null:', '"":', '1e309:', '{:'])) , // corrupt a key
+  (s) => {
+    const i = Math.floor(rand() * s.length);
+    return s.slice(0, i) + pick(['{', '}', '[', ']', '"', ',', ':', 'e', '9']) + s.slice(i);
+  },
+  (s) => s.replace(/"[^"]*":/, pick(['null:', '"":', '1e309:', '{:'])), // corrupt a key
   (s) => s.replace(/-?\d+/, pick(['1e309', '-0', '9'.repeat(40), '0.1'])),
   (s) => s.replace(/[a-z]+/i, pick(['', ' ᾷ'.repeat(20), 'A'.repeat(5000)])),
   (s) => `{"x":${s}}`, // wrap
@@ -104,9 +121,7 @@ for (let i = 0; i < Math.floor(N / 4); i++) {
     query: {},
     body: mutate({ id: 'p1', kind: 'VENDOR_PAYOUT', amount: 1, beneficiary: 'b', ts: 1 }),
   };
-  run('mapPayout', () =>
-    mapPayout(req, mapping, 'h'.repeat(32), { origin: 'prod', nowMs: Date.now() }),
-  );
+  run('mapPayout', () => mapPayout(req, mapping, 'h'.repeat(32), { origin: 'prod', nowMs: Date.now() }));
 }
 
 // --- 4. replay CSV -----------------------------------------------------------

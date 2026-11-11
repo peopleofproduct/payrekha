@@ -19,16 +19,16 @@ Using `@krediwall/core` would mean either forcing payouts into a UPI `Transactio
 
 `@payrekha/core` has its own small engine, `Engine<Req, Ctx>` (`packages/core/src/engine.ts`, about 150 lines). It is generic over the request and context types, and it copies Krediwall's evaluation semantics exactly:
 
-| Semantic | Krediwall | PayRekha |
-|---|---|---|
-| Shape check first; malformed input becomes `REVIEW` with `degraded: true` and no rules run | yes | yes (`validate` option) |
-| Rules run in a fixed order | yes | yes |
-| A rule that throws is recorded in `ruleErrors[]`, the evaluation is marked degraded, and the error is never re-thrown | yes | yes |
-| Verdict is the worst severity among hits (`ALLOW < REVIEW < BLOCK`) | yes | yes |
-| The first `BLOCK` short-circuits the remaining rules | yes | yes |
-| `elapsedMicros` per evaluation, plus latency buckets | yes | yes |
-| Rule state can be exported/restored, and hot-swapping carries state between rules with the same name | yes | yes |
-| Retry dedupe window | engine | `Payrekha` facade (keyed by `payoutId`) |
+| Semantic                                                                                                              | Krediwall | PayRekha                                |
+| --------------------------------------------------------------------------------------------------------------------- | --------- | --------------------------------------- |
+| Shape check first; malformed input becomes `REVIEW` with `degraded: true` and no rules run                            | yes       | yes (`validate` option)                 |
+| Rules run in a fixed order                                                                                            | yes       | yes                                     |
+| A rule that throws is recorded in `ruleErrors[]`, the evaluation is marked degraded, and the error is never re-thrown | yes       | yes                                     |
+| Verdict is the worst severity among hits (`ALLOW < REVIEW < BLOCK`)                                                   | yes       | yes                                     |
+| The first `BLOCK` short-circuits the remaining rules                                                                  | yes       | yes                                     |
+| `elapsedMicros` per evaluation, plus latency buckets                                                                  | yes       | yes                                     |
+| Rule state can be exported/restored, and hot-swapping carries state between rules with the same name                  | yes       | yes                                     |
+| Retry dedupe window                                                                                                   | engine    | `Payrekha` facade (keyed by `payoutId`) |
 
 Payout-specific behaviour (intents, modes, alert states, ledgers) is in the `Payrekha` facade (`firewall.ts`), not the engine.
 

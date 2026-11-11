@@ -16,7 +16,7 @@ extensionProviders:
       port: 8080
       pathPrefix: /ext_authz
       timeout: 0.25s
-      failOpen: false                    # ← fail closed, same as everywhere
+      failOpen: false # ← fail closed, same as everywhere
       includeRequestBodyInCheck: { maxRequestBytes: 65536, allowPartialMessage: false }
       headersToUpstreamOnAllow: [x-payrekha-decision-id]
       headersToDownstreamOnDeny: [x-payrekha-verdict, x-payrekha-action, x-payrekha-decision-id]
@@ -33,7 +33,7 @@ spec:
   action: CUSTOM
   provider: { name: payrekha }
   rules:
-    - to: [{ operation: { methods: ["POST"], paths: ["/payouts*"] } }]
+    - to: [{ operation: { methods: ['POST'], paths: ['/payouts*'] } }]
 ```
 
 ## 3. Mapping + caller identity

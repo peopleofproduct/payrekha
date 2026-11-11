@@ -2,8 +2,26 @@
 // Copyright 2026 Kapil — People of Product™
 
 import type { IntentKind, PayoutRule } from '@payrekha/core';
-import { bandRule, coolingRule, probeRule, velocityRule, type BandOptions, type CoolingOptions, type ProbeOptions, type VelocityOptions } from './behaviour.js';
-import { attestationRule, calendarRule, canaryRule, fingerprintRule, originMismatchRule, originRule, type FingerprintOptions, type OriginOptions } from './environment.js';
+import {
+  bandRule,
+  coolingRule,
+  probeRule,
+  velocityRule,
+  type BandOptions,
+  type CoolingOptions,
+  type ProbeOptions,
+  type VelocityOptions,
+} from './behaviour.js';
+import {
+  attestationRule,
+  calendarRule,
+  canaryRule,
+  fingerprintRule,
+  originMismatchRule,
+  originRule,
+  type FingerprintOptions,
+  type OriginOptions,
+} from './environment.js';
 import { externalRule, type ExternalOptions } from './external.js';
 import { FraudFeed, feedRule, type FeedRuleOptions } from './feed.js';
 import { intentRule } from './intent.js';

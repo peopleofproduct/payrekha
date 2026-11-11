@@ -49,7 +49,13 @@ export class Calendar {
     if (this.hours !== null) {
       const { from, to } = this.hours;
       const inNight = from > to ? p.hour >= from || p.hour < to : p.hour >= from && p.hour < to;
-      if (inNight) return { kind: 'night', label: `${String(from).padStart(2, '0')}:00–${String(to).padStart(2, '0')}:00 IST`, istDate: p.date, istHour: p.hour };
+      if (inNight)
+        return {
+          kind: 'night',
+          label: `${String(from).padStart(2, '0')}:00–${String(to).padStart(2, '0')}:00 IST`,
+          istDate: p.date,
+          istHour: p.hour,
+        };
     }
     return null;
   }

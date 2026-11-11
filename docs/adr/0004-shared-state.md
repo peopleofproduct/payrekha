@@ -8,7 +8,7 @@
 Today every `Payrekha` instance owns its world in process memory:
 intents, reservations, dedupe, HIGH_ALERT, keyring revocations, velocity
 rings, cooling ledgers, fingerprint enrolments. `StateStore` (file or
-`PostgresStateStore`) persists a *snapshot* — load on boot, save on a
+`PostgresStateStore`) persists a _snapshot_ — load on boot, save on a
 timer. `PostgresStateStore` already states the contract plainly: **one
 active writer per `name`**, any number of standbys that `load` on
 promotion; a second writer is detected by the version CAS and fails
@@ -39,14 +39,14 @@ and do no I/O** (ADR 0001). A shared store cannot be queried inside
 ## Options considered
 
 **A. Leader/follower only.** Keep today's contract; document failover
-runbooks. Rejected as the *final* answer — it does not scale and the
+runbooks. Rejected as the _final_ answer — it does not scale and the
 standby is cold (restore gap at the worst moment), though it stays a
 supported topology forever.
 
 **B. Route-by-key sharding.** Consistent-hash payouts to replicas at the
-LB so each beneficiary/key has one evaluator. Rejected as the *correctness*
+LB so each beneficiary/key has one evaluator. Rejected as the _correctness_
 mechanism: failover re-hashes instantly and in-flight double-spend is back;
-fine as a *locality optimisation* on top of atomic commit, not instead of.
+fine as a _locality optimisation_ on top of atomic commit, not instead of.
 
 **C. Optimistic sync + reconciliation.** Evaluate locally, write behind,
 alert on conflict. Rejected: two callers can be told ALLOW against one
@@ -107,7 +107,7 @@ Redis: the same conditionals in one Lua script.
 ### 2. Reservation conflicts return the stored verdict
 
 Because the reservation row carries `decision_id` + verdict, a cross-
-replica retry gets the *original* verdict — dedupe becomes global, not
+replica retry gets the _original_ verdict — dedupe becomes global, not
 per-replica. Tombstone retention is bounded (`retentionDays`, e.g. 90):
 settled rows older than the window export to the audit store and purge —
 a forever-growing table is a liability at PA scale, and `payoutId`
@@ -123,7 +123,7 @@ ops → synchronous CAS write to a shared `control` table (`alert_state`,
 Propagation is two-layered:
 
 - **The money path is instant.** Every `commitReservation` reads the
-  control generation in the *same transaction* — a `keyring_gen` or
+  control generation in the _same transaction_ — a `keyring_gen` or
   `alert_state` bump returns `conflict(control)`, the replica refreshes
   and re-evaluates. Revocation-to-stop latency on the authorize path is
   ~0 ms, not the poll interval. This is what closes the real race: a
@@ -161,11 +161,11 @@ never inside the verdict path.
 
 ### 6. Deployment modes (all stay supported)
 
-| Mode | State | Correctness |
-|---|---|---|
-| single | memory + FileStateStore snapshot | today, unchanged |
-| active-passive | PostgresStateStore snapshot CAS | today, unchanged |
-| active-active | shared intents/reservations/dedupe/control | Phase 1 |
+| Mode           | State                                      | Correctness      |
+| -------------- | ------------------------------------------ | ---------------- |
+| single         | memory + FileStateStore snapshot           | today, unchanged |
+| active-passive | PostgresStateStore snapshot CAS            | today, unchanged |
+| active-active  | shared intents/reservations/dedupe/control | Phase 1          |
 
 Phase 1 backend: Postgres (deploys already have it via `store-postgres`;
 HA is RDS Multi-AZ/Patroni — a solved problem buyers already run). Redis
@@ -176,16 +176,16 @@ the default.
 ### 7. Cutover and proof are part of the feature
 
 - **Import tooling**: single-node → active-active needs `state export →
-  shared import` for reservations + `uses`, else a mid-flight intent
+shared import` for reservations + `uses`, else a mid-flight intent
   double-spends at cutover.
 - **Observability**: commit latency histogram, conflict-rate counter,
   store-unreachable gauge — the first external dependency on the verdict
   path must be measured from day one.
 - **Chaos drill matrix**: kill -9 mid-commit, PG failover, partition,
   clock skew — the proof is adversarial, not the code review.
-- **Auditor's sentence**: *authorisation counters are linearizable
+- **Auditor's sentence**: _authorisation counters are linearizable
   through a single Postgres transaction; everything else is bounded-stale
-  by design, with named staleness.*
+  by design, with named staleness._
 
 ## Consequences
 
@@ -204,23 +204,23 @@ the default.
 
 ## Implementation notes (Phase 1, shipped)
 
-| ADR piece | Shipped as |
-|---|---|
-| Commit primitive | `SharedStateBackend.commit` (core `shared.ts`) — one txn: `SELECT gen … FOR UPDATE` → reservation `INSERT … ON CONFLICT DO NOTHING` → per-intent conditional `UPDATE … RETURNING uses, used_paise`. `PostgresSharedBackend` (`store-postgres/shared.ts`); `MemorySharedBackend` for tests/single-node. |
-| Authoritative verdict gate | `SharedStateDriver.finalize` (`gateway/shared.ts`) awaited inside `/v1/evaluate` and `ext_authz` — no `evaluateAsync` facade was needed: in-process `Payrekha.evaluate` is untouched. |
-| Conflicts | `payoutId` → stored-verdict replay (same dedupe semantics, `deduped: true`); `uses` → `syncCounters` + re-evaluate; `control` → `readControl` + `Payrekha.applyControl` + re-evaluate. Committed results piggyback authoritative counters; a local `intent.*` BLOCK also triggers a counter refresh (`staleSync`) so cross-replica releases converge. |
-| Miss-fetch | A cited intent unknown locally is fetched from the backend and registered — registration on replica A is consumable on B. |
-| Control-plane | `PUT /v1/state` (alert + mode) and `DELETE /v1/issuers/:keyId` write the control row after the local apply (audit keeps the real actor), then converge via `applyControl`. First alarm wins on concurrent raises. Canary edits are **not yet** propagated — snapshot sync covers standbys; flagged for Phase 1.5. |
-| Granularity | `gateway.sharedState.commitPolicy`: `'all'` (default) or `IntentKind[]`; `controlPollMs` (default 2 s) warms the read path. Config-only mode without `PAYREKHA_SHARED_PG_URL` uses the memory backend (single replica, warned at boot). |
-| Fail closed | Commit/refresh failure → `fw.unbind` (local consumption rolled back) → enforce: `BLOCK`+`DECLINE` with `store.commit-failed` evidence; otherwise `REVIEW`+degraded. `/readyz` drops while unreachable and recovers via the poll. Registration/mint/outcome writes are synchronous — 503 + safe retry, never queued. |
+| ADR piece                  | Shipped as                                                                                                                                                                                                                                                                                                                                            |
+| -------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Commit primitive           | `SharedStateBackend.commit` (core `shared.ts`) — one txn: `SELECT gen … FOR UPDATE` → reservation `INSERT … ON CONFLICT DO NOTHING` → per-intent conditional `UPDATE … RETURNING uses, used_paise`. `PostgresSharedBackend` (`store-postgres/shared.ts`); `MemorySharedBackend` for tests/single-node.                                                |
+| Authoritative verdict gate | `SharedStateDriver.finalize` (`gateway/shared.ts`) awaited inside `/v1/evaluate` and `ext_authz` — no `evaluateAsync` facade was needed: in-process `Payrekha.evaluate` is untouched.                                                                                                                                                                 |
+| Conflicts                  | `payoutId` → stored-verdict replay (same dedupe semantics, `deduped: true`); `uses` → `syncCounters` + re-evaluate; `control` → `readControl` + `Payrekha.applyControl` + re-evaluate. Committed results piggyback authoritative counters; a local `intent.*` BLOCK also triggers a counter refresh (`staleSync`) so cross-replica releases converge. |
+| Miss-fetch                 | A cited intent unknown locally is fetched from the backend and registered — registration on replica A is consumable on B.                                                                                                                                                                                                                             |
+| Control-plane              | `PUT /v1/state` (alert + mode) and `DELETE /v1/issuers/:keyId` write the control row after the local apply (audit keeps the real actor), then converge via `applyControl`. First alarm wins on concurrent raises. Canary edits are **not yet** propagated — snapshot sync covers standbys; flagged for Phase 1.5.                                     |
+| Granularity                | `gateway.sharedState.commitPolicy`: `'all'` (default) or `IntentKind[]`; `controlPollMs` (default 2 s) warms the read path. Config-only mode without `PAYREKHA_SHARED_PG_URL` uses the memory backend (single replica, warned at boot).                                                                                                               |
+| Fail closed                | Commit/refresh failure → `fw.unbind` (local consumption rolled back) → enforce: `BLOCK`+`DECLINE` with `store.commit-failed` evidence; otherwise `REVIEW`+degraded. `/readyz` drops while unreachable and recovers via the poll. Registration/mint/outcome writes are synchronous — 503 + safe retry, never queued.                                   |
 
 ### Phase 1.5 (shipped)
 
-| ADR piece | Shipped as |
-|---|---|
-| Tombstone retention | `gateway.sharedState.reservationRetentionDays` — the driver calls `backend.purgeReservations` at most hourly on a control-poll tick. Postgres deletes `WHERE settled = true AND created_at < now() - …` — the **database clock**, never node time. Only settled rows go; pending reservations hold live intents. `payrekha_shared_purged_reservations_total` counts them. |
-| Migration tooling | `scripts/state-to-shared.mjs` — imports a signed file snapshot into the shared backend before cutover: intents `GREATEST`-merge counters (a live replica is never walked backwards), reservations `INSERT … ON CONFLICT DO NOTHING` (first binding wins), control state merges through `writeControl` (revocations/alert/per-kind modes are unioned, never reset; `mode` stays config-authoritative). Imported tombstones carry a synthesized `REVIEW` verdict — a retry holds for review rather than replaying a fabricated ALLOW. Idempotent: safe to re-run after a partial failure or under live single-node traffic. `--dry-run` verifies without writing. |
-| Commit metrics | `payrekha_shared_{commits,committed,conflicts,failclosed,miss_fetches,stale_syncs,purged_reservations}_total` + `payrekha_shared_commit_ms_{sum,count,max}` on `/metrics`, labeled only by conflict kind — no unbounded cardinality. |
+| ADR piece           | Shipped as                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                      |
+| ------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Tombstone retention | `gateway.sharedState.reservationRetentionDays` — the driver calls `backend.purgeReservations` at most hourly on a control-poll tick. Postgres deletes `WHERE settled = true AND created_at < now() - …` — the **database clock**, never node time. Only settled rows go; pending reservations hold live intents. `payrekha_shared_purged_reservations_total` counts them.                                                                                                                                                                                                                                                                                       |
+| Migration tooling   | `scripts/state-to-shared.mjs` — imports a signed file snapshot into the shared backend before cutover: intents `GREATEST`-merge counters (a live replica is never walked backwards), reservations `INSERT … ON CONFLICT DO NOTHING` (first binding wins), control state merges through `writeControl` (revocations/alert/per-kind modes are unioned, never reset; `mode` stays config-authoritative). Imported tombstones carry a synthesized `REVIEW` verdict — a retry holds for review rather than replaying a fabricated ALLOW. Idempotent: safe to re-run after a partial failure or under live single-node traffic. `--dry-run` verifies without writing. |
+| Commit metrics      | `payrekha_shared_{commits,committed,conflicts,failclosed,miss_fetches,stale_syncs,purged_reservations}_total` + `payrekha_shared_commit_ms_{sum,count,max}` on `/metrics`, labeled only by conflict kind — no unbounded cardinality.                                                                                                                                                                                                                                                                                                                                                                                                                            |
 
 Still open from §7: the process-level chaos matrix beyond
 `scripts/drill-shared-state.mjs` (kill-mid-commit, PG failover, partition —

@@ -8,8 +8,13 @@ security:
   - apiKey: []
 components:
   securitySchemes:
-    apiKey: { type: http, scheme: bearer, description: "API key (PAYREKHA_API_KEYS); its origin and id are trusted, not the body. Keys may be role-scoped: evaluate → POST /v1/evaluate, intents → POST /v1/intents, outcomes → POST /v1/outcomes, read → GET /v1/state and /metrics. Absent roles = all." }
-    adminKey: { type: http, scheme: bearer, description: "Separate admin token (PAYREKHA_ADMIN_KEY)" }
+    apiKey:
+      {
+        type: http,
+        scheme: bearer,
+        description: 'API key (PAYREKHA_API_KEYS); its origin and id are trusted, not the body. Keys may be role-scoped: evaluate → POST /v1/evaluate, intents → POST /v1/intents, outcomes → POST /v1/outcomes, read → GET /v1/state and /metrics. Absent roles = all.',
+      }
+    adminKey: { type: http, scheme: bearer, description: 'Separate admin token (PAYREKHA_ADMIN_KEY)' }
   schemas:
     Kind: { type: string, enum: [LOAN_DISBURSAL, PA_SETTLEMENT, REFUND, VDA_WITHDRAWAL, VENDOR_PAYOUT, VERIFICATION] }
     Beneficiary:
@@ -44,15 +49,27 @@ components:
         channel: { type: string, enum: [IMPS, NEFT, RTGS, UPI, INTERNAL, CRYPTO] }
         merchantId: { type: string }
         clientAttested: { type: boolean }
-        riskScore: { type: number, minimum: 0, maximum: 1, description: "Advisory upstream risk score (fraud vendor or LOS scorer). Can only make the verdict stricter, never looser — see the external rule." }
-        externalVerdict: { type: string, maxLength: 64, description: "Advisory upstream verdict word (block|decline|review|…)" }
-        externalSource: { type: string, maxLength: 64, description: "Evidence label for who produced the signal" }
+        riskScore:
+          {
+            type: number,
+            minimum: 0,
+            maximum: 1,
+            description: 'Advisory upstream risk score (fraud vendor or LOS scorer). Can only make the verdict stricter, never looser — see the external rule.',
+          }
+        externalVerdict: { type: string, maxLength: 64, description: 'Advisory upstream verdict word (block|decline|review|…)' }
+        externalSource: { type: string, maxLength: 64, description: 'Evidence label for who produced the signal' }
         timestampMs:
           type: integer
           description: "The gateway stamps server time over this; the caller's value is kept as clientTimestampMs evidence only. A claim outside firewall.maxTimestampSkewMs degrades the verdict to REVIEW (time.skew)."
     RuleHit:
       type: object
-      properties: { rule: { type: string }, verdict: { type: string, enum: [ALLOW, REVIEW, BLOCK] }, reason: { type: string }, evidence: { type: object } }
+      properties:
+        {
+          rule: { type: string },
+          verdict: { type: string, enum: [ALLOW, REVIEW, BLOCK] },
+          reason: { type: string },
+          evidence: { type: object },
+        }
     Verdict:
       type: object
       properties:
@@ -62,7 +79,13 @@ components:
         effectiveAction: { type: string, enum: [ALLOW, HOLD, DECLINE] }
         mode: { type: string, enum: [shadow, advise, enforce] }
         alertState: { type: string, enum: [NORMAL, HOLIDAY, HIGH_ALERT] }
-        riskScore: { type: number, minimum: 0, maximum: 1, description: "Deterministic score from the strongest rule hit (BLOCK→1.0, REVIEW→0.5) + 0.1 when degraded — analyst triage signal, not an ML confidence" }
+        riskScore:
+          {
+            type: number,
+            minimum: 0,
+            maximum: 1,
+            description: 'Deterministic score from the strongest rule hit (BLOCK→1.0, REVIEW→0.5) + 0.1 when degraded — analyst triage signal, not an ML confidence',
+          }
         degraded: { type: boolean, description: Malformed input or a rule error; never a silent ALLOW }
         deduped: { type: boolean }
         hits: { type: array, items: { $ref: '#/components/schemas/RuleHit' } }
@@ -72,14 +95,53 @@ components:
       type: object
       properties: { error: { type: string }, requestId: { type: string } }
   responses:
-    Unauthorized: { description: Missing or wrong bearer token, content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } } }
+    Unauthorized:
+      { description: Missing or wrong bearer token, content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } } }
 paths:
   /v1/intents:
     post:
       summary: Register signed intents (requires the intents role). Accepts one object or an array.
-      requestBody: { required: true, content: { application/json: { schema: { oneOf: [{ $ref: '#/components/schemas/Intent' }, { type: array, items: { $ref: '#/components/schemas/Intent' } }] } } } }
+      requestBody:
+        {
+          required: true,
+          content:
+            {
+              application/json:
+                {
+                  schema:
+                    { oneOf: [{ $ref: '#/components/schemas/Intent' }, { type: array, items: { $ref: '#/components/schemas/Intent' } }] },
+                },
+            },
+        }
       responses:
-        '201': { description: "Every intent accepted (single object returns {accepted, reason}; an array returns {results:[...]})", content: { application/json: { schema: { oneOf: [{ type: object, properties: { accepted: { type: boolean }, reason: { type: string } } }, { type: object, properties: { results: { type: array, items: { type: object, properties: { accepted: { type: boolean }, reason: { type: string } } } } } } }] } } }
+        '201':
+          {
+            description: 'Every intent accepted (single object returns {accepted, reason}; an array returns {results:[...]})',
+            content:
+              {
+                application/json:
+                  {
+                    schema:
+                      {
+                        oneOf:
+                          [
+                            { type: object, properties: { accepted: { type: boolean }, reason: { type: string } } },
+                            {
+                              type: object,
+                              properties:
+                                {
+                                  results:
+                                    {
+                                      type: array,
+                                      items: { type: object, properties: { accepted: { type: boolean }, reason: { type: string } } },
+                                    },
+                                },
+                            },
+                          ],
+                      },
+                  },
+              },
+          }
         '207': { description: Some intents accepted; rejected ids are tombstoned }
         '422': { description: Every intent rejected }
         '429': { description: "Key's per-minute verification budget spent (intentVerificationsPerMinute, default 5000)" }
@@ -87,13 +149,51 @@ paths:
         '403': { description: Key lacks the intents role }
   /v1/intents/mint:
     post:
-      summary: "Mint a managed intent (requires the mint role). PayRekha builds, signs and registers the intent with a gateway-held key — the lowest-effort adoption tier. Send raw beneficiary fields (account/ifsc/vpa) or a pre-hashed beneficiaryRef. Retries are idempotent: pass intentId or the same fields derive the same id. Weaker trust than externally-signed intents — see docs/adoption.md."
-      requestBody: { required: true, content: { application/json: { schema: { type: object, required: [kind], properties: { kind: { $ref: '#/components/schemas/Kind' }, maxAmountPaise: { type: integer, description: 'amountPaise also accepted' }, amountPaise: { type: integer }, beneficiaryRef: { type: string, description: 'hashBeneficiary output; or send beneficiary' }, beneficiary: { $ref: '#/components/schemas/Beneficiary' }, intentId: { type: string, maxLength: 128 }, subjectRef: { type: string }, maxUses: { type: integer, minimum: 1, default: 1 }, ttlMs: { type: integer }, notBeforeMs: { type: integer } } } } } }
+      summary: 'Mint a managed intent (requires the mint role). PayRekha builds, signs and registers the intent with a gateway-held key — the lowest-effort adoption tier. Send raw beneficiary fields (account/ifsc/vpa) or a pre-hashed beneficiaryRef. Retries are idempotent: pass intentId or the same fields derive the same id. Weaker trust than externally-signed intents — see docs/adoption.md.'
+      requestBody:
+        {
+          required: true,
+          content:
+            {
+              application/json:
+                {
+                  schema:
+                    {
+                      type: object,
+                      required: [kind],
+                      properties:
+                        {
+                          kind: { $ref: '#/components/schemas/Kind' },
+                          maxAmountPaise: { type: integer, description: 'amountPaise also accepted' },
+                          amountPaise: { type: integer },
+                          beneficiaryRef: { type: string, description: 'hashBeneficiary output; or send beneficiary' },
+                          beneficiary: { $ref: '#/components/schemas/Beneficiary' },
+                          intentId: { type: string, maxLength: 128 },
+                          subjectRef: { type: string },
+                          maxUses: { type: integer, minimum: 1, default: 1 },
+                          ttlMs: { type: integer },
+                          notBeforeMs: { type: integer },
+                        },
+                    },
+                },
+            },
+        }
       responses:
-        '201': { description: "Minted and registered: {accepted, intentId}", content: { application/json: { schema: { type: object, properties: { accepted: { type: boolean }, intentId: { type: string }, reason: { type: string } } } } } }
+        '201':
+          {
+            description: 'Minted and registered: {accepted, intentId}',
+            content:
+              {
+                application/json:
+                  {
+                    schema:
+                      { type: object, properties: { accepted: { type: boolean }, intentId: { type: string }, reason: { type: string } } },
+                  },
+              },
+          }
         '400': { description: Bad fields (also 415 for an encoded body) }
         '403': { description: Key lacks the mint role }
-        '422': { description: "Signed but registration rejected (e.g. key not authorised for kind)" }
+        '422': { description: 'Signed but registration rejected (e.g. key not authorised for kind)' }
         '503': { description: Managed intents not configured on this gateway }
         '401': { $ref: '#/components/responses/Unauthorized' }
   /v1/intents/{intentId}:
@@ -107,7 +207,7 @@ paths:
         '403': { description: Key lacks the read role }
   /v1/decisions:
     get:
-      summary: "Recent decision records, newest first — the analyst/triage surface (requires the read role). Bounded in-memory ring of the last 1000 verdicts; the durable source of truth is the decision log/SIEM."
+      summary: 'Recent decision records, newest first — the analyst/triage surface (requires the read role). Bounded in-memory ring of the last 1000 verdicts; the durable source of truth is the decision log/SIEM.'
       parameters:
         - { name: verdict, in: query, schema: { type: string, enum: [ALLOW, REVIEW, BLOCK] } }
         - { name: payoutId, in: query, schema: { type: string } }
@@ -119,7 +219,7 @@ paths:
         '403': { description: Key lacks the read role }
   /v1/audit:
     get:
-      summary: "Admin and lifecycle audit entries, newest first (requires the read role). Mode flips, alert raises/resets, issuer revocations, minted intents, denied outcome reports."
+      summary: 'Admin and lifecycle audit entries, newest first (requires the read role). Mode flips, alert raises/resets, issuer revocations, minted intents, denied outcome reports.'
       parameters: [{ name: limit, in: query, schema: { type: integer, default: 200, maximum: 1000 } }]
       responses:
         '200': { description: '{audit:[...]}' }
@@ -130,34 +230,103 @@ paths:
       summary: Evaluate a payout (requires the evaluate role)
       requestBody: { required: true, content: { application/json: { schema: { $ref: '#/components/schemas/Payout' } } } }
       responses:
-        '200': { description: Verdict (always 200; act on effectiveAction), content: { application/json: { schema: { $ref: '#/components/schemas/Verdict' } } } }
+        '200':
+          {
+            description: Verdict (always 200; act on effectiveAction),
+            content: { application/json: { schema: { $ref: '#/components/schemas/Verdict' } } },
+          }
         '401': { $ref: '#/components/responses/Unauthorized' }
         '403': { description: Key lacks the evaluate role }
   /v1/outcomes:
     post:
-      summary: "Report what happened to a payout: settled, failed or reversed (requires the outcomes role). failed/reversed refund the intent use, so only the key that evaluated the payout may report on it."
-      requestBody: { required: true, content: { application/json: { schema: { type: object, required: [payoutId, outcome], properties: { payoutId: { type: string }, outcome: { type: string, enum: [settled, failed, reversed] } } } } } }
+      summary: 'Report what happened to a payout: settled, failed or reversed (requires the outcomes role). failed/reversed refund the intent use, so only the key that evaluated the payout may report on it.'
+      requestBody:
+        {
+          required: true,
+          content:
+            {
+              application/json:
+                {
+                  schema:
+                    {
+                      type: object,
+                      required: [payoutId, outcome],
+                      properties: { payoutId: { type: string }, outcome: { type: string, enum: [settled, failed, reversed] } },
+                    },
+                },
+            },
+        }
       responses:
-        '200': { description: "known=false when the payoutId is unknown or was evaluated by a different key (the denial is audited)", content: { application/json: { schema: { type: object, properties: { payoutId: { type: string }, known: { type: boolean } } } } } }
+        '200':
+          {
+            description: 'known=false when the payoutId is unknown or was evaluated by a different key (the denial is audited)',
+            content:
+              { application/json: { schema: { type: object, properties: { payoutId: { type: string }, known: { type: boolean } } } } },
+          }
         '401': { $ref: '#/components/responses/Unauthorized' }
         '403': { description: Key lacks the outcomes role }
   /v1/state:
     get:
       summary: Mode, alert state and rule list (requires the read role)
-      responses: { '200': { description: State view }, '401': { $ref: '#/components/responses/Unauthorized' }, '403': { description: Key lacks the read role } }
+      responses:
+        {
+          '200': { description: State view },
+          '401': { $ref: '#/components/responses/Unauthorized' },
+          '403': { description: Key lacks the read role },
+        }
     put:
       summary: Change mode, raise or reset HIGH_ALERT (admin, reason required)
       security: [{ adminKey: [] }]
       requestBody:
         required: true
-        content: { application/json: { schema: { type: object, required: [reason], properties: { mode: { type: string, enum: [shadow, advise, enforce] }, kind: { $ref: '#/components/schemas/Kind' }, highAlert: { type: string, enum: [raise, reset] }, actor: { type: string }, reason: { type: string } } } } }
-      responses: { '200': { description: New state view }, '400': { description: No reason given }, '401': { $ref: '#/components/responses/Unauthorized' } }
+        content:
+          {
+            application/json:
+              {
+                schema:
+                  {
+                    type: object,
+                    required: [reason],
+                    properties:
+                      {
+                        mode: { type: string, enum: [shadow, advise, enforce] },
+                        kind: { $ref: '#/components/schemas/Kind' },
+                        highAlert: { type: string, enum: [raise, reset] },
+                        actor: { type: string },
+                        reason: { type: string },
+                      },
+                  },
+              },
+          }
+      responses:
+        {
+          '200': { description: New state view },
+          '400': { description: No reason given },
+          '401': { $ref: '#/components/responses/Unauthorized' },
+        }
   /v1/canaries:
     post:
       summary: Plant canary beneficiaries, API key ids or intent ids (admin)
       security: [{ adminKey: [] }]
       requestBody:
-        content: { application/json: { schema: { type: object, properties: { beneficiaryRefs: { type: array, items: { type: string } }, beneficiaries: { type: array, items: { $ref: '#/components/schemas/Beneficiary' } }, sourceKeyIds: { type: array, items: { type: string } }, intentIds: { type: array, items: { type: string } }, reason: { type: string } } } } }
+        content:
+          {
+            application/json:
+              {
+                schema:
+                  {
+                    type: object,
+                    properties:
+                      {
+                        beneficiaryRefs: { type: array, items: { type: string } },
+                        beneficiaries: { type: array, items: { $ref: '#/components/schemas/Beneficiary' } },
+                        sourceKeyIds: { type: array, items: { type: string } },
+                        intentIds: { type: array, items: { type: string } },
+                        reason: { type: string },
+                      },
+                  },
+              },
+          }
       responses: { '201': { description: Number added }, '401': { $ref: '#/components/responses/Unauthorized' } }
   /v1/issuers/{keyId}:
     delete:
@@ -166,9 +335,28 @@ paths:
       parameters: [{ name: keyId, in: path, required: true, schema: { type: string } }]
       requestBody:
         required: true
-        content: { application/json: { schema: { type: object, required: [reason], properties: { actor: { type: string }, reason: { type: string } } } } }
+        content:
+          {
+            application/json:
+              { schema: { type: object, required: [reason], properties: { actor: { type: string }, reason: { type: string } } } },
+          }
       responses:
-        '200': { description: "Revoked; body includes the issuer list", content: { application/json: { schema: { type: object, properties: { keyId: { type: string }, revoked: { type: boolean }, issuers: { type: array, items: { type: object } } } } } } }
+        '200':
+          {
+            description: 'Revoked; body includes the issuer list',
+            content:
+              {
+                application/json:
+                  {
+                    schema:
+                      {
+                        type: object,
+                        properties:
+                          { keyId: { type: string }, revoked: { type: boolean }, issuers: { type: array, items: { type: object } } },
+                      },
+                  },
+              },
+          }
         '400': { description: No reason given }
         '401': { $ref: '#/components/responses/Unauthorized' }
         '404': { description: Unknown keyId }
@@ -177,9 +365,43 @@ paths:
       summary: Envoy ext_authz check (HTTP service). The forwarded request is mapped with extAuthz.mapping.
       parameters: [{ name: path, in: path, required: true, schema: { type: string } }]
       responses:
-        '200': { description: Allowed (always in shadow); headers x-payrekha-verdict, x-payrekha-action, x-payrekha-decision-id, x-payrekha-rules }
+        '200':
+          {
+            description: Allowed (always in shadow); headers x-payrekha-verdict,
+            x-payrekha-action,
+            x-payrekha-decision-id,
+            x-payrekha-rules,
+          }
         '403': { description: HOLD or DECLINE in enforce }
-  /console: { get: { security: [], summary: "Read-mostly ops console shell (text/html); data calls still require a read-role key", responses: { '200': { description: Console HTML }, '404': { description: Console disabled (PAYREKHA_CONSOLE=off) } } } }
+  /console:
+    {
+      get:
+        {
+          security: [],
+          summary: 'Read-mostly ops console shell (text/html); data calls still require a read-role key',
+          responses: { '200': { description: Console HTML }, '404': { description: Console disabled (PAYREKHA_CONSOLE=off) } },
+        },
+    }
   /healthz: { get: { security: [], summary: Liveness, responses: { '200': { description: OK } } } }
-  /readyz: { get: { security: [], summary: Readiness (503 if the state file could not be loaded), responses: { '200': { description: Ready }, '503': { description: Not ready } } } }
-  /metrics: { get: { summary: "Prometheus metrics (requires the read role)", responses: { '200': { description: text/plain exposition }, '401': { $ref: '#/components/responses/Unauthorized' }, '403': { description: Key lacks the read role } } } }
+  /readyz:
+    {
+      get:
+        {
+          security: [],
+          summary: Readiness (503 if the state file could not be loaded),
+          responses: { '200': { description: Ready }, '503': { description: Not ready } },
+        },
+    }
+  /metrics:
+    {
+      get:
+        {
+          summary: 'Prometheus metrics (requires the read role)',
+          responses:
+            {
+              '200': { description: text/plain exposition },
+              '401': { $ref: '#/components/responses/Unauthorized' },
+              '403': { description: Key lacks the read role },
+            },
+        },
+    }

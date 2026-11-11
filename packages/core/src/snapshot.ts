@@ -20,7 +20,9 @@ const TAG = 'payrekha-state-v1\n';
  */
 export function signSnapshot(snap: FirewallSnapshot, hmacKey: string | undefined): unknown {
   if (hmacKey === undefined) return snap;
-  const m = createHmac('sha256', hmacKey).update(TAG + canonicalJson(snap)).digest('base64url');
+  const m = createHmac('sha256', hmacKey)
+    .update(TAG + canonicalJson(snap))
+    .digest('base64url');
   return { d: snap, m };
 }
 

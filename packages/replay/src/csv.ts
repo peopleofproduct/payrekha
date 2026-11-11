@@ -41,6 +41,10 @@ export function parseRows(text: string, fileName: string): Record<string, unknow
     if (!Array.isArray(v)) throw new Error(`${fileName}: expected a JSON array`);
     return v as Record<string, unknown>[];
   }
-  if (fileName.endsWith('.jsonl')) return text.split('\n').filter((l) => l.trim() !== '').map((l) => JSON.parse(l) as Record<string, unknown>);
+  if (fileName.endsWith('.jsonl'))
+    return text
+      .split('\n')
+      .filter((l) => l.trim() !== '')
+      .map((l) => JSON.parse(l) as Record<string, unknown>);
   return parseCsv(text);
 }

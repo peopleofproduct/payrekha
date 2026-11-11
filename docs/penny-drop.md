@@ -2,11 +2,11 @@
 
 CRAFTY FALCON sends ₹1 to an account before sending ₹4,99,999 to it. The obvious rule is "₹1 followed by a large payout to the same account means REVIEW". At a lender that rule fires on almost every good loan, because lenders run a ₹1 **penny-drop** to verify the borrower's bank account before every disbursal. The legitimate flow looks exactly like the attack.
 
-| | Legitimate lender | Attacker |
-|---|---|---|
-| ₹1 to new account | Penny-drop verification | Probe |
-| Minutes later | ₹2,40,000 disbursal | ₹4,99,999 payout |
-| Who decided | LOS sanctioned the loan | Nobody |
+|                   | Legitimate lender       | Attacker         |
+| ----------------- | ----------------------- | ---------------- |
+| ₹1 to new account | Penny-drop verification | Probe            |
+| Minutes later     | ₹2,40,000 disbursal     | ₹4,99,999 payout |
+| Who decided       | LOS sanctioned the loan | Nobody           |
 
 The difference is not in the amounts. It is in who decided the payout should happen.
 

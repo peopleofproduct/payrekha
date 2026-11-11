@@ -167,25 +167,39 @@ const posInt = (v: number | undefined, name: string, min = 1): void => {
  * boot dies before a bad config can serve.
  */
 export function validateFirewallConfig(cfg: FirewallConfig): void {
-  if (cfg.mode !== undefined && !MODES.includes(cfg.mode)) throw new TypeError(`firewall config mode must be shadow, advise or enforce (got ${String(cfg.mode)})`);
-  for (const [table, name] of [[cfg.modeByKind, 'modeByKind'], [cfg.requireIntent, 'requireIntent'], [cfg.requiredApprovals, 'requiredApprovals']] as const) {
+  if (cfg.mode !== undefined && !MODES.includes(cfg.mode))
+    throw new TypeError(`firewall config mode must be shadow, advise or enforce (got ${String(cfg.mode)})`);
+  for (const [table, name] of [
+    [cfg.modeByKind, 'modeByKind'],
+    [cfg.requireIntent, 'requireIntent'],
+    [cfg.requiredApprovals, 'requiredApprovals'],
+  ] as const) {
     for (const k of Object.keys(table ?? {})) {
-      if (!INTENT_KINDS.includes(k as IntentKind)) throw new TypeError(`firewall config ${name}.${k}: not a known IntentKind — a typo silently disables the rule`);
+      if (!INTENT_KINDS.includes(k as IntentKind))
+        throw new TypeError(`firewall config ${name}.${k}: not a known IntentKind — a typo silently disables the rule`);
     }
   }
   for (const [k, v] of Object.entries(cfg.requiredApprovals ?? {})) {
     const r = typeof v === 'number' ? { count: v } : v;
-    if (!Number.isSafeInteger(r?.count) || (r?.count ?? 0) < 2) throw new TypeError(`firewall config requiredApprovals.${k} must be an integer ≥ 2 (1 is the primary alone — leave the kind unset)`);
-    if (r?.onInsufficient !== undefined && r.onInsufficient !== 'block' && r.onInsufficient !== 'review') throw new TypeError(`firewall config requiredApprovals.${k}.onInsufficient must be block|review`);
-    if (r?.approverIssuers !== undefined && (!Array.isArray(r.approverIssuers) || !r.approverIssuers.every((s) => typeof s === 'string' && s.length > 0 && s.length <= 64))) throw new TypeError(`firewall config requiredApprovals.${k}.approverIssuers must be non-empty strings`);
+    if (!Number.isSafeInteger(r?.count) || (r?.count ?? 0) < 2)
+      throw new TypeError(`firewall config requiredApprovals.${k} must be an integer ≥ 2 (1 is the primary alone — leave the kind unset)`);
+    if (r?.onInsufficient !== undefined && r.onInsufficient !== 'block' && r.onInsufficient !== 'review')
+      throw new TypeError(`firewall config requiredApprovals.${k}.onInsufficient must be block|review`);
+    if (
+      r?.approverIssuers !== undefined &&
+      (!Array.isArray(r.approverIssuers) || !r.approverIssuers.every((s) => typeof s === 'string' && s.length > 0 && s.length <= 64))
+    )
+      throw new TypeError(`firewall config requiredApprovals.${k}.approverIssuers must be non-empty strings`);
   }
   for (const v of Object.values(cfg.modeByKind ?? {})) {
-    if (!MODES.includes(v as Mode)) throw new TypeError(`firewall config modeByKind value must be shadow, advise or enforce (got ${String(v)})`);
+    if (!MODES.includes(v as Mode))
+      throw new TypeError(`firewall config modeByKind value must be shadow, advise or enforce (got ${String(v)})`);
   }
   for (const [state, m] of Object.entries(cfg.multipliers ?? {})) {
     if (!(state in DEFAULT_MULTIPLIERS)) throw new TypeError(`firewall config multipliers.${state}: not a known alert state`);
     for (const [k, v] of Object.entries(m ?? {})) {
-      if (typeof v !== 'number' || !Number.isFinite(v) || v <= 0) throw new TypeError(`firewall config multipliers.${state}.${k} must be a positive finite number`);
+      if (typeof v !== 'number' || !Number.isFinite(v) || v <= 0)
+        throw new TypeError(`firewall config multipliers.${state}.${k} must be a positive finite number`);
     }
   }
   if (cfg.highAlertOnBlocks !== undefined) {
@@ -196,7 +210,8 @@ export function validateFirewallConfig(cfg: FirewallConfig): void {
   posInt(cfg.dedupeCapacity, 'dedupeCapacity');
   posInt(cfg.ledgerCapacity, 'ledgerCapacity');
   posInt(cfg.maxTimestampSkewMs, 'maxTimestampSkewMs');
-  if (cfg.adminTokenSha256 !== undefined && !/^[0-9a-f]{64}$/i.test(cfg.adminTokenSha256)) throw new TypeError('firewall config adminTokenSha256 must be a SHA-256 hex string');
+  if (cfg.adminTokenSha256 !== undefined && !/^[0-9a-f]{64}$/i.test(cfg.adminTokenSha256))
+    throw new TypeError('firewall config adminTokenSha256 must be a SHA-256 hex string');
 }
 
 export function payoutShapeProblem(x: unknown): string | null {
@@ -205,18 +220,31 @@ export function payoutShapeProblem(x: unknown): string | null {
   if (!isStr(p['payoutId'], 128)) return 'payoutId';
   if (!INTENT_KINDS.includes(p['kind'] as IntentKind)) return 'kind';
   if (p['intentId'] !== undefined && typeof p['intentId'] !== 'string') return 'intentId';
-  if (p['approvalIds'] !== undefined && (!Array.isArray(p['approvalIds']) || (p['approvalIds'] as unknown[]).length > 8 || !(p['approvalIds'] as unknown[]).every((a) => isStr(a, 128)))) return 'approvalIds (array of ≤8 intent ids)';
+  if (
+    p['approvalIds'] !== undefined &&
+    (!Array.isArray(p['approvalIds']) ||
+      (p['approvalIds'] as unknown[]).length > 8 ||
+      !(p['approvalIds'] as unknown[]).every((a) => isStr(a, 128)))
+  )
+    return 'approvalIds (array of ≤8 intent ids)';
   if (!Number.isSafeInteger(p['amountPaise']) || (p['amountPaise'] as number) <= 0) return 'amountPaise (positive integer paise)';
   if (!isStr(p['beneficiaryRef'])) return 'beneficiaryRef';
   if (looksLikeRawIdentifier(p['beneficiaryRef'] as string)) return 'beneficiaryRef looks raw (hash it)';
-  if (p['beneficiaryMobileRef'] !== undefined && (!isStr(p['beneficiaryMobileRef']) || looksLikeRawIdentifier(p['beneficiaryMobileRef'] as string)))
+  if (
+    p['beneficiaryMobileRef'] !== undefined &&
+    (!isStr(p['beneficiaryMobileRef']) || looksLikeRawIdentifier(p['beneficiaryMobileRef'] as string))
+  )
     return 'beneficiaryMobileRef';
   if (!CHANNELS.includes(p['channel'] as never)) return 'channel';
   if (!isStr(p['sourceKeyId'], 128)) return 'sourceKeyId';
   if (p['origin'] !== 'prod' && p['origin'] !== 'nonprod' && p['origin'] !== 'unknown') return 'origin';
   if (p['merchantId'] !== undefined && !isStr(p['merchantId'], 128)) return 'merchantId';
   if (p['clientAttested'] !== undefined && typeof p['clientAttested'] !== 'boolean') return 'clientAttested';
-  if (p['riskScore'] !== undefined && (typeof p['riskScore'] !== 'number' || !Number.isFinite(p['riskScore']) || p['riskScore'] < 0 || p['riskScore'] > 1)) return 'riskScore (number 0..1)';
+  if (
+    p['riskScore'] !== undefined &&
+    (typeof p['riskScore'] !== 'number' || !Number.isFinite(p['riskScore']) || p['riskScore'] < 0 || p['riskScore'] > 1)
+  )
+    return 'riskScore (number 0..1)';
   if (p['externalVerdict'] !== undefined && !isStr(p['externalVerdict'], 64)) return 'externalVerdict';
   if (p['externalSource'] !== undefined && !isStr(p['externalSource'], 64)) return 'externalSource';
   if (p['sourceHint'] !== undefined && !isStr(p['sourceHint'], 256)) return 'sourceHint';
@@ -323,7 +351,9 @@ export class Payrekha {
       alertState,
       multipliers: this.multipliers[alertState],
       calendarWindow,
-      intent: wellFormed ? this.intents.check(evalPayout, required, approvalRequirement(this.cfg.requiredApprovals, evalPayout.kind)) : { status: 'missing', required },
+      intent: wellFormed
+        ? this.intents.check(evalPayout, required, approvalRequirement(this.cfg.requiredApprovals, evalPayout.kind))
+        : { status: 'missing', required },
       beneficiary: wellFormed ? this.beneficiaries.get(evalPayout.beneficiaryRef) : undefined,
       merchant: wellFormed && evalPayout.merchantId !== undefined ? this.merchants.get(evalPayout.merchantId) : undefined,
       canaries: this.canaries,
@@ -361,7 +391,10 @@ export class Payrekha {
     if (wellFormed) this.remember(evalPayout, ctx, effectiveAction);
 
     this.seq += 1;
-    const decisionId = `pd_${createHash('sha256').update(`${String(payout?.payoutId)}|${evalTs}|${this.seq}`).digest('base64url').slice(0, 22)}`;
+    const decisionId = `pd_${createHash('sha256')
+      .update(`${String(payout?.payoutId)}|${evalTs}|${this.seq}`)
+      .digest('base64url')
+      .slice(0, 22)}`;
     const verdict: PayoutVerdict = {
       ...ev,
       decisionId,
@@ -405,7 +438,8 @@ export class Payrekha {
     }
     if (verifiedHere) {
       const subjects = entry.verifiedSubjects ?? [];
-      if (!subjects.includes(ctx.intent.subjectRef!)) entry = { ...entry, verifiedSubjects: [...subjects, ctx.intent.subjectRef!].slice(-8) };
+      if (!subjects.includes(ctx.intent.subjectRef!))
+        entry = { ...entry, verifiedSubjects: [...subjects, ctx.intent.subjectRef!].slice(-8) };
     }
     // Always set, even unchanged: the write is what refreshes recency —
     // otherwise a hot beneficiary could be evicted mid-activity and its
@@ -436,8 +470,15 @@ export class Payrekha {
    */
   reportOutcome(payoutId: string, outcome: PayoutOutcome, sourceKeyId?: string): boolean {
     const r = outcome === 'settled' ? this.intents.settle(payoutId, sourceKeyId) : this.intents.release(payoutId, sourceKeyId);
-    if (r === 'denied') this.record({ atMs: this.now(), action: 'outcome.denied', actor: sourceKeyId ?? 'unknown', reason: `${outcome} reported for ${payoutId}` });
-    else if (r === 'released' || r === 'settled') this.record({ atMs: this.now(), action: `outcome.${outcome}`, actor: sourceKeyId ?? 'in-process', reason: payoutId });
+    if (r === 'denied')
+      this.record({
+        atMs: this.now(),
+        action: 'outcome.denied',
+        actor: sourceKeyId ?? 'unknown',
+        reason: `${outcome} reported for ${payoutId}`,
+      });
+    else if (r === 'released' || r === 'settled')
+      this.record({ atMs: this.now(), action: `outcome.${outcome}`, actor: sourceKeyId ?? 'in-process', reason: payoutId });
     return r === 'released' || r === 'settled';
   }
 
@@ -473,10 +514,21 @@ export class Payrekha {
       keyId: spec.keyId,
       intentId: '',
     };
-    const intentId = spec.intentId ?? `mint-${createHash('sha256').update(intentSigningPayload(unsigned as UnsignedIntent)).digest('base64url').slice(0, 32)}`;
+    const intentId =
+      spec.intentId ??
+      `mint-${createHash('sha256')
+        .update(intentSigningPayload(unsigned as UnsignedIntent))
+        .digest('base64url')
+        .slice(0, 32)}`;
     const intent = signIntent({ ...unsigned, intentId }, spec.key);
     const res = this.intents.register(intent, nowMs);
-    if (res.accepted) this.record({ atMs: nowMs, action: 'intent.minted', actor, reason: `${intentId} ${spec.kind} ₹${spec.maxAmountPaise / 100} via ${spec.keyId}` });
+    if (res.accepted)
+      this.record({
+        atMs: nowMs,
+        action: 'intent.minted',
+        actor,
+        reason: `${intentId} ${spec.kind} ₹${spec.maxAmountPaise / 100} via ${spec.keyId}`,
+      });
     return { ...res, intentId };
   }
 
@@ -520,7 +572,14 @@ export class Payrekha {
     if (this.highAlert === null) return;
     this.highAlert = null;
     this.recentBlocks.length = 0;
-    const e = this.record({ atMs: this.now(), action: 'alert.reset', actor: cred.actor, reason: cred.reason, from: 'HIGH_ALERT', to: 'NORMAL' });
+    const e = this.record({
+      atMs: this.now(),
+      action: 'alert.reset',
+      actor: cred.actor,
+      reason: cred.reason,
+      from: 'HIGH_ALERT',
+      to: 'NORMAL',
+    });
     this.fireAlertChange('HIGH_ALERT', 'NORMAL', e);
   }
 
@@ -531,10 +590,20 @@ export class Payrekha {
     const from = kind !== undefined ? (this.modeByKind[kind] ?? this.mode) : this.mode;
     if (kind !== undefined) this.modeByKind[kind] = mode;
     else this.mode = mode;
-    this.record({ atMs: this.now(), action: kind !== undefined ? `mode.set:${kind}` : 'mode.set', actor: cred.actor, reason: cred.reason, from, to: mode });
+    this.record({
+      atMs: this.now(),
+      action: kind !== undefined ? `mode.set:${kind}` : 'mode.set',
+      actor: cred.actor,
+      reason: cred.reason,
+      from,
+      to: mode,
+    });
   }
 
-  addCanaries(c: { beneficiaryRefs?: readonly string[]; sourceKeyIds?: readonly string[]; intentIds?: readonly string[] }, cred: Credential): number {
+  addCanaries(
+    c: { beneficiaryRefs?: readonly string[]; sourceKeyIds?: readonly string[]; intentIds?: readonly string[] },
+    cred: Credential,
+  ): number {
     this.authorize(cred, 'canary.add');
     const n = this.canaries.add(c);
     this.record({ atMs: this.now(), action: 'canary.add', actor: cred.actor, reason: cred.reason, to: String(n) });
@@ -586,12 +655,26 @@ export class Payrekha {
     if (s.highAlert !== undefined) {
       if (s.highAlert !== null && this.highAlert === null) {
         this.highAlert = { since: s.highAlert.since, reason: s.highAlert.reason };
-        const e = this.record({ atMs, action: 'alert.enter', actor: 'shared-control', reason: s.highAlert.reason, from: 'NORMAL', to: 'HIGH_ALERT' });
+        const e = this.record({
+          atMs,
+          action: 'alert.enter',
+          actor: 'shared-control',
+          reason: s.highAlert.reason,
+          from: 'NORMAL',
+          to: 'HIGH_ALERT',
+        });
         this.fireAlertChange('NORMAL', 'HIGH_ALERT', e);
       } else if (s.highAlert === null && this.highAlert !== null) {
         this.highAlert = null;
         this.recentBlocks.length = 0;
-        const e = this.record({ atMs, action: 'alert.reset', actor: 'shared-control', reason: 'remote reset', from: 'HIGH_ALERT', to: 'NORMAL' });
+        const e = this.record({
+          atMs,
+          action: 'alert.reset',
+          actor: 'shared-control',
+          reason: 'remote reset',
+          from: 'HIGH_ALERT',
+          to: 'NORMAL',
+        });
         this.fireAlertChange('HIGH_ALERT', 'NORMAL', e);
       }
     }

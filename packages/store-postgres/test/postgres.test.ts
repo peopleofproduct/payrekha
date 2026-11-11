@@ -89,13 +89,19 @@ describe('PostgresStateStore with a stubbed pool', () => {
     const fw = fresh();
     fw.raiseHighAlert('test', 'canary');
     const signed = signSnapshot(fw.exportState(), key) as { d: { highAlert: unknown }; m: string };
-    const ok = new PostgresStateStore({ pool: fakePool(() => Promise.resolve({ rows: [{ version: '7', snapshot: signed }] })) as never, hmacKey: key });
+    const ok = new PostgresStateStore({
+      pool: fakePool(() => Promise.resolve({ rows: [{ version: '7', snapshot: signed }] })) as never,
+      hmacKey: key,
+    });
     const fw2 = fresh();
     assert.equal(await ok.load(fw2), true);
     assert.equal(fw2.alertState, 'HIGH_ALERT');
     // JSONB may reorder keys — the canonical-JSON MAC still catches a content change.
     const tampered = { d: { ...signed.d, highAlert: null }, m: signed.m };
-    const bad = new PostgresStateStore({ pool: fakePool(() => Promise.resolve({ rows: [{ version: '8', snapshot: tampered }] })) as never, hmacKey: key });
+    const bad = new PostgresStateStore({
+      pool: fakePool(() => Promise.resolve({ rows: [{ version: '8', snapshot: tampered }] })) as never,
+      hmacKey: key,
+    });
     await assert.rejects(bad.load(fresh()), /signature mismatch/);
   });
 });

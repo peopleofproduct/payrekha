@@ -14,12 +14,12 @@ Everything else clean.
 
 ## Preset rationale
 
-| Rule | Setting | Why |
-|---|---|---|
-| `requireIntent` | refunds + verifies | refund intents from the order/refund engine |
-| `probe` | ₹500 large, 30× | refund mills stay small — the *count* to one beneficiary is the tell, so the window is tighter (12 h) |
-| `cooling` | 30 min, ≥ ₹100 | new payees cool briefly; verified payees are exempt (verified-beneficiary bookkeeping) |
-| `velocity` | 150/₹50k per 10 min | refund APIs are chattier than disbursal paths but small-value |
+| Rule            | Setting             | Why                                                                                                   |
+| --------------- | ------------------- | ----------------------------------------------------------------------------------------------------- |
+| `requireIntent` | refunds + verifies  | refund intents from the order/refund engine                                                           |
+| `probe`         | ₹500 large, 30×     | refund mills stay small — the _count_ to one beneficiary is the tell, so the window is tighter (12 h) |
+| `cooling`       | 30 min, ≥ ₹100      | new payees cool briefly; verified payees are exempt (verified-beneficiary bookkeeping)                |
+| `velocity`      | 150/₹50k per 10 min | refund APIs are chattier than disbursal paths but small-value                                         |
 
 ## First week
 

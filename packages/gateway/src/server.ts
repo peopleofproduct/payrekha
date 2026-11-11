@@ -4,7 +4,22 @@
 import { createHash, randomUUID, timingSafeEqual } from 'node:crypto';
 import { createServer, type IncomingMessage, type Server, type ServerResponse } from 'node:http';
 import { createServer as createHttpsServer, type Server as HttpsServer } from 'node:https';
-import { AuthorizationError, hashBeneficiary, looksLikeRawIdentifier, INTENT_KINDS, type BeneficiaryIdentifier, type IntentKind, type MintSpec, type Mode, type Payrekha, type PayoutOutcome, type PayoutRequest, type PayoutVerdict, type SignerKey, type StateStore } from '@payrekha/core';
+import {
+  AuthorizationError,
+  hashBeneficiary,
+  looksLikeRawIdentifier,
+  INTENT_KINDS,
+  type BeneficiaryIdentifier,
+  type IntentKind,
+  type MintSpec,
+  type Mode,
+  type Payrekha,
+  type PayoutOutcome,
+  type PayoutRequest,
+  type PayoutVerdict,
+  type SignerKey,
+  type StateStore,
+} from '@payrekha/core';
 import { decisionRecord, type DecisionLog } from './log.js';
 import { mapPayout, type FieldMapping } from './mapping.js';
 import { renderMetrics } from './metrics.js';
@@ -187,7 +202,8 @@ function bearer(req: IncomingMessage): string | undefined {
 
 async function readBody(req: IncomingMessage, max: number): Promise<unknown> {
   const enc = req.headers['content-encoding'];
-  if (enc !== undefined && enc !== 'identity') throw new HttpError(415, `unsupported content-encoding '${enc.slice(0, 32)}' — send the payout as plain JSON`);
+  if (enc !== undefined && enc !== 'identity')
+    throw new HttpError(415, `unsupported content-encoding '${enc.slice(0, 32)}' — send the payout as plain JSON`);
   const chunks: Buffer[] = [];
   let n = 0;
   for await (const c of req) {
@@ -233,7 +249,14 @@ export function createGateway(o: GatewayOptions): GatewayHandle {
   const now = o.now ?? Date.now;
   const max = o.maxBodyBytes ?? 64 * 1024;
   let saving = false;
-  const stats: GatewayStats = { requests: new Map(), stateSaveErrors: 0, logErrors: 0, ready: true, notReadyReason: '', stateSaveMs: { sum: 0, count: 0, max: 0 } };
+  const stats: GatewayStats = {
+    requests: new Map(),
+    stateSaveErrors: 0,
+    logErrors: 0,
+    ready: true,
+    notReadyReason: '',
+    stateSaveMs: { sum: 0, count: 0, max: 0 },
+  };
   const onError = o.onError ?? (() => undefined);
 
   const intentCost = new Map<string, { reset: number; used: number }>();
@@ -278,7 +301,15 @@ export function createGateway(o: GatewayOptions): GatewayHandle {
       onError('decision-log', e);
     }
     if (v.verdict === 'BLOCK' && !v.deduped)
-      o.webhook?.send({ type: 'payout.blocked', atMs: now(), decisionId: v.decisionId, payoutId: v.payoutId, rules: v.hits.map((h) => h.rule), mode: v.mode, effectiveAction: v.effectiveAction });
+      o.webhook?.send({
+        type: 'payout.blocked',
+        atMs: now(),
+        decisionId: v.decisionId,
+        payoutId: v.payoutId,
+        rules: v.hits.map((h) => h.rule),
+        mode: v.mode,
+        effectiveAction: v.effectiveAction,
+      });
   };
 
   const evaluate = async (body: unknown, key: ApiKey, rid: string, peerHint?: string): Promise<PayoutVerdict> => {
@@ -387,18 +418,25 @@ export function createGateway(o: GatewayOptions): GatewayHandle {
       const ttlMs = b['ttlMs'];
       const notBeforeMs = b['notBeforeMs'];
       if (!INTENT_KINDS.includes(kind as IntentKind)) throw new HttpError(400, 'kind must be a known IntentKind');
-      if (!Number.isSafeInteger(amount) || (amount as number) <= 0) throw new HttpError(400, 'maxAmountPaise (or amountPaise) must be a positive integer');
-      if (typeof ref !== 'string' || looksLikeRawIdentifier(ref)) throw new HttpError(400, 'beneficiaryRef (hashed) or raw beneficiary fields are required');
-      if (intentId !== undefined && (typeof intentId !== 'string' || intentId.length === 0 || intentId.length > 128)) throw new HttpError(400, 'intentId must be a string of at most 128 chars');
+      if (!Number.isSafeInteger(amount) || (amount as number) <= 0)
+        throw new HttpError(400, 'maxAmountPaise (or amountPaise) must be a positive integer');
+      if (typeof ref !== 'string' || looksLikeRawIdentifier(ref))
+        throw new HttpError(400, 'beneficiaryRef (hashed) or raw beneficiary fields are required');
+      if (intentId !== undefined && (typeof intentId !== 'string' || intentId.length === 0 || intentId.length > 128))
+        throw new HttpError(400, 'intentId must be a string of at most 128 chars');
       if (subjectRef !== undefined && typeof subjectRef !== 'string') throw new HttpError(400, 'subjectRef must be a string');
-      if (maxUses !== undefined && (!Number.isSafeInteger(maxUses) || (maxUses as number) < 1 || (maxUses as number) > 1_000_000)) throw new HttpError(400, 'maxUses must be an integer 1..1e6');
-      if (ttlMs !== undefined && (!Number.isSafeInteger(ttlMs) || (ttlMs as number) < 1 || (ttlMs as number) > o.mint.maxTtlMs)) throw new HttpError(400, `ttlMs must be within 1..${o.mint.maxTtlMs}`);
+      if (maxUses !== undefined && (!Number.isSafeInteger(maxUses) || (maxUses as number) < 1 || (maxUses as number) > 1_000_000))
+        throw new HttpError(400, 'maxUses must be an integer 1..1e6');
+      if (ttlMs !== undefined && (!Number.isSafeInteger(ttlMs) || (ttlMs as number) < 1 || (ttlMs as number) > o.mint.maxTtlMs))
+        throw new HttpError(400, `ttlMs must be within 1..${o.mint.maxTtlMs}`);
       if (notBeforeMs !== undefined && !Number.isSafeInteger(notBeforeMs)) throw new HttpError(400, 'notBeforeMs must be epoch ms');
-      if (o.mint.maxAmountPaise !== undefined && (amount as number) > o.mint.maxAmountPaise) throw new HttpError(400, `maxAmountPaise above the mint ceiling (${o.mint.maxAmountPaise})`);
+      if (o.mint.maxAmountPaise !== undefined && (amount as number) > o.mint.maxAmountPaise)
+        throw new HttpError(400, `maxAmountPaise above the mint ceiling (${o.mint.maxAmountPaise})`);
       if (o.mint.modes !== undefined) {
         const cm = fw.currentMode;
         const eff = cm.modeByKind[kind as IntentKind] ?? cm.mode;
-        if (!o.mint.modes.includes(eff)) throw new HttpError(403, `minting disabled while ${String(kind)} is in ${eff} mode (gateway.mint.modes)`);
+        if (!o.mint.modes.includes(eff))
+          throw new HttpError(403, `minting disabled while ${String(kind)} is in ${eff} mode (gateway.mint.modes)`);
       }
       const spec: MintSpec = {
         keyId: o.mint.keyId,
@@ -425,7 +463,8 @@ export function createGateway(o: GatewayOptions): GatewayHandle {
     if (path === '/v1/outcomes' && m === 'POST') {
       const key = authKey(req, 'outcomes');
       const b = (await readBody(req, max)) as { payoutId?: unknown; outcome?: unknown } | undefined;
-      if (typeof b?.payoutId !== 'string' || !['settled', 'failed', 'reversed'].includes(b.outcome as string)) throw new HttpError(400, 'payoutId and outcome (settled|failed|reversed) required');
+      if (typeof b?.payoutId !== 'string' || !['settled', 'failed', 'reversed'].includes(b.outcome as string))
+        throw new HttpError(400, 'payoutId and outcome (settled|failed|reversed) required');
       // With shared state the reservation row is the truth: apply the outcome
       // there first (a replica may never have held the payout locally), then
       // to local counters. Failure → 503; the call is safe to retry.
@@ -481,11 +520,26 @@ export function createGateway(o: GatewayOptions): GatewayHandle {
       if (rec === undefined) throw new HttpError(404, 'unknown intentId');
       const { signature: _s, ...intent } = rec.intent;
       void _s;
-      return [200, { intent, uses: rec.uses, usedPaise: rec.usedPaise, remainingPaise: Math.max(0, rec.intent.maxAmountPaise - rec.usedPaise), verification: rec.verification }];
+      return [
+        200,
+        {
+          intent,
+          uses: rec.uses,
+          usedPaise: rec.usedPaise,
+          remainingPaise: Math.max(0, rec.intent.maxAmountPaise - rec.usedPaise),
+          verification: rec.verification,
+        },
+      ];
     }
     if (path === '/v1/state' && m === 'PUT') {
       const token = authAdmin(req);
-      const b = ((await readBody(req, max)) ?? {}) as { mode?: Mode; kind?: IntentKind; highAlert?: 'raise' | 'reset'; actor?: string; reason?: string };
+      const b = ((await readBody(req, max)) ?? {}) as {
+        mode?: Mode;
+        kind?: IntentKind;
+        highAlert?: 'raise' | 'reset';
+        actor?: string;
+        reason?: string;
+      };
       const cred = { actor: String(b.actor ?? 'admin').slice(0, 64), reason: String(b.reason ?? '').slice(0, 256), adminToken: token };
       if (cred.reason === '') throw new HttpError(400, 'reason is required (it goes in the audit trail)');
       // Apply locally first (audits the real admin), then write the control
@@ -498,7 +552,9 @@ export function createGateway(o: GatewayOptions): GatewayHandle {
           await shared.pushControl((cur) => ({
             ...cur,
             // First alarm wins — a second replica's raise must not overwrite the original reason.
-            ...(b.highAlert === 'raise' && (cur.highAlert === undefined || cur.highAlert === null) ? { highAlert: { since: now(), reason: cred.reason } } : {}),
+            ...(b.highAlert === 'raise' && (cur.highAlert === undefined || cur.highAlert === null)
+              ? { highAlert: { since: now(), reason: cred.reason } }
+              : {}),
             ...(b.highAlert === 'reset' ? { highAlert: null } : {}),
             ...(b.mode !== undefined && b.kind === undefined ? { mode: b.mode } : {}),
             ...(b.mode !== undefined && b.kind !== undefined ? { modeByKind: { ...cur.modeByKind, [b.kind]: b.mode } } : {}),
@@ -533,9 +589,17 @@ export function createGateway(o: GatewayOptions): GatewayHandle {
     }
     if (path === '/v1/canaries' && m === 'POST') {
       const token = authAdmin(req);
-      const b = ((await readBody(req, max)) ?? {}) as { beneficiaryRefs?: string[]; beneficiaries?: BeneficiaryIdentifier[]; sourceKeyIds?: string[]; intentIds?: string[]; actor?: string; reason?: string };
+      const b = ((await readBody(req, max)) ?? {}) as {
+        beneficiaryRefs?: string[];
+        beneficiaries?: BeneficiaryIdentifier[];
+        sourceKeyIds?: string[];
+        intentIds?: string[];
+        actor?: string;
+        reason?: string;
+      };
       const refs = [...(b.beneficiaryRefs ?? [])];
-      if (refs.some((r) => typeof r !== 'string' || looksLikeRawIdentifier(r))) throw new HttpError(400, 'beneficiaryRefs must be hashed; send raw ids under "beneficiaries"');
+      if (refs.some((r) => typeof r !== 'string' || looksLikeRawIdentifier(r)))
+        throw new HttpError(400, 'beneficiaryRefs must be hashed; send raw ids under "beneficiaries"');
       for (const raw of b.beneficiaries ?? []) {
         if (o.hashKey === undefined) throw new HttpError(400, 'raw beneficiaries need PAYREKHA_HASH_KEY');
         refs.push(hashBeneficiary(raw, o.hashKey));
@@ -549,7 +613,12 @@ export function createGateway(o: GatewayOptions): GatewayHandle {
     throw new HttpError(404, 'not found');
   };
 
-  const extAuthz = async (req: IncomingMessage, res: ServerResponse, rid: string, url: URL): Promise<[number, unknown, Record<string, string>?]> => {
+  const extAuthz = async (
+    req: IncomingMessage,
+    res: ServerResponse,
+    rid: string,
+    url: URL,
+  ): Promise<[number, unknown, Record<string, string>?]> => {
     const x = o.extAuthz!;
     if (x.keySha256 !== undefined) {
       const k = req.headers['x-payrekha-key'];
@@ -559,7 +628,12 @@ export function createGateway(o: GatewayOptions): GatewayHandle {
     const hdrOrigin = x.originHeader !== undefined ? req.headers[x.originHeader.toLowerCase()] : undefined;
     const origin = hdrOrigin === 'prod' || hdrOrigin === 'nonprod' ? hdrOrigin : x.origin;
     const payout = mapPayout(
-      { path: url.pathname.replace(/^\/ext_authz/, '') || '/', headers: req.headers, query: Object.fromEntries(url.searchParams), body: typeof body === 'symbol' ? undefined : body },
+      {
+        path: url.pathname.replace(/^\/ext_authz/, '') || '/',
+        headers: req.headers,
+        query: Object.fromEntries(url.searchParams),
+        body: typeof body === 'symbol' ? undefined : body,
+      },
       x.mapping,
       o.hashKey,
       { origin, nowMs: now(), trustClientTimestamp: x.trustClientTimestamp === true },
@@ -575,7 +649,11 @@ export function createGateway(o: GatewayOptions): GatewayHandle {
     };
     void res;
     // Shadow → effectiveAction is always ALLOW → 200. HOLD and DECLINE both stop the call.
-    return [v.effectiveAction === 'ALLOW' ? 200 : 403, { verdict: v.verdict, effectiveAction: v.effectiveAction, decisionId: v.decisionId, rules: headers['x-payrekha-rules'] }, headers];
+    return [
+      v.effectiveAction === 'ALLOW' ? 200 : 403,
+      { verdict: v.verdict, effectiveAction: v.effectiveAction, decisionId: v.decisionId, rules: headers['x-payrekha-rules'] },
+      headers,
+    ];
   };
 
   const stateView = () => ({
@@ -671,7 +749,22 @@ function routeLabel(url: string): string {
   if (p.startsWith('/ext_authz')) return '/ext_authz';
   if (p.startsWith('/v1/issuers/')) return '/v1/issuers';
   if (p.startsWith('/v1/intents/') && p !== '/v1/intents/mint') return '/v1/intents/item';
-  return ['/v1/evaluate', '/v1/intents', '/v1/intents/mint', '/v1/outcomes', '/v1/state', '/v1/decisions', '/v1/audit', '/v1/canaries', '/console', '/healthz', '/readyz', '/metrics'].includes(p) ? p : 'other';
+  return [
+    '/v1/evaluate',
+    '/v1/intents',
+    '/v1/intents/mint',
+    '/v1/outcomes',
+    '/v1/state',
+    '/v1/decisions',
+    '/v1/audit',
+    '/v1/canaries',
+    '/console',
+    '/healthz',
+    '/readyz',
+    '/metrics',
+  ].includes(p)
+    ? p
+    : 'other';
 }
 
 function send(res: ServerResponse, status: number, body: unknown, headers: Record<string, string> = {}): void {

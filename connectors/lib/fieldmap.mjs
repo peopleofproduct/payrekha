@@ -43,15 +43,26 @@ export function resolveSpec(spec, ev) {
 }
 
 export function dig(o, p) {
-  return String(p).split('.').reduce((a, k) => (a == null ? undefined : a[k]), o);
+  return String(p)
+    .split('.')
+    .reduce((a, k) => (a == null ? undefined : a[k]), o);
 }
 
 /** Resolve every leaf of a fieldMap object against an event. */
 export function applyFieldMap(fieldMap, ev) {
   const out = {};
   for (const [k, spec] of Object.entries(fieldMap)) {
-    if (typeof spec === 'object' && spec !== null && !Array.isArray(spec) &&
-        !('const' in spec) && !('now' in spec) && !('coalesce' in spec) && !('map' in spec) && !('template' in spec) && !('from' in spec)) {
+    if (
+      typeof spec === 'object' &&
+      spec !== null &&
+      !Array.isArray(spec) &&
+      !('const' in spec) &&
+      !('now' in spec) &&
+      !('coalesce' in spec) &&
+      !('map' in spec) &&
+      !('template' in spec) &&
+      !('from' in spec)
+    ) {
       out[k] = applyFieldMap(spec, ev); // nested object
     } else {
       const v = resolveSpec(spec, ev);

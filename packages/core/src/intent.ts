@@ -68,8 +68,7 @@ const toPublicKey = (k: string): KeyObject =>
   k.includes('BEGIN') ? createPublicKey(k) : createPublicKey({ key: Buffer.from(k, 'base64'), format: 'der', type: 'spki' });
 
 export type SignerKey =
-  | { readonly alg: 'ed25519'; readonly privateKey: string | KeyObject }
-  | { readonly alg: 'hmac-sha256'; readonly secret: string };
+  { readonly alg: 'ed25519'; readonly privateKey: string | KeyObject } | { readonly alg: 'hmac-sha256'; readonly secret: string };
 
 /** Sign an intent. Runs in the system of record (LOS/LMS, settlement engine), not in PayRekha. */
 export function signIntent(intent: UnsignedIntent, key: SignerKey): Intent {
@@ -189,8 +188,7 @@ export function intentShapeProblem(x: unknown): string | null {
   const i = x as Record<string, unknown>;
   if (!isStr(i['intentId'], 128)) return 'intentId must be a non-empty string';
   if (!INTENT_KINDS.includes(i['kind'] as IntentKind)) return 'kind is not a known IntentKind';
-  if (!isPaise(i['maxAmountPaise']) || (i['maxAmountPaise'] as number) === 0)
-    return 'maxAmountPaise must be a positive integer (paise)';
+  if (!isPaise(i['maxAmountPaise']) || (i['maxAmountPaise'] as number) === 0) return 'maxAmountPaise must be a positive integer (paise)';
   if (!isStr(i['beneficiaryRef'])) return 'beneficiaryRef must be a non-empty string';
   if (looksLikeRawIdentifier(i['beneficiaryRef'] as string)) return 'beneficiaryRef looks like a raw identifier; hash it first';
   if (i['subjectRef'] !== undefined && !isStr(i['subjectRef'])) return 'subjectRef must be a string';

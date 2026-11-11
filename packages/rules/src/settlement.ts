@@ -14,7 +14,11 @@ export function settlementOverCapturedRule(): PayoutRule {
         'settlement.over-captured',
         Verdict.Block,
         `Settlement ${rupees(p.amountPaise)} exceeds the reconciled captured net of ${rupees(ctx.intent.remainingPaise ?? 0)}`,
-        { amountPaise: p.amountPaise, reconciledPaise: ctx.intent.remainingPaise ?? 0, overByPaise: p.amountPaise - (ctx.intent.remainingPaise ?? 0) },
+        {
+          amountPaise: p.amountPaise,
+          reconciledPaise: ctx.intent.remainingPaise ?? 0,
+          overByPaise: p.amountPaise - (ctx.intent.remainingPaise ?? 0),
+        },
       );
     },
   };

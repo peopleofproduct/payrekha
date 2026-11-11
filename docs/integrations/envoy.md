@@ -6,19 +6,19 @@ Adds PayRekha in front of an existing payout API with no code change. The full w
 http_filters:
   - name: envoy.filters.http.ext_authz
     typed_config:
-      "@type": type.googleapis.com/envoy.extensions.filters.http.ext_authz.v3.ExtAuthz
-      failure_mode_allow: false          # PayRekha down = payout held
+      '@type': type.googleapis.com/envoy.extensions.filters.http.ext_authz.v3.ExtAuthz
+      failure_mode_allow: false # PayRekha down = payout held
       with_request_body: { max_request_bytes: 65536, allow_partial_message: false }
       http_service:
         server_uri: { uri: payrekha:8080, cluster: payrekha, timeout: 0.25s }
         path_prefix: /ext_authz
         authorization_request:
           headers_to_add:
-            - { key: authorization, value: "Bearer <ext-authz token>" }
+            - { key: authorization, value: 'Bearer <ext-authz token>' }
             # Envoy asserts the caller identity — a client-supplied
             # x-client-id must never reach this list. Derive it per-route
             # or from mTLS/JWT claims; fixed value only for a single tenant.
-            - { key: x-client-id, value: "<payout-api-id>" }
+            - { key: x-client-id, value: '<payout-api-id>' }
           allowed_headers: { patterns: [{ prefix: x-payout- }, { exact: x-payrekha-intent }] }
         authorization_response:
           allowed_upstream_headers: { patterns: [{ prefix: x-payrekha- }] }
@@ -27,10 +27,19 @@ http_filters:
 The ext_authz token authenticates Envoy itself (`PAYREKHA_EXT_AUTHZ_KEY`). Map your API's request to a payout with dot paths (`deploy/envoy/payrekha.json`):
 
 ```json
-{ "extAuthz": { "mapping": {
-  "payoutId": "body.request_id", "kind": "header.x-payout-kind", "amountPaise": "body.amount_in_paise",
-  "intentId": "header.x-payrekha-intent", "channel": "body.mode", "sourceKeyId": "header.x-client-id",
-  "beneficiary": { "account": "body.beneficiary.account_number", "ifsc": "body.beneficiary.ifsc" } } } }
+{
+  "extAuthz": {
+    "mapping": {
+      "payoutId": "body.request_id",
+      "kind": "header.x-payout-kind",
+      "amountPaise": "body.amount_in_paise",
+      "intentId": "header.x-payrekha-intent",
+      "channel": "body.mode",
+      "sourceKeyId": "header.x-client-id",
+      "beneficiary": { "account": "body.beneficiary.account_number", "ifsc": "body.beneficiary.ifsc" }
+    }
+  }
+}
 ```
 
 Roots are `body.`, `header.`, `query.` and `path.`; `{ "const": "REFUND" }` sets a fixed value. Missing fields are not guessed: the payout becomes a degraded REVIEW. Raw beneficiary fields are hashed at the gateway and never logged.

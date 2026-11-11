@@ -19,7 +19,14 @@ export interface FieldMapping {
   /** Additional intent ids for m-of-n approved kinds — array path or comma-joined header (`header.x-payrekha-approvals`). */
   readonly approvalIds?: Source;
   readonly beneficiaryRef?: Source;
-  readonly beneficiary?: { readonly account?: Source; readonly ifsc?: Source; readonly vpa?: Source; readonly mobile?: Source; readonly address?: Source; readonly network?: Source };
+  readonly beneficiary?: {
+    readonly account?: Source;
+    readonly ifsc?: Source;
+    readonly vpa?: Source;
+    readonly mobile?: Source;
+    readonly address?: Source;
+    readonly network?: Source;
+  };
   readonly beneficiaryMobile?: Source;
   readonly channel?: Source;
   readonly sourceKeyId?: Source;
@@ -84,7 +91,12 @@ const asNum = (v: unknown): number | undefined => {
  * left for the firewall's shape check to turn into a degraded REVIEW —
  * the adapter never guesses.
  */
-export function mapPayout(req: ForwardedRequest, m: FieldMapping, hashKey: string | undefined, fixed: { origin: string; sourceKeyId?: string; nowMs: number; trustClientTimestamp?: boolean }): Record<string, unknown> {
+export function mapPayout(
+  req: ForwardedRequest,
+  m: FieldMapping,
+  hashKey: string | undefined,
+  fixed: { origin: string; sourceKeyId?: string; nowMs: number; trustClientTimestamp?: boolean },
+): Record<string, unknown> {
   const mappedTs = asInt(resolve(req, m.timestampMs));
   const out: Record<string, unknown> = {
     payoutId: resolve(req, m.payoutId),
@@ -102,7 +114,15 @@ export function mapPayout(req: ForwardedRequest, m: FieldMapping, hashKey: strin
     if (v !== undefined && v !== '') out[k] = v;
   }
   const aids = resolve(req, m.approvalIds);
-  const aidList = typeof aids === 'string' ? aids.split(',').map((s) => s.trim()).filter(Boolean) : Array.isArray(aids) ? aids.filter((a): a is string => typeof a === 'string') : [];
+  const aidList =
+    typeof aids === 'string'
+      ? aids
+          .split(',')
+          .map((s) => s.trim())
+          .filter(Boolean)
+      : Array.isArray(aids)
+        ? aids.filter((a): a is string => typeof a === 'string')
+        : [];
   if (aidList.length > 0) out['approvalIds'] = aidList;
   const att = asBool(resolve(req, m.clientAttested));
   if (att !== undefined) out['clientAttested'] = att;
@@ -142,7 +162,15 @@ function hashRaw(req: ForwardedRequest, b: NonNullable<FieldMapping['beneficiary
   const address = s(b.address);
   const network = s(b.network);
   const id: BeneficiaryIdentifier | undefined =
-    account !== undefined && ifsc !== undefined ? { account, ifsc } : vpa !== undefined ? { vpa } : mobile !== undefined ? { mobile } : address !== undefined && network !== undefined ? { address, network } : undefined;
+    account !== undefined && ifsc !== undefined
+      ? { account, ifsc }
+      : vpa !== undefined
+        ? { vpa }
+        : mobile !== undefined
+          ? { mobile }
+          : address !== undefined && network !== undefined
+            ? { address, network }
+            : undefined;
   if (id === undefined) return undefined;
   try {
     return hashBeneficiary(id, key);

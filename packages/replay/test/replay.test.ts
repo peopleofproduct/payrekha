@@ -18,16 +18,59 @@ describe('replay', () => {
     assert.equal(parseTime('2026-10-12 02:10:00'), Date.UTC(2026, 9, 11, 20, 40));
   });
   const payouts = [
-    { payout_id: 'v', timestamp: '2026-10-01 10:00:00', kind: 'VERIFICATION', amount_paise: '100', beneficiary_vpa: 'bb@oksbi', intent_id: 'ver-1' },
-    { payout_id: 'd', timestamp: '2026-10-01 10:30:00', kind: 'LOAN_DISBURSAL', amount_paise: '20000000', beneficiary_vpa: 'bb@oksbi', intent_id: 'disb-1' },
+    {
+      payout_id: 'v',
+      timestamp: '2026-10-01 10:00:00',
+      kind: 'VERIFICATION',
+      amount_paise: '100',
+      beneficiary_vpa: 'bb@oksbi',
+      intent_id: 'ver-1',
+    },
+    {
+      payout_id: 'd',
+      timestamp: '2026-10-01 10:30:00',
+      kind: 'LOAN_DISBURSAL',
+      amount_paise: '20000000',
+      beneficiary_vpa: 'bb@oksbi',
+      intent_id: 'disb-1',
+    },
     { payout_id: 'p1', timestamp: '2026-10-12 02:10:00', kind: 'LOAN_DISBURSAL', amount_paise: '100', beneficiary_vpa: 'mm@okaxis' },
-    { payout_id: 'p2', timestamp: '2026-10-12 02:13:00', kind: 'LOAN_DISBURSAL', amount_rupees: '4,99,999.00', beneficiary_vpa: 'mm@okaxis' },
-    { payout_id: 'u', timestamp: '2026-10-12 02:20:00', kind: 'VENDOR_PAYOUT', amount_paise: '100000', beneficiary_vpa: 'uu@okaxis', origin: 'nonprod' },
+    {
+      payout_id: 'p2',
+      timestamp: '2026-10-12 02:13:00',
+      kind: 'LOAN_DISBURSAL',
+      amount_rupees: '4,99,999.00',
+      beneficiary_vpa: 'mm@okaxis',
+    },
+    {
+      payout_id: 'u',
+      timestamp: '2026-10-12 02:20:00',
+      kind: 'VENDOR_PAYOUT',
+      amount_paise: '100000',
+      beneficiary_vpa: 'uu@okaxis',
+      origin: 'nonprod',
+    },
     { payout_id: 'bad', timestamp: 'yesterday', kind: 'REFUND', amount_paise: '1' },
   ];
   const intents = [
-    { intent_id: 'ver-1', kind: 'VERIFICATION', max_amount_paise: '100', beneficiary_vpa: 'bb@oksbi', subject_ref: 'loan-1', not_before: '2026-10-01 09:00:00', expires_at: '2026-10-02 09:00:00' },
-    { intent_id: 'disb-1', kind: 'LOAN_DISBURSAL', max_amount_paise: '20000000', beneficiary_vpa: 'bb@oksbi', subject_ref: 'loan-1', not_before: '2026-10-01 09:00:00', expires_at: '2026-10-02 09:00:00' },
+    {
+      intent_id: 'ver-1',
+      kind: 'VERIFICATION',
+      max_amount_paise: '100',
+      beneficiary_vpa: 'bb@oksbi',
+      subject_ref: 'loan-1',
+      not_before: '2026-10-01 09:00:00',
+      expires_at: '2026-10-02 09:00:00',
+    },
+    {
+      intent_id: 'disb-1',
+      kind: 'LOAN_DISBURSAL',
+      max_amount_paise: '20000000',
+      beneficiary_vpa: 'bb@oksbi',
+      subject_ref: 'loan-1',
+      not_before: '2026-10-01 09:00:00',
+      expires_at: '2026-10-02 09:00:00',
+    },
   ];
   it('with intents: legit chain allowed, attacks blocked, bad rows skipped', () => {
     const r = runReplay({ payouts, intents, hashKey: HK });
@@ -62,7 +105,14 @@ describe('replay', () => {
   });
   it('intent-less: VERIFICATION binds on subject_ref, dedupes per beneficiary, and falls back unbound on a bad kind', () => {
     const rows = [
-      { payout_id: 'v1', timestamp: '2026-10-12 02:10:00', kind: 'VERIFICATION', amount_paise: '100', beneficiary_vpa: 'ss@okhdfc', subject_ref: 'loan-77' },
+      {
+        payout_id: 'v1',
+        timestamp: '2026-10-12 02:10:00',
+        kind: 'VERIFICATION',
+        amount_paise: '100',
+        beneficiary_vpa: 'ss@okhdfc',
+        subject_ref: 'loan-77',
+      },
       { payout_id: 'v2', timestamp: '2026-10-12 02:11:00', kind: 'VERIFICATION', amount_paise: '100', beneficiary_vpa: 'ss@okhdfc' },
       { payout_id: 'd1', timestamp: '2026-10-12 02:20:00', kind: 'LOAN_DISBURSAL', amount_paise: '50000000', beneficiary_vpa: 'ss@okhdfc' },
       { payout_id: 'w1', timestamp: '2026-10-12 02:25:00', kind: 'NOT_A_KIND', amount_paise: '6000000', beneficiary_vpa: 'ss@okhdfc' },
@@ -77,8 +127,22 @@ describe('replay', () => {
     assert.ok(w1 !== undefined && w1.degraded === true, `expected degraded REVIEW on bad kind: ${JSON.stringify(w1)}`);
   });
   it('intent-less: a high-alert episode resets after the simulated window', () => {
-    const rows = Array.from({ length: 11 }, (_, i) => ({ payout_id: `b${i}`, timestamp: `2026-10-12 02:${String(i).padStart(2, '0')}:00`, kind: 'REFUND', amount_paise: '3000000000', beneficiary_vpa: `bb${i}@okaxis`, source_key_id: 'k-burst' }));
-    rows.push({ payout_id: 'after', timestamp: '2026-10-13 10:00:00', kind: 'REFUND', amount_paise: '4000', beneficiary_vpa: 'zz@okaxis', source_key_id: 'k-burst' });
+    const rows = Array.from({ length: 11 }, (_, i) => ({
+      payout_id: `b${i}`,
+      timestamp: `2026-10-12 02:${String(i).padStart(2, '0')}:00`,
+      kind: 'REFUND',
+      amount_paise: '3000000000',
+      beneficiary_vpa: `bb${i}@okaxis`,
+      source_key_id: 'k-burst',
+    }));
+    rows.push({
+      payout_id: 'after',
+      timestamp: '2026-10-13 10:00:00',
+      kind: 'REFUND',
+      amount_paise: '4000',
+      beneficiary_vpa: 'zz@okaxis',
+      source_key_id: 'k-burst',
+    });
     const r = runReplay({ payouts: rows, hashKey: HK });
     assert.ok(r.alertEpisodes.length >= 1);
     assert.ok(r.alertEpisodes[0]!.endMs !== null, 'episode should close after the simulated reset window');
@@ -92,7 +156,13 @@ describe('replay', () => {
     const r = runReplay({
       payouts: [
         { payout_id: 'm1', timestamp: '2026-10-12 02:10:00', kind: 'LOAN_DISBURSAL', amount_paise: '100', beneficiary_vpa: 'qq@okicici' },
-        { payout_id: 'm2', timestamp: '2026-10-12 02:13:00', kind: 'LOAN_DISBURSAL', amount_paise: '50000000', beneficiary_vpa: 'qq@okicici' },
+        {
+          payout_id: 'm2',
+          timestamp: '2026-10-12 02:13:00',
+          kind: 'LOAN_DISBURSAL',
+          amount_paise: '50000000',
+          beneficiary_vpa: 'qq@okicici',
+        },
       ],
       hashKey: HK,
     });
@@ -103,8 +173,20 @@ describe('replay', () => {
     const r = runReplay({
       payouts: [
         { payout_id: 'n1', timestamp: '2026-10-12 23:50:00', kind: 'LOAN_DISBURSAL', amount_paise: '100', beneficiary_vpa: 'rr@okaxis' },
-        { payout_id: 'n2', timestamp: '2026-10-12 23:55:00', kind: 'LOAN_DISBURSAL', amount_paise: '50000000', beneficiary_vpa: 'rr@okaxis' },
-        { payout_id: 'n3', timestamp: '2026-10-13 00:10:00', kind: 'LOAN_DISBURSAL', amount_paise: '60000000', beneficiary_vpa: 'rr@okaxis' },
+        {
+          payout_id: 'n2',
+          timestamp: '2026-10-12 23:55:00',
+          kind: 'LOAN_DISBURSAL',
+          amount_paise: '50000000',
+          beneficiary_vpa: 'rr@okaxis',
+        },
+        {
+          payout_id: 'n3',
+          timestamp: '2026-10-13 00:10:00',
+          kind: 'LOAN_DISBURSAL',
+          amount_paise: '60000000',
+          beneficiary_vpa: 'rr@okaxis',
+        },
       ],
       hashKey: HK,
     });
@@ -112,7 +194,10 @@ describe('replay', () => {
     for (const ch of r.chains) {
       assert.ok(ch.startMs <= ch.endMs, `chain inverted: ${ch.startMs} → ${ch.endMs}`);
       const times = ch.steps.map((s) => s.atMs);
-      assert.deepEqual(times, [...times].sort((a, b) => a - b));
+      assert.deepEqual(
+        times,
+        [...times].sort((a, b) => a - b),
+      );
     }
     const term = terminalSummary(r);
     assert.ok(term.includes('→'));
@@ -123,8 +208,20 @@ describe('replay', () => {
     const r = runReplay({
       payouts: [
         { payout_id: 's1', timestamp: '2026-10-12 14:00:00', kind: 'LOAN_DISBURSAL', amount_paise: '100', beneficiary_vpa: 'tt@okaxis' },
-        { payout_id: 's2', timestamp: '2026-10-12 14:05:00', kind: 'LOAN_DISBURSAL', amount_paise: '50000000', beneficiary_vpa: 'tt@okaxis' },
-        { payout_id: 's3', timestamp: '2026-10-12 14:20:00', kind: 'LOAN_DISBURSAL', amount_paise: '60000000', beneficiary_vpa: 'tt@okaxis' },
+        {
+          payout_id: 's2',
+          timestamp: '2026-10-12 14:05:00',
+          kind: 'LOAN_DISBURSAL',
+          amount_paise: '50000000',
+          beneficiary_vpa: 'tt@okaxis',
+        },
+        {
+          payout_id: 's3',
+          timestamp: '2026-10-12 14:20:00',
+          kind: 'LOAN_DISBURSAL',
+          amount_paise: '60000000',
+          beneficiary_vpa: 'tt@okaxis',
+        },
       ],
       hashKey: HK,
     });
@@ -164,7 +261,22 @@ describe('replay', () => {
     }
   });
   it('HTML is self-contained, escaped and has no raw identifiers', () => {
-    const html = htmlReport(runReplay({ payouts: [...payouts, { payout_id: '<script>x</script>', timestamp: '2026-10-12 03:00:00', kind: 'REFUND', amount_paise: '100', beneficiary_vpa: 'zz@okaxis', origin: 'nonprod' }], hashKey: HK }));
+    const html = htmlReport(
+      runReplay({
+        payouts: [
+          ...payouts,
+          {
+            payout_id: '<script>x</script>',
+            timestamp: '2026-10-12 03:00:00',
+            kind: 'REFUND',
+            amount_paise: '100',
+            beneficiary_vpa: 'zz@okaxis',
+            origin: 'nonprod',
+          },
+        ],
+        hashKey: HK,
+      }),
+    );
     assert.ok(!html.includes('<script>'));
     assert.ok(!/(src|href)="https?:/.test(html));
     assert.ok(!html.includes('mm@okaxis'));

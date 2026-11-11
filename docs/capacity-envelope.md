@@ -13,10 +13,10 @@ numbers bound the shape of the envelope, not your machine's exact point on it.
 
 ## Evaluation throughput vs state size
 
-| State | eval rps | p50 | p95 | p99 | max |
-|---|---|---|---|---|---|
-| 20k intents · 50k beneficiaries · 5k merchants | ~125k/s | 9 µs | 26 µs | 32 µs | 7.4 ms |
-| 100k intents · 200k beneficiaries · 20k merchants | ~108k/s | 9 µs | 28 µs | 34 µs | 9.6 ms |
+| State                                             | eval rps | p50  | p95   | p99   | max    |
+| ------------------------------------------------- | -------- | ---- | ----- | ----- | ------ |
+| 20k intents · 50k beneficiaries · 5k merchants    | ~125k/s  | 9 µs | 26 µs | 32 µs | 7.4 ms |
+| 100k intents · 200k beneficiaries · 20k merchants | ~108k/s  | 9 µs | 28 µs | 34 µs | 9.6 ms |
 
 `evaluate()` is effectively flat against state size — rules touch bounded
 ledgers (`LruMap`/`TimeRing`), not the full set. The p99 is two orders of
@@ -27,14 +27,14 @@ magnitude under the 5 ms budget; the max is a GC/alloc outlier, not a rule.
 `exportState()` is deliberately synchronous: the snapshot must be one
 instant's consistent view (a torn export could resurrect a spent intent's
 free use — that direction is unsafe, the other direction is a false
-decline). Everything *after* export — canonical serialization, the HMAC,
+decline). Everything _after_ export — canonical serialization, the HMAC,
 the file write — is immutable work, so `serializeSnapshot` slices it into
 ~2 ms event-loop yields (`yieldEvery` leaf steps, default 2048).
 
-| Snapshot size | `exportState` (sync stall) | serialize wall (off-loop) | worst loop gap during serialize |
-|---|---|---|---|
-| ~12 MB (20k intents / 50k bens) | ~6 ms | ~82 ms | ~5 ms |
-| ~56 MB (100k intents / 200k bens) | ~60 ms | ~340 ms | ~8 ms |
+| Snapshot size                     | `exportState` (sync stall) | serialize wall (off-loop) | worst loop gap during serialize |
+| --------------------------------- | -------------------------- | ------------------------- | ------------------------------- |
+| ~12 MB (20k intents / 50k bens)   | ~6 ms                      | ~82 ms                    | ~5 ms                           |
+| ~56 MB (100k intents / 200k bens) | ~60 ms                     | ~340 ms                   | ~8 ms                           |
 
 Before B3 the stall was `export + canonicalJson + JSON.stringify +
 writeFileSync` as one blocking run (~4–6× the export number above). Now the
@@ -55,7 +55,7 @@ snapshot per 1k rows**, linear. Watch it on `/metrics`:
   LRU bounds the file snapshot.
 - If `exportMs` ever approaches ~250 ms the plan is **sharding, not
   weakening the consistency anchor**: split the snapshot into
-  per-section exports each taken at its own instant — tearing *between*
+  per-section exports each taken at its own instant — tearing _between_
   sections is safe only when reservation rows are exported **before** the
   intent counters they consume (a tear then yields a false decline, never
   a double-spend). Not implemented — flagged in
@@ -63,14 +63,14 @@ snapshot per 1k rows**, linear. Watch it on `/metrics`:
 
 ## Memory
 
-| State | heap after seed | heap after 8 s run |
-|---|---|---|
-| 20k intents · 50k bens | ~73 MB | ~124 MB |
-| 100k intents · 200k bens | ~131 MB | ~613 MB |
+| State                    | heap after seed | heap after 8 s run |
+| ------------------------ | --------------- | ------------------ |
+| 20k intents · 50k bens   | ~73 MB          | ~124 MB            |
+| 100k intents · 200k bens | ~131 MB         | ~613 MB            |
 
 Post-run heap is dominated by the dedupe cache + ledgers for distinct
 traffic seen during the run — both `LruMap`-bounded (capacity ~1M rows).
-Size pods by the *seed* heap + dedupe/ledger headroom, not the snapshot file.
+Size pods by the _seed_ heap + dedupe/ledger headroom, not the snapshot file.
 
 ## What this is not
 
