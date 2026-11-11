@@ -2,7 +2,7 @@
   "name": "payrekha",
   "version": "0.1.0-alpha.2",
   "private": true,
-  "description": "PayRekha — open-source, in-process payout firewall for Indian BFSI. No matching intent, no payout — whoever is calling your API.",
+  "description": "PayRekha \u2014 open-source, in-process payout firewall for Indian BFSI. No matching intent, no payout \u2014 whoever is calling your API.",
   "license": "Apache-2.0",
   "author": "Kapil <kapil@theproduct.city>",
   "type": "module",
@@ -14,7 +14,7 @@
     "packages/replay"
   ],
   "scripts": {
-    "build": "tsc -b",
+    "build": "node init && tsc -b",
     "clean": "tsc -b --clean",
     "typecheck": "tsc -b --pretty && tsc -p tsconfig.test.json",
     "lint": "eslint .",
