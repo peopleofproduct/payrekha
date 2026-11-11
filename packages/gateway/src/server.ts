@@ -3,6 +3,7 @@
 
 import { createHash, randomUUID, timingSafeEqual } from 'node:crypto';
 import { createServer, type IncomingMessage, type Server, type ServerResponse } from 'node:http';
+import { createServer as createHttpsServer, type Server as HttpsServer } from 'node:https';
 import { AuthorizationError, hashBeneficiary, looksLikeRawIdentifier, INTENT_KINDS, type BeneficiaryIdentifier, type IntentKind, type MintSpec, type Mode, type Payrekha, type PayoutOutcome, type PayoutRequest, type PayoutVerdict, type SignerKey, type StateStore } from '@payrekha/core';
 import { decisionRecord, type DecisionLog } from './log.js';
 import { mapPayout, type FieldMapping } from './mapping.js';
@@ -35,6 +36,25 @@ export interface ApiKey {
    * Absent = unrestricted (suitable for the payout API itself).
    */
   readonly merchantIds?: readonly string[];
+}
+
+/**
+ * Serve the gateway over TLS instead of plain HTTP — defense-in-depth inside
+ * the cluster for deployments that do not run a TLS-terminating sidecar/mesh.
+ * PEM *contents* (the config layer reads files; this layer does no I/O).
+ * `clientAuth: 'required'` turns it into mTLS: clients without a certificate
+ * signed by `ca` are rejected at the handshake — note health probes and
+ * Prometheus scrapes then need client certs too (or an exec probe).
+ */
+export interface TlsOptions {
+  readonly key: string | Buffer;
+  readonly cert: string | Buffer;
+  /** CA bundle for verifying client certificates — needed when `clientAuth` is set. */
+  readonly ca?: string | Buffer | readonly (string | Buffer)[];
+  /** 'required' rejects certless clients (mTLS); 'optional' asks for but tolerates absence. */
+  readonly clientAuth?: 'optional' | 'required';
+  /** Default 'TLSv1.2'. Set 'TLSv1.3' for a stricter floor. */
+  readonly minVersion?: 'TLSv1.2' | 'TLSv1.3';
 }
 
 export interface ExtAuthzOptions {
@@ -116,6 +136,8 @@ export interface GatewayOptions {
     readonly modes?: readonly Mode[];
   };
   readonly maxBodyBytes?: number;
+  /** Serve HTTPS (optionally mTLS) instead of plain HTTP — see `TlsOptions`. */
+  readonly tls?: TlsOptions;
   readonly now?: () => number;
   readonly version?: string;
   readonly onError?: (where: string, err: unknown) => void;
@@ -124,7 +146,7 @@ export interface GatewayOptions {
 }
 
 export interface GatewayHandle {
-  readonly server: Server;
+  readonly server: Server | HttpsServer;
   readonly stats: GatewayStats;
   setReady(ready: boolean, reason?: string): void;
   /** Resolves false when there is no store or the save failed. A second writer marks the gateway not ready. */
@@ -567,7 +589,10 @@ export function createGateway(o: GatewayOptions): GatewayHandle {
 
   // Bound the obvious resource levers: slow header drip and a request that
   // never finishes. Verdicts complete in microseconds; these are generous.
-  const server = createServer({ headersTimeout: 15_000, requestTimeout: 30_000 }, (req, res) => {
+  const tls = o.tls;
+  if (tls !== undefined && tls.clientAuth !== undefined && tls.ca === undefined)
+    throw new Error('tls.clientAuth requires tls.ca — a CA bundle is needed to verify client certificates');
+  const handler = (req: IncomingMessage, res: ServerResponse): void => {
     const inbound = req.headers['x-request-id'];
     const rid = typeof inbound === 'string' && REQ_ID.test(inbound) ? inbound : randomUUID();
     res.setHeader('x-request-id', rid);
@@ -585,7 +610,23 @@ export function createGateway(o: GatewayOptions): GatewayHandle {
         const key = `${req.method ?? 'GET'} ${routeLabel(req.url ?? '/')} ${res.statusCode}`;
         stats.requests.set(key, (stats.requests.get(key) ?? 0) + 1);
       });
-  });
+  };
+  const server =
+    tls === undefined
+      ? createServer({ headersTimeout: 15_000, requestTimeout: 30_000 }, handler)
+      : createHttpsServer(
+          {
+            key: tls.key,
+            cert: tls.cert,
+            headersTimeout: 15_000,
+            requestTimeout: 30_000,
+            minVersion: tls.minVersion ?? 'TLSv1.2',
+            ...(tls.ca !== undefined ? { ca: tls.ca as string | Buffer | (string | Buffer)[] } : {}),
+            requestCert: tls.clientAuth !== undefined,
+            rejectUnauthorized: tls.clientAuth === 'required',
+          },
+          handler,
+        );
 
   return {
     server,

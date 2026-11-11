@@ -22,7 +22,7 @@ FIELD_MAP_FILE=fieldmaps/los-disbursal.json   # or FIELD_MAP='<inline json>'
 ```
 
 - webhook: `BRIDGE_PORT` (8090), `BRIDGE_HOOK_SECRET` (`x-bridge-token` check), `BRIDGE_MAX_BODY`.
-- kafka: `KAFKA_BROKERS`, `KAFKA_TOPIC`, `KAFKA_GROUP`, `KAFKA_SASL_*`, `KAFKA_SSL=1`, `KAFKA_FROM_BEGINNING=1`. Needs `npm i kafkajs` (optional peer) or the Dockerfile.
+- kafka: `KAFKA_BROKERS`, `KAFKA_TOPIC`, `KAFKA_GROUP`, `KAFKA_SASL_*`, `KAFKA_SSL=1`, `KAFKA_FROM_BEGINNING=1`. Needs `kafkajs` — pinned in `package-lock.json`, so `npm ci` or the Dockerfile gives you the locked tree.
 - sqs: `SQS_QUEUE_URL`, `AWS_REGION`, `AWS_ACCESS_KEY_ID`/`AWS_SECRET_ACCESS_KEY`/`AWS_SESSION_TOKEN` (IRSA/env), `SQS_BATCH`, `SQS_VISIBILITY`. Zero AWS-SDK dep — SigV4 over node:crypto.
 
 ## Writing a fieldMap

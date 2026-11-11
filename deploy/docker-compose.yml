@@ -16,7 +16,7 @@ services:
     cap_drop: [ALL]
     environment:
       PAYREKHA_API_KEYS: lms-prod:prod:demo-payrekha-api-key-0123
-      PAYREKHA_ADMIN_KEY: demo-payrekha-admin-key-0123
+      PAYREKHA_ADMIN_KEY: demo-payrekha-admin-key-0123456789
       PAYREKHA_HASH_KEY: demo-payrekha-hash-key-0123
       PAYREKHA_EXT_AUTHZ_KEY: demo-ext-authz-key-0123
       PAYREKHA_CONFIG: /etc/payrekha/payrekha.json

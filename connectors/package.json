@@ -12,10 +12,7 @@
     "start:kafka": "node kafka.mjs",
     "start:sqs": "node sqs.mjs"
   },
-  "peerDependencies": {
-    "kafkajs": "^2.2.4"
-  },
-  "peerDependenciesMeta": {
-    "kafkajs": { "optional": true }
+  "dependencies": {
+    "kafkajs": "2.2.4"
   }
 }

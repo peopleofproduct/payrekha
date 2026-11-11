@@ -30,9 +30,18 @@ Absent `roles` = all roles (legacy); grant narrowly per the doc comment.
 
 ## Admin authentication
 
-`/v1/admin/*` additionally requires the `x-payrekha-admin` token
-(`PAYREKHA_ADMIN_KEY`, ≥16 chars, compared hash-to-hash). Admin actions
-are `audit` records in the same decision log — actor is recorded.
+`/v1/admin/*` and the privileged routes additionally require the admin
+bearer token (`authorization: Bearer <PAYREKHA_ADMIN_KEY>`; ≥16 chars
+enforced, <32 warns at boot — use ≥32), compared hash-to-hash. Admin
+actions are `audit` records in the same decision log — actor is recorded.
+
+## Transport
+
+The listener speaks plain HTTP by default — in the reference topology TLS
+terminates at Envoy/ingress and :8080 stays inside the trust zone. For
+in-zone encryption set `PAYREKHA_TLS_KEY_FILE` + `PAYREKHA_TLS_CERT_FILE`
+(+ `PAYREKHA_TLS_CA_FILE`); `PAYREKHA_TLS_CLIENT_AUTH=required` turns it
+into mTLS — health probes and scrapers then need client certs too.
 
 ## Issuer signing keys (separate plane)
 

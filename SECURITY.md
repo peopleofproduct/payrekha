@@ -37,4 +37,5 @@ PayRekha does not phone home. Core and rules make no network calls; CI enforces 
 - The caller's origin (`prod`/`nonprod`) and source key come from the authenticated API key, never from the request body.
 - Beneficiaries are keyed HMAC hashes at entry; raw identifiers are refused in state and stripped from logs.
 - HIGH_ALERT survives restarts and only clears with an authenticated, reasoned reset.
+- The listener is plain HTTP by design (TLS terminates at the edge in the reference topology); `PAYREKHA_TLS_*` can serve HTTPS — or mTLS with `PAYREKHA_TLS_CLIENT_AUTH=required` — inside the trust zone.
 - Releases are signed (cosign keyless), ship a CycloneDX SBOM and SLSA provenance.

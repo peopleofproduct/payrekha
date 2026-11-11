@@ -7,5 +7,7 @@
 //   PAYREKHA_DECISION_LOG  JSONL path;  PAYREKHA_LOG_FORMAT=cef for QRadar/ArcSight
 //   PAYREKHA_WEBHOOK_URL / PAYREKHA_WEBHOOK_SECRET   SOAR webhook (optional)
 //   PAYREKHA_EXT_AUTHZ_KEY shared key Envoy sends in x-payrekha-key
+//   PAYREKHA_TLS_KEY_FILE / PAYREKHA_TLS_CERT_FILE   serve HTTPS (optional —
+//   PAYREKHA_TLS_CA_FILE / PAYREKHA_TLS_CLIENT_AUTH=required   …or mTLS)
 //   PORT (8080), HOST (0.0.0.0)
 import '../packages/gateway/dist/bin.js';

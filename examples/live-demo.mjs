@@ -11,7 +11,7 @@ import { ed25519PrivateKeyFromSeed, hashBeneficiary, signIntent } from '../packa
 const ENVOY = process.env.ENVOY_URL ?? 'http://localhost:10000';
 const PR = process.env.PAYREKHA_URL ?? 'http://localhost:8080';
 const API = 'demo-payrekha-api-key-0123';
-const ADMIN = 'demo-payrekha-admin-key-0123';
+const ADMIN = 'demo-payrekha-admin-key-0123456789';
 const HASH_KEY = 'demo-payrekha-hash-key-0123';
 const LOS = ed25519PrivateKeyFromSeed(createHash('sha256').update('payrekha-demo-los-key').digest());
 

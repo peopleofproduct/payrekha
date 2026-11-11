@@ -155,6 +155,7 @@ export function bootFromEnv(env: NodeJS.ProcessEnv = process.env, log: (m: strin
   const cfg = (env['PAYREKHA_CONFIG'] !== undefined ? readJson(env['PAYREKHA_CONFIG']) : {}) as PayrekhaFileConfig;
   const adminKey = env['PAYREKHA_ADMIN_KEY'];
   if (adminKey !== undefined && adminKey.length < 16) throw new Error('PAYREKHA_ADMIN_KEY must be at least 16 chars');
+  if (adminKey !== undefined && adminKey.length < 32) log('warning: PAYREKHA_ADMIN_KEY is under 32 chars — acceptable for trials; use ≥32 in production');
   const apiKeys = parseApiKeys(env['PAYREKHA_API_KEYS'] ?? '');
   if (apiKeys.length === 0) throw new Error('PAYREKHA_API_KEYS is required (id:prod|nonprod[:role+role]:token,…)');
   const scope = cfg.gateway?.merchantScope ?? {};
@@ -179,6 +180,8 @@ export function bootFromEnv(env: NodeJS.ProcessEnv = process.env, log: (m: strin
   const webhook =
     env['PAYREKHA_WEBHOOK_URL'] !== undefined ? new WebhookSender({ url: env['PAYREKHA_WEBHOOK_URL'], secret: env['PAYREKHA_WEBHOOK_SECRET'] ?? '' }) : undefined;
   if (webhook !== undefined && (env['PAYREKHA_WEBHOOK_SECRET'] ?? '').length < 16) throw new Error('PAYREKHA_WEBHOOK_SECRET (≥ 16 chars) is required with PAYREKHA_WEBHOOK_URL');
+  if (webhook !== undefined && !env['PAYREKHA_WEBHOOK_URL']!.startsWith('https://'))
+    log('warning: PAYREKHA_WEBHOOK_URL is not https — the HMAC signature protects integrity, but payloads travel in cleartext; use an https endpoint in regulated deployments');
   const fmt = env['PAYREKHA_LOG_FORMAT'] === 'cef' ? 'cef' : 'jsonl';
   const decisionLog =
     env['PAYREKHA_DECISION_LOG'] !== undefined
@@ -279,10 +282,33 @@ export function bootFromEnv(env: NodeJS.ProcessEnv = process.env, log: (m: strin
     sharedState = { backend, commitPolicy: policy, ...(sharedCfg?.controlPollMs !== undefined ? { controlPollMs: sharedCfg.controlPollMs } : {}), ...(retentionDays !== undefined ? { reservationRetentionMs: Math.round(retentionDays * 86_400_000) } : {}) };
     log(`shared state: ${backend.describe} (commitPolicy: ${policy === 'all' ? 'all' : policy.join(',')})`);
   }
+  // Optional TLS on the listener itself — edge termination stays the
+  // production default; this is defense-in-depth (or mTLS) inside the zone.
+  const tlsKeyFile = env['PAYREKHA_TLS_KEY_FILE'];
+  const tlsCertFile = env['PAYREKHA_TLS_CERT_FILE'];
+  let tls: GatewayOptions['tls'];
+  if (tlsKeyFile !== undefined || tlsCertFile !== undefined) {
+    if (tlsKeyFile === undefined || tlsCertFile === undefined) throw new Error('PAYREKHA_TLS_KEY_FILE and PAYREKHA_TLS_CERT_FILE must be set together');
+    const caFile = env['PAYREKHA_TLS_CA_FILE'];
+    const clientAuth = env['PAYREKHA_TLS_CLIENT_AUTH'];
+    const minVersion = env['PAYREKHA_TLS_MIN_VERSION'];
+    if (clientAuth !== undefined && clientAuth !== 'optional' && clientAuth !== 'required') throw new Error("PAYREKHA_TLS_CLIENT_AUTH must be 'optional' or 'required'");
+    if (clientAuth !== undefined && caFile === undefined) throw new Error('PAYREKHA_TLS_CLIENT_AUTH requires PAYREKHA_TLS_CA_FILE — the CA bundle that verifies client certificates');
+    if (minVersion !== undefined && minVersion !== 'TLSv1.2' && minVersion !== 'TLSv1.3') throw new Error('PAYREKHA_TLS_MIN_VERSION must be TLSv1.2 or TLSv1.3');
+    tls = {
+      key: readFileSync(tlsKeyFile),
+      cert: readFileSync(tlsCertFile),
+      ...(caFile !== undefined ? { ca: readFileSync(caFile) } : {}),
+      ...(clientAuth !== undefined ? { clientAuth: clientAuth as 'optional' | 'required' } : {}),
+      ...(minVersion !== undefined ? { minVersion: minVersion as 'TLSv1.2' | 'TLSv1.3' } : {}),
+    };
+    log(`TLS on the gateway listener (min ${minVersion ?? 'TLSv1.2'}${clientAuth === 'required' ? ', client certificates required' : clientAuth === 'optional' ? ', client certificates optional' : ''})`);
+  }
   const gateway = createGateway({
     firewall,
     apiKeys: scopedKeys,
     ...(adminKey !== undefined ? { adminKeySha256: sha(adminKey) } : {}),
+    ...(tls !== undefined ? { tls } : {}),
     ...(hashKey !== undefined ? { hashKey } : {}),
     ...(decisionLog !== undefined ? { decisionLog } : {}),
     ...(mint !== undefined ? { mint } : {}),

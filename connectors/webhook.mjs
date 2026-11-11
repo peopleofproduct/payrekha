@@ -18,6 +18,10 @@ import { makeBridge, loadFieldMap } from './lib/bridge.mjs';
 
 const PORT = Number(process.env.BRIDGE_PORT ?? 8090);
 const SECRET = process.env.BRIDGE_HOOK_SECRET ?? '';
+if (SECRET === '')
+  console.error(
+    'warning: BRIDGE_HOOK_SECRET unset — this receiver accepts unauthenticated events; set it or restrict network access to the port',
+  );
 const handleEvent = makeBridge({
   url: process.env.PAYREKHA_URL ?? 'http://127.0.0.1:8080',
   token: process.env.PAYREKHA_MINT_TOKEN ?? '',

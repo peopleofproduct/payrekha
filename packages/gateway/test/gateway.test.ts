@@ -1,8 +1,13 @@
 // SPDX-License-Identifier: Apache-2.0
 import { strict as assert } from 'node:assert';
+import { execSync } from 'node:child_process';
 import { createHash, createHmac } from 'node:crypto';
+import { mkdtempSync, readFileSync, writeFileSync } from 'node:fs';
 import { createServer } from 'node:http';
+import { request as httpsRequest } from 'node:https';
 import type { AddressInfo } from 'node:net';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
 import { after, before, describe, it } from 'node:test';
 import { generateIssuerKeyPair, hashBeneficiary, MemorySharedBackend, Payrekha, signIntent, type IntentKind } from '@payrekha/core';
 import { auditRecord, createGateway, memoryDecisionLog, parseApiKeys, signWebhook, toCef, WebhookSender, type GatewayHandle } from '@payrekha/gateway';
@@ -78,6 +83,51 @@ async function listen(gw: GatewayHandle): Promise<string> {
 }
 
 const benRef = hashBeneficiary({ account: '000123456789', ifsc: 'HDFC0001234' }, HK);
+
+// Test CA + server/client certs for the TLS listener tests, generated at load
+// with openssl (present on dev machines and CI images). Nothing is committed —
+// the describe below skips where openssl is absent.
+const tlsFixtures = ((): { dir: string; ca: string; srvKey: string; srvCert: string; cliKey: string; cliCert: string; srvKeyPath: string; srvCertPath: string; caPath: string } | undefined => {
+  try {
+    const dir = mkdtempSync(join(tmpdir(), 'prk-tls-'));
+    // Extensions must be applied at signing time (extfile) — works on both
+    // OpenSSL and LibreSSL; CSR-side addext does not survive `x509 -req`.
+    writeFileSync(join(dir, 'ca.cnf'), '[req]\ndistinguished_name=dn\nx509_extensions=v3_ca\n[dn]\n[v3_ca]\nbasicConstraints=critical,CA:true\nkeyUsage=critical,keyCertSign,cRLSign\nsubjectKeyIdentifier=hash\n');
+    writeFileSync(join(dir, 'srv-ext.cnf'), 'basicConstraints=CA:FALSE\nsubjectAltName=DNS:localhost,IP:127.0.0.1\nextendedKeyUsage=serverAuth\n');
+    writeFileSync(join(dir, 'cli-ext.cnf'), 'basicConstraints=CA:FALSE\nextendedKeyUsage=clientAuth\n');
+    const run = (args: string) => execSync(`openssl ${args}`, { cwd: dir, stdio: 'pipe' });
+    run('req -x509 -newkey rsa:2048 -nodes -keyout ca-key.pem -out ca.pem -subj /CN=payrekha-test-ca -days 2 -config ca.cnf');
+    run('req -newkey rsa:2048 -nodes -keyout srv-key.pem -out srv.csr -subj /CN=localhost');
+    run('x509 -req -in srv.csr -CA ca.pem -CAkey ca-key.pem -CAcreateserial -out srv.pem -days 2 -extfile srv-ext.cnf');
+    run('req -newkey rsa:2048 -nodes -keyout cli-key.pem -out cli.csr -subj /CN=payrekha-test-client');
+    run('x509 -req -in cli.csr -CA ca.pem -CAkey ca-key.pem -CAcreateserial -out cli.pem -days 2 -extfile cli-ext.cnf');
+    const read = (f: string) => readFileSync(join(dir, f), 'utf8');
+    return { dir, ca: read('ca.pem'), srvKey: read('srv-key.pem'), srvCert: read('srv.pem'), cliKey: read('cli-key.pem'), cliCert: read('cli.pem'), srvKeyPath: join(dir, 'srv-key.pem'), srvCertPath: join(dir, 'srv.pem'), caPath: join(dir, 'ca.pem') };
+  } catch {
+    return undefined;
+  }
+})();
+
+const httpsPost = (u: string, path: string, body: unknown, opts: { ca?: string; cert?: string; key?: string; token?: string } = {}) =>
+  new Promise<{ status: number; json: () => unknown }>((resolve, reject) => {
+    const req = httpsRequest(
+      u + path,
+      {
+        method: 'POST',
+        headers: { 'content-type': 'application/json', ...(opts.token !== undefined ? { authorization: `Bearer ${opts.token}` } : {}) },
+        ...(opts.ca !== undefined ? { ca: opts.ca } : {}),
+        ...(opts.cert !== undefined ? { cert: opts.cert } : {}),
+        ...(opts.key !== undefined ? { key: opts.key } : {}),
+      },
+      (res) => {
+        let d = '';
+        res.on('data', (c: Buffer) => (d += c.toString()));
+        res.on('end', () => resolve({ status: res.statusCode ?? 0, json: () => JSON.parse(d) }));
+      },
+    );
+    req.on('error', reject);
+    req.end(JSON.stringify(body));
+  });
 const loanIntent = (id: string, keyId = 'los-1', privateKey: string = LOS.privateKey) =>
   signIntent(
     { intentId: id, kind: 'LOAN_DISBURSAL', maxAmountPaise: 2_40_000_00, beneficiaryRef: benRef, maxUses: 1, notBeforeMs: T0 - 60_000, expiresAtMs: T0 + 3_600_000, issuer: 'los-prod', keyId },
@@ -732,5 +782,71 @@ describe('shared state (ADR 0004 active-active)', () => {
       gw.server.close();
       await gw.closeShared();
     }
+  });
+});
+
+describe('TLS listener (PAYREKHA_TLS_*)', { skip: tlsFixtures === undefined ? 'openssl unavailable' : false }, () => {
+  const fx = tlsFixtures!;
+  const tlsGw = (extra: { clientAuth?: 'optional' | 'required' } = {}) =>
+    createGateway({
+      firewall: new Payrekha(payrekhaRules({ band: false }).rules, { config: { mode: 'enforce', adminTokenSha256: sha(ADMIN) }, keys: [{ keyId: 'los-1', issuer: 'los-prod', alg: 'ed25519', publicKey: LOS.publicKey, kinds: ['LOAN_DISBURSAL'] }], now: () => T0 }),
+      apiKeys: [{ id: 'lms', sha256: sha(API), origin: 'prod' }],
+      hashKey: HK,
+      now: () => T0,
+      tls: { key: fx.srvKey, cert: fx.srvCert, ca: fx.ca, ...(extra.clientAuth !== undefined ? { clientAuth: extra.clientAuth } : {}) },
+    });
+  const listenTls = async (gw: GatewayHandle): Promise<string> => {
+    await new Promise<void>((r) => gw.server.listen(0, '127.0.0.1', r));
+    return `https://127.0.0.1:${(gw.server.address() as AddressInfo).port}`;
+  };
+
+  it('serves HTTPS: bearer auth enforced, no plaintext accepted', async () => {
+    const gw = tlsGw();
+    const url = await listenTls(gw);
+    try {
+      assert.equal((await httpsPost(url, '/v1/evaluate', {}, { ca: fx.ca })).status, 401);
+      const res = await httpsPost(url, '/v1/evaluate', { payoutId: 'p-tls', kind: 'REFUND', amountPaise: 100_00, beneficiaryRef: benRef, channel: 'IMPS' }, { ca: fx.ca, token: API });
+      assert.equal(res.status, 200, JSON.stringify(res.json()));
+      await assert.rejects(fetch(url.replace('https://', 'http://') + '/healthz'), 'an http client must not speak to the TLS listener');
+    } finally {
+      gw.server.close();
+    }
+  });
+
+  it('mTLS required: certless clients die at the handshake, signed clients pass', async () => {
+    const gw = tlsGw({ clientAuth: 'required' });
+    const url = await listenTls(gw);
+    try {
+      await assert.rejects(httpsPost(url, '/v1/evaluate', {}, { ca: fx.ca, token: API }), 'handshake must abort without a client certificate');
+      const res = await httpsPost(url, '/v1/evaluate', { payoutId: 'p-mtls', kind: 'REFUND', amountPaise: 100_00, beneficiaryRef: benRef, channel: 'IMPS' }, { ca: fx.ca, cert: fx.cliCert, key: fx.cliKey, token: API });
+      assert.equal(res.status, 200, JSON.stringify(res.json()));
+    } finally {
+      gw.server.close();
+    }
+  });
+
+  it('clientAuth without a CA bundle fails fast at construction', () => {
+    assert.throws(
+      () =>
+        createGateway({
+          firewall: new Payrekha(payrekhaRules({ band: false }).rules, { config: { mode: 'shadow', adminTokenSha256: sha(ADMIN) }, keys: [], now: () => T0 }),
+          apiKeys: [{ id: 'lms', sha256: sha(API), origin: 'prod' }],
+          hashKey: HK,
+          tls: { key: fx.srvKey, cert: fx.srvCert, clientAuth: 'required' },
+        }),
+      /tls\.ca/,
+    );
+  });
+
+  it('bootFromEnv: key without cert, clientAuth without CA, and a valid boot', () => {
+    return import('@payrekha/gateway').then(({ bootFromEnv }) => {
+      const quiet = () => undefined;
+      const base = { PAYREKHA_API_KEYS: `lms:prod:${API}` };
+      assert.throws(() => bootFromEnv({ ...base, PAYREKHA_TLS_KEY_FILE: fx.srvKeyPath }, quiet), /must be set together/);
+      assert.throws(() => bootFromEnv({ ...base, PAYREKHA_TLS_KEY_FILE: fx.srvKeyPath, PAYREKHA_TLS_CERT_FILE: fx.srvCertPath, PAYREKHA_TLS_CLIENT_AUTH: 'required' }, quiet), /PAYREKHA_TLS_CA_FILE/);
+      assert.throws(() => bootFromEnv({ ...base, PAYREKHA_TLS_KEY_FILE: fx.srvKeyPath, PAYREKHA_TLS_CERT_FILE: fx.srvCertPath, PAYREKHA_TLS_MIN_VERSION: 'TLSv1.1' }, quiet), /TLSv1\.2 or TLSv1\.3/);
+      const booted = bootFromEnv({ ...base, PAYREKHA_TLS_KEY_FILE: fx.srvKeyPath, PAYREKHA_TLS_CERT_FILE: fx.srvCertPath }, quiet);
+      booted.gateway.server.close();
+    });
   });
 });

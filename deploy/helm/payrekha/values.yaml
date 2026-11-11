@@ -38,6 +38,11 @@ standby:
 #   PAYREKHA_MINT_KEY_ID + PAYREKHA_MINT_KEY    managed intents (ed25519 issuer
 #                                             keyId + pkcs8 base64 key) — optional,
 #                                             see docs/adoption.md tier 1
+#   PAYREKHA_TLS_KEY_FILE / PAYREKHA_TLS_CERT_FILE / PAYREKHA_TLS_CA_FILE
+#                                             optional TLS/mTLS on :8080 — mount
+#                                             PEMs from the same or a second secret;
+#                                             clientAuth=required turns it into mTLS
+#                                             (probes then need client certs)
 existingSecret: payrekha
 
 # Rendered to /etc/payrekha/payrekha.json. No secrets here.

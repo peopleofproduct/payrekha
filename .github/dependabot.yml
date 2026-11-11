@@ -11,6 +11,11 @@ updates:
         dependency-type: development
       production-dependencies:
         dependency-type: production
+  # Connectors carry their own lockfile (kafkajs) — separate npm entry.
+  - package-ecosystem: npm
+    directory: /connectors
+    schedule:
+      interval: weekly
   # Keeps the SHA-pinned actions current — dependabot updates the pin and
   # the trailing version comment together.
   - package-ecosystem: github-actions
@@ -19,6 +24,10 @@ updates:
       interval: weekly
   - package-ecosystem: docker
     directory: /deploy
+    schedule:
+      interval: weekly
+  - package-ecosystem: docker
+    directory: /connectors
     schedule:
       interval: weekly
   - package-ecosystem: gomod

@@ -22,7 +22,7 @@ jobs:
       - name: Dependabot diff must only touch manifests
         run: |
           files=$(git diff --name-only origin/${{ github.base_ref }}...HEAD)
-          bad=$(echo "$files" | grep -vE '^(package\.json|package-lock\.json|packages/[^/]+/package\.json|clients/[^/]+/(go\.mod|go\.sum|requirements\.txt|pom\.xml|build\.gradle[^/]*)|deploy/[^/]*Dockerfile[^/]*|\.github/workflows/[^/]*\.ya?ml|\.github/dependabot\.yml)$' || true)
+          bad=$(echo "$files" | grep -vE '^(package\.json|package-lock\.json|packages/[^/]+/package\.json|connectors/package\.json|connectors/package-lock\.json|clients/[^/]+/(go\.mod|go\.sum|requirements\.txt|pom\.xml|build\.gradle[^/]*)|(deploy|connectors)/[^/]*Dockerfile[^/]*|\.github/workflows/[^/]*\.ya?ml|\.github/dependabot\.yml)$' || true)
           if [ -n "$bad" ]; then
             echo "::error::Dependabot PR touches non-manifest files — possible sandbox poisoning:"
             echo "$bad"
@@ -131,6 +131,9 @@ jobs:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7.0.1
       - run: docker compose -f deploy/docker-compose.yml config -q
       - run: docker build -f deploy/Dockerfile -t payrekha:ci .
+      # The connector image must build from its lockfile — catches manifest
+      # drift and unpinned-install regressions, not just image breakage.
+      - run: docker build -f connectors/Dockerfile -t payrekha-connectors:ci connectors/
       - name: Non-root, read-only root filesystem, answers /readyz
         run: |
           docker run -d --name pr --read-only --cap-drop ALL -p 18080:8080 \
@@ -158,7 +161,7 @@ jobs:
           # Per-run throwaway keys — no credential-shaped literals in the file.
           export PAYREKHA_EVALUATE_KEY=$(echo ci-evaluate-$GITHUB_RUN_ID | sha256sum | cut -c1-24)
           export PAYREKHA_READ_KEY=$(echo ci-read-$GITHUB_RUN_ID | sha256sum | cut -c1-24)
-          export PAYREKHA_ADMIN_KEY=$(echo ci-admin-$GITHUB_RUN_ID | sha256sum | cut -c1-24)
+          export PAYREKHA_ADMIN_KEY=$(echo ci-admin-$GITHUB_RUN_ID | sha256sum | cut -c1-40)
           export PAYREKHA_HASH_KEY=$(echo ci-hash-$GITHUB_RUN_ID | sha256sum | cut -c1-40)
           export PAYREKHA_STATE_KEY=$(echo ci-state-$GITHUB_RUN_ID | sha256sum | cut -c1-40)
           export PAYREKHA_EXT_AUTHZ_KEY=$(echo ci-extauthz-$GITHUB_RUN_ID | sha256sum | cut -c1-24)
