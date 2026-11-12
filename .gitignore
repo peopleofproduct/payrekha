@@ -4,8 +4,6 @@ coverage/
 *.tsbuildinfo
 .DS_Store
 *.log
-.env
-.env.*
 .npmrc
 report.html
 report.json
@@ -24,3 +22,4 @@ clients/java/build/
 __pycache__/
 *.pyc
 clients/python/dist/
+config.bat
